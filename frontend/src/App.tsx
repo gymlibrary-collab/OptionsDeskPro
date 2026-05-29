@@ -4,8 +4,9 @@ import OptionsChain from './components/OptionsChain'
 import OrderEntry from './components/OrderEntry'
 import Positions from './components/Positions'
 import Orders from './components/Orders'
+import StrategyScanner from './components/StrategyScanner'
 
-type Tab = 'chain' | 'positions' | 'orders'
+type Tab = 'chain' | 'positions' | 'orders' | 'scanner'
 
 export interface OrderPrefill {
   symbol: string
@@ -164,13 +165,19 @@ function App() {
       <div style={styles.body}>
         <div style={styles.main}>
           <div style={styles.tabBar}>
-            {(['chain', 'positions', 'orders'] as Tab[]).map(tab => (
+            {(['chain', 'positions', 'orders', 'scanner'] as Tab[]).map(tab => (
               <button
                 key={tab}
                 style={styles.tab(activeTab === tab)}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab === 'chain' ? 'Options Chain' : tab === 'positions' ? 'Positions' : 'Orders'}
+                {tab === 'chain'
+                  ? 'Options Chain'
+                  : tab === 'positions'
+                  ? 'Positions'
+                  : tab === 'orders'
+                  ? 'Orders'
+                  : 'Strategy Scanner'}
               </button>
             ))}
           </div>
@@ -186,6 +193,9 @@ function App() {
             )}
             {activeTab === 'orders' && (
               <Orders key={orderRefresh} />
+            )}
+            {activeTab === 'scanner' && (
+              <StrategyScanner onAddToOrder={handleRowClick} />
             )}
           </div>
         </div>

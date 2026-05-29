@@ -106,4 +106,99 @@ export const getPositions = () =>
 export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio').then(r => r.data)
 
+// ─── Strategy Intelligence ──────────────────────────────────────────────────
+
+export interface StrategyRecommendation {
+  key: string
+  name: string
+  description: string
+  direction: string[]
+  iv_environment: string[]
+  risk_type: string
+  complexity: number
+  dte_target: number
+  pop_range: [number, number]
+  profit_target_pct: number
+  fit_score: number
+}
+
+export interface TradeLeg {
+  role: string
+  option_type: string
+  strike: number
+  delta: number
+  bid: number
+  ask: number
+  mid: number
+  action: string
+}
+
+export interface TradeStructure {
+  strategy: string
+  strategy_key: string
+  expiry: string
+  legs: TradeLeg[]
+  max_profit: number | null
+  max_loss: number | null
+  estimated_credit_or_debit: number
+  pop_estimate: number | null
+  breakeven_low: number | null
+  breakeven_high: number | null
+  tastylive_profit_target: number | null
+  risk_type: string
+  profit_target_pct: number
+  error?: string
+}
+
+export interface IVAnalysis {
+  symbol: string
+  current_iv: number
+  iv_rank: number
+  hv_30d: number
+  hv_52wk_high: number
+  hv_52wk_low: number
+  iv_environment: string
+  percentile_label: string
+  error?: string
+}
+
+export interface BiasAnalysis {
+  symbol: string
+  price: number
+  sma20: number
+  sma50: number
+  rsi14: number
+  bias: string
+  strength: string
+  error?: string
+}
+
+export interface AnalyzeSymbolResponse {
+  symbol: string
+  iv_analysis: IVAnalysis
+  bias_analysis: BiasAnalysis
+  recommendations: StrategyRecommendation[]
+  trades: { strategy_key: string; strategy_name: string; trade: TradeStructure }[]
+}
+
+export interface ScanResult {
+  symbol: string
+  price: number
+  iv_rank: number
+  current_iv: number
+  iv_environment: string
+  percentile_label: string
+  bias: string
+  bias_strength: string
+  rsi14: number
+  top_strategy: StrategyRecommendation | null
+  error?: string
+}
+
+export const analyzeSymbol = (symbol: string): Promise<AnalyzeSymbolResponse> =>
+  api.get(`/strategies/analyze/${symbol}`).then(r => r.data)
+
+export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
+  api.get(`/strategies/scan`, { params: { symbols } }).then(r => r.data)
+
 export default api
