@@ -81,6 +81,18 @@ async def analyze_symbol(symbol: str):
         except Exception as e:
             logger.warning(f"build_trade failed for {strategy_key}: {e}")
             trade = {"error": str(e)}
+
+        # Attach plain-English narrative
+        strategy_catalog_entry = {**STRATEGIES.get(strategy_key, {}), "key": strategy_key}
+        try:
+            narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade)
+        except Exception as e:
+            logger.warning(f"generate_narrative failed for {strategy_key}: {e}")
+            narrative = None
+
+        if not trade.get("error") and narrative:
+            trade["narrative"] = narrative
+
         trades.append({
             "strategy_key": strategy_key,
             "strategy_name": rec["name"],
@@ -117,6 +129,23 @@ async def scan_watchlist(symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT"):
             recs = recommend_strategies(iv_env, bias)
             top_rec = recs[0] if recs else None
 
+            # Add brief narrative (headline + confirmation_summary) for scan table
+            scan_narrative = None
+            if top_rec:
+                try:
+                    spot = bias_data.get("price", 0.0)
+                    enriched_chain = {"expirations": [], "expiry": None, "calls": [], "puts": []}
+                    strategy_catalog_entry = {**STRATEGIES.get(top_rec["key"], {}), "key": top_rec["key"]}
+                    # Build a minimal stub trade for the scan narrative (no chain needed for text fields)
+                    stub_trade = {"error": "scan mode — no chain loaded"}
+                    full_narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, stub_trade)
+                    scan_narrative = {
+                        "headline": full_narrative.get("headline", ""),
+                        "confirmation_summary": full_narrative.get("confirmation_summary", ""),
+                    }
+                except Exception as e:
+                    logger.debug(f"Scan narrative failed for {symbol}: {e}")
+
             results.append({
                 "symbol": symbol,
                 "price": bias_data.get("price", 0.0),
@@ -128,6 +157,7 @@ async def scan_watchlist(symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT"):
                 "bias_strength": bias_data.get("strength", "MODERATE"),
                 "rsi14": bias_data.get("rsi14", 50.0),
                 "top_strategy": top_rec,
+                "scan_narrative": scan_narrative,
                 "error": iv_data.get("error") or bias_data.get("error"),
             })
 

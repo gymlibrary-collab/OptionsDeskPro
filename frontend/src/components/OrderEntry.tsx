@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { placeOrder, OrderRequest } from '../api/client'
 import { OrderPrefill } from '../App'
 
@@ -138,6 +138,41 @@ function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
+const modalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.72)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+}
+
+const modalBoxStyle: React.CSSProperties = {
+  background: '#1a1d27',
+  border: '1px solid #2d3148',
+  borderRadius: '12px',
+  padding: '24px',
+  maxWidth: '460px',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+  boxShadow: '0 24px 48px rgba(0,0,0,0.6)',
+}
+
+interface ConfirmState {
+  symbol: string
+  expiry: string
+  strike: number
+  optionType: 'call' | 'put'
+  action: 'buy' | 'sell'
+  qty: number
+  estimatedCost: number
+  req: OrderRequest
+}
+
 export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
   const [symbol, setSymbol] = useState('SPY')
   const [expiry, setExpiry] = useState('')
@@ -149,6 +184,7 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
   const [askPrice, setAskPrice] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ success: boolean; msg: string } | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<ConfirmState | null>(null)
 
   useEffect(() => {
     if (prefill) {
@@ -168,12 +204,11 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
   const fillPrice = action === 'buy' ? askPrice : bidPrice
   const estimatedCost = fillPrice > 0 ? fillPrice * qty * 100 : midPrice * qty * 100
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!symbol || !expiry || !strikeNum || qty <= 0) {
       setFeedback({ success: false, msg: 'Please fill in all fields.' })
       return
     }
-
     const req: OrderRequest = {
       symbol,
       expiry,
@@ -182,7 +217,13 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
       action,
       quantity: qty,
     }
+    setPendingConfirm({ symbol, expiry, strike: strikeNum, optionType, action, qty, estimatedCost, req })
+  }
 
+  const handleConfirm = async () => {
+    if (!pendingConfirm) return
+    const { req } = pendingConfirm
+    setPendingConfirm(null)
     setSubmitting(true)
     setFeedback(null)
     try {
@@ -206,6 +247,86 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
   }
 
   return (
+    <>
+      {/* Confirmation Modal */}
+      {pendingConfirm && (
+        <div style={modalOverlayStyle} onClick={() => setPendingConfirm(null)}>
+          <div style={modalBoxStyle} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: C.text, borderBottom: `1px solid ${C.border}`, paddingBottom: '12px' }}>
+              Confirm Order
+            </div>
+
+            <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
+              You're about to{' '}
+              <strong style={{ color: pendingConfirm.action === 'buy' ? C.green : C.red }}>
+                {pendingConfirm.action.toUpperCase()}
+              </strong>{' '}
+              {pendingConfirm.qty} contract{pendingConfirm.qty > 1 ? 's' : ''} of{' '}
+              <strong>{pendingConfirm.symbol}</strong> ${pendingConfirm.strike}{' '}
+              {pendingConfirm.optionType.toUpperCase()} expiring{' '}
+              <strong>{pendingConfirm.expiry}</strong>.
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{
+                flex: 1,
+                background: '#0f2d1a',
+                border: `1px solid ${C.green}44`,
+                borderRadius: '8px',
+                padding: '10px 14px',
+              }}>
+                <div style={{ fontSize: '10px', color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
+                  Estimated {pendingConfirm.action === 'buy' ? 'Cost' : 'Credit'}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: pendingConfirm.action === 'buy' ? C.red : C.green, fontVariantNumeric: 'tabular-nums' }}>
+                  {pendingConfirm.estimatedCost > 0 ? `$${fmt(pendingConfirm.estimatedCost)}` : '—'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.5 }}>
+              This is a simulated paper-trading order. Once confirmed, it will be recorded and reflected in your positions and P&L.
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setPendingConfirm(null)}
+                style={{
+                  flex: 1,
+                  padding: '11px',
+                  borderRadius: '8px',
+                  border: `1px solid ${C.border}`,
+                  background: C.surface,
+                  color: C.muted,
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                style={{
+                  flex: 2,
+                  padding: '11px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: pendingConfirm.action === 'buy' ? C.green : C.red,
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Confirm {pendingConfirm.action === 'buy' ? 'Buy' : 'Sell'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div style={styles.panel}>
       <div style={styles.title}>Order Entry</div>
 
@@ -314,5 +435,6 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
         </div>
       )}
     </div>
+    </>
   )
 }

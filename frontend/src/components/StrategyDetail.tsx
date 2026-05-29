@@ -7,6 +7,7 @@ import {
   StrategyRecommendation,
 } from '../api/client'
 import { OrderPrefill } from '../App'
+import StrategyNarrative from './StrategyNarrative'
 
 interface Props {
   symbol: string
@@ -302,6 +303,8 @@ function TradeCard({
         {' · '}
         Risk: <RiskBadge type={trade.risk_type} />
       </div>
+
+      {trade.narrative && <StrategyNarrative narrative={trade.narrative} />}
     </div>
   )
 }

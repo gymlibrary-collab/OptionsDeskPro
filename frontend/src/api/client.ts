@@ -133,6 +133,19 @@ export interface TradeLeg {
   action: string
 }
 
+export interface Narrative {
+  headline: string
+  market_snapshot: string
+  iv_context: string
+  why_this_strategy: string
+  trade_plain_english: string
+  profit_scenario: string
+  loss_scenario: string
+  defensive_tactic: string
+  execution_checklist: string[]
+  confirmation_summary: string
+}
+
 export interface TradeStructure {
   strategy: string
   strategy_key: string
@@ -147,6 +160,7 @@ export interface TradeStructure {
   tastylive_profit_target: number | null
   risk_type: string
   profit_target_pct: number
+  narrative?: Narrative
   error?: string
 }
 
@@ -192,6 +206,7 @@ export interface ScanResult {
   bias_strength: string
   rsi14: number
   top_strategy: StrategyRecommendation | null
+  scan_narrative?: { headline: string; confirmation_summary: string } | null
   error?: string
 }
 
