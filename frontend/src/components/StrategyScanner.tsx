@@ -248,9 +248,16 @@ export default function StrategyScanner({ onAddToOrder }: Props) {
                     <td style={{ padding: '10px 14px' }}>
                       <BiasBadge bias={r.bias} />
                     </td>
-                    <td style={{ padding: '10px 14px', color: C.text, maxWidth: '200px' }}>
+                    <td style={{ padding: '10px 14px', color: C.text, maxWidth: '260px' }}>
                       {r.top_strategy ? (
-                        <span style={{ fontSize: '12px' }}>{r.top_strategy.name}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600 }}>{r.top_strategy.name}</span>
+                          {r.scan_narrative?.headline && (
+                            <span style={{ fontSize: '11px', color: C.muted, lineHeight: 1.4 }}>
+                              {r.scan_narrative.headline}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span style={{ color: C.muted, fontSize: '12px' }}>—</span>
                       )}
