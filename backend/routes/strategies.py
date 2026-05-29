@@ -14,6 +14,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _build_scan_headline(symbol: str, iv_data: dict, bias_data: dict, top_rec: dict) -> str:
+    """Generate a plain-English headline from IV + bias data without needing a full trade."""
+    ivr = iv_data.get("iv_rank", 50.0)
+    iv_env = iv_data.get("iv_environment", "MEDIUM")
+    bias = bias_data.get("bias", "NEUTRAL")
+    strategy_name = top_rec.get("name", "options strategy")
+
+    iv_phrase = {
+        "HIGH": f"options on {symbol} are expensive (IVR {ivr:.0f}) — sellers have an edge",
+        "MEDIUM": f"options on {symbol} are fairly priced (IVR {ivr:.0f})",
+        "LOW": f"options on {symbol} are cheap (IVR {ivr:.0f}) — buyers have an edge",
+    }.get(iv_env, f"IVR is {ivr:.0f}")
+
+    bias_phrase = {
+        "BULLISH": "the trend is bullish",
+        "BEARISH": "the trend is bearish",
+        "NEUTRAL": "the stock looks range-bound",
+        "NEUTRAL_BULLISH": "the stock leans bullish",
+        "NEUTRAL_BEARISH": "the stock leans bearish",
+    }.get(bias, "momentum is mixed")
+
+    return f"{iv_phrase.capitalize()}, and {bias_phrase} — suggesting a {strategy_name}."
+
+
 def _enrich_chain_with_greeks(chain: dict, spot_price: float) -> dict:
     """Add Black-Scholes greeks to every contract in the chain."""
 
@@ -133,15 +157,9 @@ async def scan_watchlist(symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT"):
             scan_narrative = None
             if top_rec:
                 try:
-                    spot = bias_data.get("price", 0.0)
-                    enriched_chain = {"expirations": [], "expiry": None, "calls": [], "puts": []}
-                    strategy_catalog_entry = {**STRATEGIES.get(top_rec["key"], {}), "key": top_rec["key"]}
-                    # Build a minimal stub trade for the scan narrative (no chain needed for text fields)
-                    stub_trade = {"error": "scan mode — no chain loaded"}
-                    full_narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, stub_trade)
                     scan_narrative = {
-                        "headline": full_narrative.get("headline", ""),
-                        "confirmation_summary": full_narrative.get("confirmation_summary", ""),
+                        "headline": _build_scan_headline(symbol, iv_data, bias_data, top_rec),
+                        "confirmation_summary": "",
                     }
                 except Exception as e:
                     logger.debug(f"Scan narrative failed for {symbol}: {e}")
