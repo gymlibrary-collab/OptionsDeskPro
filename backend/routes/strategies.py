@@ -6,6 +6,7 @@ from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_strategies, build_trade, STRATEGIES
 from services.market_data import get_options_chain, get_quote
 from services.greeks import calculate_greeks
+from services.interpreter import generate_narrative
 from datetime import date
 
 logger = logging.getLogger(__name__)
