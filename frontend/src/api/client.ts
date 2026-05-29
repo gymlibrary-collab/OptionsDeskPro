@@ -201,4 +201,7 @@ export const analyzeSymbol = (symbol: string): Promise<AnalyzeSymbolResponse> =>
 export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
   api.get(`/strategies/scan`, { params: { symbols } }).then(r => r.data)
 
+export const getBrokerAccount = () =>
+  api.get('/broker/account').then(r => r.data)
+
 export default api
