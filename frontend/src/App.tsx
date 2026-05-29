@@ -5,8 +5,13 @@ import OrderEntry from './components/OrderEntry'
 import Positions from './components/Positions'
 import Orders from './components/Orders'
 import StrategyScanner from './components/StrategyScanner'
+import LoginPage from './components/LoginPage'
+import AdminPanel from './components/AdminPanel'
+import PnLChart from './components/PnLChart'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import api from './api/client'
 
-type Tab = 'chain' | 'positions' | 'orders' | 'scanner'
+type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin'
 
 export interface OrderPrefill {
   symbol: string
@@ -73,6 +78,50 @@ const styles = {
     flex: 1,
     overflow: 'hidden',
   },
+  userArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
+  avatar: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    border: '2px solid #7c6af7',
+    objectFit: 'cover' as const,
+  },
+  avatarFallback: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    background: '#7c6af7',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#fff',
+    flexShrink: 0,
+  },
+  userEmail: {
+    fontSize: '12px',
+    color: '#94a3b8',
+    maxWidth: '160px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  signOutBtn: {
+    background: 'transparent',
+    border: '1px solid #3a3f5c',
+    borderRadius: '6px',
+    color: '#94a3b8',
+    padding: '4px 10px',
+    fontSize: '12px',
+    cursor: 'pointer',
+  },
   body: {
     display: 'flex',
     flex: 1,
@@ -117,9 +166,20 @@ const styles = {
     borderLeft: '1px solid #2d3148',
     overflow: 'auto',
   },
+  spinner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100vh',
+    background: '#0f1117',
+    color: '#7c6af7',
+    fontSize: '16px',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
+  },
 }
 
-function App() {
+function Dashboard() {
+  const { user, profile, isAdmin, signOut } = useAuth()
   const [symbol, setSymbol] = useState('SPY')
   const [inputSymbol, setInputSymbol] = useState('SPY')
   const [activeTab, setActiveTab] = useState<Tab>('chain')
@@ -143,6 +203,29 @@ function App() {
     setOrderRefresh(n => n + 1)
   }, [])
 
+  const handleTabChange = useCallback((tab: Tab) => {
+    setActiveTab(tab)
+    if (tab === 'positions') {
+      // Record today's portfolio snapshot when user views positions
+      api.post('/positions/snapshot').catch(() => {})
+    }
+  }, [])
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'chain', label: 'Options Chain' },
+    { key: 'positions', label: 'Positions' },
+    { key: 'orders', label: 'Orders' },
+    { key: 'scanner', label: 'Strategy Scanner' },
+    ...(isAdmin ? [{ key: 'admin' as Tab, label: 'Admin' }] : []),
+  ]
+
+  const initials = (profile?.full_name || user?.email || '?')
+    .split(' ')
+    .map((p: string) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   return (
     <div style={styles.app}>
       <div style={styles.header}>
@@ -160,36 +243,41 @@ function App() {
         <div style={styles.quoteBarWrap}>
           <QuoteBar symbol={symbol} />
         </div>
+
+        {/* User area */}
+        <div style={styles.userArea}>
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="avatar" style={styles.avatar} />
+          ) : (
+            <div style={styles.avatarFallback}>{initials}</div>
+          )}
+          <span style={styles.userEmail}>{user?.email}</span>
+          <button style={styles.signOutBtn} onClick={signOut}>Sign Out</button>
+        </div>
       </div>
 
       <div style={styles.body}>
         <div style={styles.main}>
           <div style={styles.tabBar}>
-            {(['chain', 'positions', 'orders', 'scanner'] as Tab[]).map(tab => (
+            {tabs.map(tab => (
               <button
-                key={tab}
-                style={styles.tab(activeTab === tab)}
-                onClick={() => setActiveTab(tab)}
+                key={tab.key}
+                style={styles.tab(activeTab === tab.key)}
+                onClick={() => handleTabChange(tab.key)}
               >
-                {tab === 'chain'
-                  ? 'Options Chain'
-                  : tab === 'positions'
-                  ? 'Positions'
-                  : tab === 'orders'
-                  ? 'Orders'
-                  : 'Strategy Scanner'}
+                {tab.label}
               </button>
             ))}
           </div>
           <div style={styles.tabContent}>
             {activeTab === 'chain' && (
-              <OptionsChain
-                symbol={symbol}
-                onRowClick={handleRowClick}
-              />
+              <OptionsChain symbol={symbol} onRowClick={handleRowClick} />
             )}
             {activeTab === 'positions' && (
-              <Positions key={orderRefresh} />
+              <>
+                <Positions key={orderRefresh} />
+                <PnLChart />
+              </>
             )}
             {activeTab === 'orders' && (
               <Orders key={orderRefresh} />
@@ -197,17 +285,45 @@ function App() {
             {activeTab === 'scanner' && (
               <StrategyScanner onAddToOrder={handleRowClick} />
             )}
+            {activeTab === 'admin' && isAdmin && (
+              <AdminPanel />
+            )}
           </div>
         </div>
 
-        <div style={styles.sidebar}>
-          <OrderEntry
-            prefill={orderPrefill}
-            onOrderPlaced={handleOrderPlaced}
-          />
-        </div>
+        {activeTab !== 'admin' && (
+          <div style={styles.sidebar}>
+            <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+function AppInner() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div style={styles.spinner}>
+        <span>Loading OptionsDesk…</span>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage />
+  }
+
+  return <Dashboard />
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   )
 }
 
