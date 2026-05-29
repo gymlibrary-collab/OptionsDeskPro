@@ -6,6 +6,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
 import api from '../api/client'
@@ -118,10 +119,19 @@ export default function PnLChart() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <span style={styles.title}>Portfolio Value</span>
-        <span style={{ ...styles.pnlBadge, color: pnlColor, borderColor: pnlColor }}>
-          {overallPnL >= 0 ? '+' : ''}{formatDollar(overallPnL)} all-time P&amp;L
-        </span>
+        <div>
+          <span style={styles.title}>Portfolio Value</span>
+          <div style={styles.valueRow}>
+            <span style={styles.currentValue}>{formatDollar(latest.portfolio_value)}</span>
+            <span style={{ ...styles.pnlBadge, color: pnlColor, borderColor: pnlColor }}>
+              {overallPnL >= 0 ? '+' : ''}{formatDollar(overallPnL)} P&amp;L
+            </span>
+          </div>
+        </div>
+        <div style={styles.startLabel}>
+          <span style={styles.startText}>Start</span>
+          <span style={styles.startValue}>{formatDollar(100000)}</span>
+        </div>
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
@@ -141,6 +151,12 @@ export default function PnLChart() {
             width={52}
           />
           <Tooltip content={<CustomTooltip />} />
+          <ReferenceLine
+            y={100000}
+            stroke="#475569"
+            strokeDasharray="4 4"
+            label={{ value: 'Start', position: 'insideTopRight', fill: '#64748b', fontSize: 11 }}
+          />
           <Line
             type="monotone"
             dataKey="portfolio_value"
@@ -165,14 +181,29 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: '12px',
   },
   title: {
-    fontSize: '13px',
+    fontSize: '11px',
     fontWeight: 600,
-    color: '#94a3b8',
+    color: '#64748b',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
+    marginBottom: '4px',
+    display: 'block',
+  },
+  valueRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  currentValue: {
+    fontSize: '20px',
+    fontWeight: 700,
+    color: '#e2e8f0',
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
   },
   pnlBadge: {
@@ -181,6 +212,22 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid',
     borderRadius: '20px',
     padding: '2px 10px',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
+  },
+  startLabel: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'flex-end',
+  },
+  startText: {
+    fontSize: '11px',
+    color: '#64748b',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
+  },
+  startValue: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#475569',
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace",
   },
   empty: {

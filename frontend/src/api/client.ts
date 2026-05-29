@@ -219,4 +219,7 @@ export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
 export const getBrokerAccount = () =>
   api.get('/broker/account').then(r => r.data)
 
+export const getPnLHistory = () =>
+  api.get('/auth/pnl-history').then(r => r.data)
+
 export default api

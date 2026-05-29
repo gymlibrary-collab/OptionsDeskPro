@@ -12,14 +12,9 @@ export default function LoginPage() {
           <span style={styles.logoText}>OptionsDesk</span>
         </div>
 
-        <p style={styles.tagline}>Powered by tastylive strategies</p>
+        <p style={styles.tagline}>Intelligent options trading powered by tastylive strategies</p>
 
         <div style={styles.divider} />
-
-        <p style={styles.subtitle}>
-          Paper trade options with real market data,<br />
-          AI-powered strategy recommendations, and live Greeks.
-        </p>
 
         <button
           style={styles.googleBtn}
@@ -52,7 +47,7 @@ export default function LoginPage() {
           {loading ? 'Connecting…' : 'Sign in with Google'}
         </button>
 
-        <p style={styles.footer}>Access by invitation only</p>
+        <p style={styles.footer}>Access by invitation only — contact admin to request access</p>
       </div>
     </div>
   )
