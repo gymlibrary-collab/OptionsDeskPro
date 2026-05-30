@@ -219,6 +219,176 @@ function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
   )
 }
 
+function TradeInstructions({ trade, symbol, onAddToOrder }: {
+  trade: TradeStructure
+  symbol: string
+  onAddToOrder?: (prefill: OrderPrefill) => void
+}) {
+  const isCredit = trade.estimated_credit_or_debit >= 0
+  const netDollars = Math.abs(trade.estimated_credit_or_debit) * 100
+
+  const formatExpiry = (expiry: string) => {
+    try {
+      return new Date(expiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch { return expiry }
+  }
+
+  return (
+    <div style={{
+      background: '#0d1220',
+      border: `1px solid ${C.accent}44`,
+      borderRadius: '8px',
+      padding: '14px 16px',
+      marginBottom: '4px',
+    }}>
+      <div style={{ fontSize: '11px', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
+        📋 How to place this trade
+      </div>
+
+      {/* Leg-by-leg instructions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+        {trade.legs.filter(l => l.option_type !== 'stock').map((leg, i) => {
+          const isBuy = leg.action === 'buy'
+          const creditDebit = isBuy ? `Pay ~$${(leg.mid * 100).toFixed(0)}` : `Collect ~$${(leg.mid * 100).toFixed(0)}`
+          const typeColor = leg.option_type === 'call' ? C.blue : '#a855f7'
+          return (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 10px',
+              background: isBuy ? '#0f1f0f' : '#1f0f0f',
+              borderRadius: '6px',
+              border: `1px solid ${isBuy ? C.green : C.red}22`,
+              flexWrap: 'wrap',
+            }}>
+              {/* Step number */}
+              <span style={{ fontSize: '10px', color: C.muted, width: '16px', flexShrink: 0 }}>{i + 1}.</span>
+
+              {/* Action badge */}
+              <span style={{
+                background: isBuy ? C.green : C.red,
+                color: '#000',
+                borderRadius: '3px',
+                padding: '2px 7px',
+                fontSize: '11px',
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                flexShrink: 0,
+              }}>
+                {leg.action.toUpperCase()}
+              </span>
+
+              {/* Quantity + symbol */}
+              <span style={{ fontWeight: 700, color: C.text, fontSize: '13px' }}>
+                1 {symbol}
+              </span>
+
+              {/* Strike */}
+              <span style={{ fontWeight: 700, color: C.text, fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
+                ${leg.strike}
+              </span>
+
+              {/* Type */}
+              <span style={{ fontWeight: 700, color: typeColor, fontSize: '13px', textTransform: 'uppercase' }}>
+                {leg.option_type}
+              </span>
+
+              {/* Expiry */}
+              <span style={{ color: C.muted, fontSize: '12px' }}>
+                · expires {formatExpiry(trade.expiry)}
+              </span>
+
+              {/* Delta */}
+              <span style={{ color: C.muted, fontSize: '11px' }}>
+                · Δ {fmt(leg.delta, 2)}
+              </span>
+
+              {/* Credit/debit */}
+              <span style={{
+                marginLeft: 'auto',
+                color: isBuy ? C.red : C.green,
+                fontSize: '12px',
+                fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+                flexShrink: 0,
+              }}>
+                {creditDebit}
+              </span>
+
+              {/* Add to order button */}
+              {onAddToOrder && (
+                <button
+                  onClick={() => onAddToOrder({
+                    symbol,
+                    expiry: trade.expiry,
+                    strike: leg.strike,
+                    option_type: leg.option_type as 'call' | 'put',
+                    bid: leg.bid,
+                    ask: leg.ask,
+                  })}
+                  style={{
+                    background: C.accent,
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: '#fff',
+                    padding: '3px 8px',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  + Order
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Net result summary */}
+      <div style={{
+        display: 'flex',
+        gap: '16px',
+        flexWrap: 'wrap',
+        padding: '10px 12px',
+        background: C.surface2,
+        borderRadius: '6px',
+        fontSize: '12px',
+      }}>
+        <div>
+          <span style={{ color: C.muted }}>Net: </span>
+          <span style={{ color: isCredit ? C.green : C.red, fontWeight: 700 }}>
+            {isCredit ? `Collect $${netDollars.toFixed(0)} credit` : `Pay $${netDollars.toFixed(0)} debit`}
+          </span>
+          <span style={{ color: C.muted }}> per contract</span>
+        </div>
+        <div>
+          <span style={{ color: C.muted }}>Exit when: </span>
+          <span style={{ color: C.yellow, fontWeight: 600 }}>
+            {trade.tastylive_profit_target != null
+              ? `P&L reaches +$${(trade.tastylive_profit_target * 100).toFixed(0)} (${trade.profit_target_pct}% of max)`
+              : `${trade.profit_target_pct}% of max profit`}
+          </span>
+        </div>
+        {trade.breakeven_low != null && trade.breakeven_high != null && (
+          <div>
+            <span style={{ color: C.muted }}>Profit zone: </span>
+            <span style={{ color: C.text, fontWeight: 600 }}>${fmt(trade.breakeven_low)} – ${fmt(trade.breakeven_high)}</span>
+          </div>
+        )}
+        {trade.breakeven_low != null && trade.breakeven_high == null && (
+          <div>
+            <span style={{ color: C.muted }}>Breakeven: </span>
+            <span style={{ color: C.text, fontWeight: 600 }}>${fmt(trade.breakeven_low)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TradeCard({
   tradeEntry, symbol, onAddToOrder,
 }: {
@@ -242,6 +412,7 @@ function TradeCard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <TradeInstructions trade={trade} symbol={symbol} onAddToOrder={onAddToOrder} />
       <div style={{ overflowX: 'auto' }}>
         <LegsTable legs={trade.legs} expiry={trade.expiry} symbol={symbol} onAddToOrder={onAddToOrder} />
       </div>
