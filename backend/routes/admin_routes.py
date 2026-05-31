@@ -57,6 +57,70 @@ async def add_to_whitelist(body: WhitelistAdd, payload: dict = Depends(admin_req
     return {"ok": True}
 
 
+class UserInvite(BaseModel):
+    email: str
+    role: str = "user"
+    note: str = ""
+
+
+@router.post("/admin/users/invite")
+async def invite_user(body: UserInvite, payload: dict = Depends(admin_required)):
+    """Add a user to the whitelist with a role. Only @gmail.com addresses accepted."""
+    email = body.email.lower().strip()
+    role = body.role if body.role in ("user", "admin") else "user"
+
+    if not email.endswith("@gmail.com"):
+        raise HTTPException(
+            status_code=422,
+            detail="Only @gmail.com addresses are accepted (Google auth only).",
+        )
+
+    sb = get_supabase()
+    try:
+        sb.table("user_whitelist").insert({
+            "email": email,
+            "added_by": get_user_id(payload),
+            "note": body.note or f"Invited as {role}",
+            "role": role,
+        }).execute()
+    except Exception as e:
+        if "unique" in str(e).lower():
+            raise HTTPException(status_code=409, detail="Email already in the system.")
+        raise
+
+    # If the user already has a profile (previously logged in), update their role immediately
+    try:
+        sb.table("user_profiles").update({"role": role}).eq("email", email).execute()
+    except Exception:
+        pass
+
+    return {"ok": True, "email": email, "role": role}
+
+
+class RoleUpdate(BaseModel):
+    role: str
+
+
+@router.patch("/admin/users/{user_id}/role")
+async def update_user_role(user_id: str, body: RoleUpdate, payload: dict = Depends(admin_required)):
+    """Change an existing user's role."""
+    role = body.role if body.role in ("user", "admin") else "user"
+    sb = get_supabase()
+    result = sb.table("user_profiles").update({"role": role}).eq("id", user_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Keep whitelist entry consistent
+    email_rows = sb.table("user_profiles").select("email").eq("id", user_id).execute()
+    if email_rows.data:
+        try:
+            sb.table("user_whitelist").update({"role": role}).eq(
+                "email", email_rows.data[0]["email"]
+            ).execute()
+        except Exception:
+            pass
+    return {"ok": True, "role": role}
+
+
 @router.delete("/admin/whitelist/{email}")
 async def remove_from_whitelist(email: str, payload: dict = Depends(admin_required)):
     sb = get_supabase()

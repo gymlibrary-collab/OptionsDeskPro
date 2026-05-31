@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 
 type AdminTab = 'users' | 'whitelist' | 'activity' | 'leaderboard'
+type Role = 'user' | 'admin'
 
 interface UserRow {
   id: string
@@ -65,6 +66,16 @@ export default function AdminPanel() {
   const [newNote, setNewNote] = useState('')
   const [adding, setAdding] = useState(false)
   const [loadingTab, setLoadingTab] = useState(false)
+
+  // Invite user state
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<Role>('user')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState('')
+
+  // Role change in-flight tracker
+  const [changingRole, setChangingRole] = useState<string | null>(null)
 
   const loadStats = useCallback(async () => {
     try {
@@ -149,6 +160,41 @@ export default function AdminPanel() {
     await loadUsers()
   }
 
+  const handleInviteUser = async () => {
+    setInviteError('')
+    setInviteSuccess('')
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email) return
+    if (!email.endsWith('@gmail.com')) {
+      setInviteError('Only @gmail.com addresses are accepted (Google auth only).')
+      return
+    }
+    setInviting(true)
+    try {
+      await api.post('/admin/users/invite', { email, role: inviteRole })
+      setInviteSuccess(`${email} added as ${inviteRole}.`)
+      setInviteEmail('')
+      setInviteRole('user')
+      await loadUsers()
+    } catch (e: any) {
+      setInviteError(e?.response?.data?.detail || 'Failed to invite user.')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const handleRoleChange = async (userId: string, role: Role) => {
+    setChangingRole(userId)
+    try {
+      await api.patch(`/admin/users/${userId}/role`, { role })
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u))
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Failed to update role.')
+    } finally {
+      setChangingRole(null)
+    }
+  }
+
   const tabs: { key: AdminTab; label: string }[] = [
     { key: 'users', label: 'Users' },
     { key: 'whitelist', label: 'Whitelist' },
@@ -185,50 +231,86 @@ export default function AdminPanel() {
 
         {/* USERS TAB */}
         {!loadingTab && activeTab === 'users' && (
-          <div style={s.tableWrap}>
-            <table style={s.table}>
-              <thead>
-                <tr>
-                  {['Name', 'Email', 'Role', 'Cash', 'Last Login', "Today's Logins", 'Status', ''].map(h => (
-                    <th key={h} style={s.th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id} style={s.tr}>
-                    <td style={s.td}>{u.full_name || '—'}</td>
-                    <td style={s.td}>{u.email}</td>
-                    <td style={s.td}>
-                      <span style={u.role === 'admin' ? s.badgeAdmin : s.badgeUser}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td style={s.td}>{fmt(u.cash)}</td>
-                    <td style={s.td}>{fmtTime(u.last_login_at)}</td>
-                    <td style={{ ...s.td, textAlign: 'center' }}>{u.login_count_today}</td>
-                    <td style={s.td}>
-                      <span style={u.is_active ? s.badgeActive : s.badgeInactive}>
-                        {u.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td style={s.td}>
-                      {u.is_active && (
-                        <button
-                          style={s.deactivateBtn}
-                          onClick={() => handleDeactivate(u.id, u.email)}
-                        >
-                          Deactivate
-                        </button>
-                      )}
-                    </td>
+          <div>
+            {/* Invite user form */}
+            <div style={s.inviteBox}>
+              <div style={s.inviteTitle}>Add New User</div>
+              <div style={s.addRow}>
+                <input
+                  style={s.input}
+                  placeholder="someone@gmail.com"
+                  value={inviteEmail}
+                  onChange={e => { setInviteEmail(e.target.value); setInviteError(''); setInviteSuccess('') }}
+                  onKeyDown={e => e.key === 'Enter' && handleInviteUser()}
+                />
+                <select
+                  style={s.select}
+                  value={inviteRole}
+                  onChange={e => setInviteRole(e.target.value as Role)}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button style={s.addBtn} onClick={handleInviteUser} disabled={inviting}>
+                  {inviting ? 'Adding…' : '+ Add User'}
+                </button>
+              </div>
+              {inviteError && <div style={s.inviteError}>{inviteError}</div>}
+              {inviteSuccess && <div style={s.inviteSuccess}>{inviteSuccess}</div>}
+            </div>
+
+            {/* Users table */}
+            <div style={s.tableWrap}>
+              <table style={s.table}>
+                <thead>
+                  <tr>
+                    {['Name', 'Email', 'Role', 'Cash', 'Last Login', "Today's Logins", 'Status', ''].map(h => (
+                      <th key={h} style={s.th}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr><td colSpan={8} style={s.empty}>No users yet.</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id} style={s.tr}>
+                      <td style={s.td}>{u.full_name || '—'}</td>
+                      <td style={s.td}>{u.email}</td>
+                      <td style={s.td}>
+                        <select
+                          style={s.roleSelect(u.role === 'admin')}
+                          value={u.role}
+                          disabled={changingRole === u.id}
+                          onChange={e => handleRoleChange(u.id, e.target.value as Role)}
+                        >
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      </td>
+                      <td style={s.td}>{fmt(u.cash)}</td>
+                      <td style={s.td}>{fmtTime(u.last_login_at)}</td>
+                      <td style={{ ...s.td, textAlign: 'center' }}>{u.login_count_today}</td>
+                      <td style={s.td}>
+                        <span style={u.is_active ? s.badgeActive : s.badgeInactive}>
+                          {u.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={s.td}>
+                        {u.is_active && (
+                          <button
+                            style={s.deactivateBtn}
+                            onClick={() => handleDeactivate(u.id, u.email)}
+                          >
+                            Deactivate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr><td colSpan={8} style={s.empty}>No users yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -465,22 +547,6 @@ const s: Record<string, any> = {
     color: '#475569',
     textAlign: 'center',
   },
-  badgeAdmin: {
-    background: 'rgba(124,106,247,0.15)',
-    color: '#7c6af7',
-    padding: '2px 8px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 600,
-  },
-  badgeUser: {
-    background: 'rgba(148,163,184,0.12)',
-    color: '#94a3b8',
-    padding: '2px 8px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 600,
-  },
   badgeActive: {
     background: 'rgba(34,197,94,0.12)',
     color: '#22c55e',
@@ -514,6 +580,29 @@ const s: Record<string, any> = {
     outline: 'none',
     fontFamily: font,
   },
+  select: {
+    background: '#252836',
+    border: '1px solid #3a3f5c',
+    borderRadius: '6px',
+    color: '#e2e8f0',
+    padding: '7px 10px',
+    fontSize: '13px',
+    outline: 'none',
+    fontFamily: font,
+    cursor: 'pointer',
+  },
+  roleSelect: (isAdmin: boolean) => ({
+    background: 'transparent',
+    border: `1px solid ${isAdmin ? '#7c6af744' : '#3a3f5c55'}`,
+    borderRadius: '6px',
+    color: isAdmin ? '#7c6af7' : '#94a3b8',
+    padding: '3px 8px',
+    fontSize: '12px',
+    fontWeight: 600,
+    outline: 'none',
+    fontFamily: font,
+    cursor: 'pointer',
+  }),
   addBtn: {
     background: '#7c6af7',
     border: 'none',
@@ -544,6 +633,31 @@ const s: Record<string, any> = {
     fontSize: '12px',
     cursor: 'pointer',
     fontFamily: font,
+  },
+  inviteBox: {
+    background: '#1a1d27',
+    border: '1px solid #2d3148',
+    borderRadius: '10px',
+    padding: '16px 20px',
+    marginBottom: '20px',
+  },
+  inviteTitle: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#7c6af7',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginBottom: '12px',
+  },
+  inviteError: {
+    marginTop: '8px',
+    fontSize: '12px',
+    color: '#ef4444',
+  },
+  inviteSuccess: {
+    marginTop: '8px',
+    fontSize: '12px',
+    color: '#22c55e',
   },
   refreshNote: {
     fontSize: '11px',

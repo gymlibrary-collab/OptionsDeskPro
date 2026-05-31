@@ -40,9 +40,23 @@ def get_user_email(payload: dict) -> str:
 def require_admin(payload: dict = None):
     """Raise 403 if user is not admin."""
     email = get_user_email(payload)
-    if email != ADMIN_EMAIL:
-        # Also check role in payload metadata if present
-        meta = payload.get("user_metadata", {}) or {}
-        app_meta = payload.get("app_metadata", {}) or {}
-        if meta.get("role") != "admin" and app_meta.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="Admin access required")
+    if email == ADMIN_EMAIL:
+        return
+
+    # Check JWT metadata
+    meta = payload.get("user_metadata", {}) or {}
+    app_meta = payload.get("app_metadata", {}) or {}
+    if meta.get("role") == "admin" or app_meta.get("role") == "admin":
+        return
+
+    # DB check — covers users promoted to admin via the admin panel
+    from services.db import get_supabase
+    user_id = get_user_id(payload)
+    try:
+        result = get_supabase().table("user_profiles").select("role").eq("id", user_id).execute()
+        if result.data and result.data[0].get("role") == "admin":
+            return
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=403, detail="Admin access required")

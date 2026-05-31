@@ -14,17 +14,18 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     email = get_user_email(payload)
 
     # Check whitelist (admin email always allowed)
+    role = "admin" if email == ADMIN_EMAIL else "user"
     if email != ADMIN_EMAIL:
-        wl = sb.table("user_whitelist").select("id").eq("email", email).execute()
+        wl = sb.table("user_whitelist").select("id, role").eq("email", email).execute()
         if not wl.data:
             raise HTTPException(
                 status_code=403,
                 detail="Access denied. Contact the admin to request access.",
             )
+        role = wl.data[0].get("role", "user")
 
     # Upsert user profile
     meta = payload.get("user_metadata", {}) or {}
-    role = "admin" if email == ADMIN_EMAIL else "user"
     sb.table("user_profiles").upsert({
         "id": user_id,
         "email": email,
