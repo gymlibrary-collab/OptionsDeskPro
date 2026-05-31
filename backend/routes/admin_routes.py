@@ -16,8 +16,14 @@ async def list_users(payload: dict = Depends(admin_required)):
     """List all user profiles with their portfolio value and last login."""
     sb = get_supabase()
     profiles = sb.table("user_profiles").select("*").order("created_at").execute().data
-    portfolios = {p["user_id"]: p for p in sb.table("portfolios").select("*").execute().data}
-    activity = {a["user_id"]: a for a in sb.table("activity_log").select("*").execute().data}
+    try:
+        portfolios = {p["user_id"]: p for p in sb.table("portfolios").select("*").execute().data}
+    except Exception:
+        portfolios = {}
+    try:
+        activity = {a["user_id"]: a for a in sb.table("activity_log").select("*").execute().data}
+    except Exception:
+        activity = {}
     result = []
     for p in profiles:
         uid = p["id"]
