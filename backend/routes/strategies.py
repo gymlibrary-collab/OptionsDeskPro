@@ -7,6 +7,7 @@ from services.strategy_engine import recommend_strategies, build_trade, STRATEGI
 from services.market_data import get_options_chain, get_quote
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
+from services.market_context import get_full_market_context
 from datetime import date
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,13 @@ async def analyze_symbol(symbol: str):
         enriched_chain = {"expirations": [], "expiry": None, "calls": [], "puts": []}
         spot = bias_data.get("price", 0.0)
 
+    # Gather supplementary market context (earnings, news, technicals, IV term structure, flow)
+    try:
+        market_ctx = get_full_market_context(symbol, enriched_chain)
+    except Exception as e:
+        logger.warning(f"market_context failed for {symbol}: {e}")
+        market_ctx = {}
+
     for rec in recommendations[:3]:
         strategy_key = rec["key"]
         try:
@@ -109,7 +117,7 @@ async def analyze_symbol(symbol: str):
         # Attach plain-English narrative
         strategy_catalog_entry = {**STRATEGIES.get(strategy_key, {}), "key": strategy_key}
         try:
-            narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade)
+            narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade, market_context=market_ctx)
         except Exception as e:
             logger.warning(f"generate_narrative failed for {strategy_key}: {e}")
             narrative = None
