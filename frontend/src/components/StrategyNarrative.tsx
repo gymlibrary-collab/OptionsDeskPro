@@ -30,6 +30,19 @@ const C = {
   amber: '#f59e0b',
 }
 
+function Paragraphs({ text }: { text: string }) {
+  const paras = text.split('\n\n').filter(Boolean)
+  return (
+    <>
+      {paras.map((para, i) => (
+        <p key={i} style={{ margin: i === 0 ? 0 : '10px 0 0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+          {para}
+        </p>
+      ))}
+    </>
+  )
+}
+
 function Panel({
   title,
   children,
@@ -113,7 +126,7 @@ export default function StrategyNarrative({ narrative }: Props) {
         {narrative.headline}
       </div>
 
-      {/* 2×2 Info Panels */}
+      {/* 2x2 Info Panels */}
       <div
         style={{
           display: 'grid',
@@ -121,10 +134,10 @@ export default function StrategyNarrative({ narrative }: Props) {
           gap: '10px',
         }}
       >
-        <Panel title="Market Snapshot">{narrative.market_snapshot}</Panel>
-        <Panel title="Why Options Are Priced This Way">{narrative.iv_context}</Panel>
-        <Panel title="Why This Strategy">{narrative.why_this_strategy}</Panel>
-        <Panel title="The Trade in Simple Terms">{narrative.trade_plain_english}</Panel>
+        <Panel title="Market Snapshot"><Paragraphs text={narrative.market_snapshot} /></Panel>
+        <Panel title="Why Options Are Priced This Way"><Paragraphs text={narrative.iv_context} /></Panel>
+        <Panel title="Why This Strategy"><Paragraphs text={narrative.why_this_strategy} /></Panel>
+        <Panel title="The Trade in Simple Terms"><Paragraphs text={narrative.trade_plain_english} /></Panel>
       </div>
 
       {/* Profit & Loss */}
@@ -156,7 +169,7 @@ export default function StrategyNarrative({ narrative }: Props) {
             If It Works — Profit Scenario
           </div>
           <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
-            {narrative.profit_scenario}
+            <Paragraphs text={narrative.profit_scenario} />
           </div>
         </div>
 
@@ -181,7 +194,7 @@ export default function StrategyNarrative({ narrative }: Props) {
             If It Doesn't — Loss Scenario
           </div>
           <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
-            {narrative.loss_scenario}
+            <Paragraphs text={narrative.loss_scenario} />
           </div>
         </div>
       </div>
@@ -208,7 +221,7 @@ export default function StrategyNarrative({ narrative }: Props) {
           If It Goes Wrong — Defensive Tactic
         </div>
         <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
-          {narrative.defensive_tactic}
+          <Paragraphs text={narrative.defensive_tactic} />
         </div>
       </div>
 
