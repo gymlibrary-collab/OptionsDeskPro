@@ -52,16 +52,18 @@ export default function TradingDesk() {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(2, 1fr)',
-      gridTemplateRows: 'repeat(2, 1fr)',
+      gridTemplateColumns: 'repeat(6, 1fr)',
       gap: '16px',
       height: '100%',
       minHeight: 0,
     }}>
-      <Panel title="Results Reporting" />
-      <Panel title="Buzz about Stocks" />
-      <Panel title="Buzz about Crypto" />
-      <Panel title="Buzz about Selected Stocks" />
+      {/* Top row: 3 panels x 2 columns each */}
+      <div style={{ gridColumn: 'span 2' }}><Panel title="Results Reporting" /></div>
+      <div style={{ gridColumn: 'span 2' }}><Panel title="Buzz about Stocks" /></div>
+      <div style={{ gridColumn: 'span 2' }}><Panel title="Buzz about Crypto" /></div>
+      {/* Bottom row: 2 panels x 3 columns each */}
+      <div style={{ gridColumn: 'span 3' }}><Panel title="Buzz about Selected Stocks" /></div>
+      <div style={{ gridColumn: 'span 3' }}><Panel title="Buzz about New Tokens" /></div>
     </div>
   )
 }
