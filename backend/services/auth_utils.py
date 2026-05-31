@@ -1,31 +1,39 @@
 """
-Verify Supabase JWTs and extract user info.
-SUPABASE_JWT_SECRET: found in Supabase dashboard → Settings → API → JWT Settings → JWT Secret
+Verify Supabase JWTs via the Supabase Auth API.
+This approach is algorithm-agnostic — it works regardless of whether the project
+uses HS256 or RS256, and doesn't require the JWT secret to be present.
 """
 import os
-from jose import jwt, JWTError
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 ADMIN_EMAIL = "leonard.simgt@gmail.com"
 
 security = HTTPBearer(auto_error=False)
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
-    """FastAPI dependency. Returns decoded JWT payload. Raises 401 if invalid."""
+    """FastAPI dependency. Validates the token with Supabase Auth and returns a
+    normalised payload dict compatible with the rest of the codebase."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    token = credentials.credentials
     try:
-        payload = jwt.decode(
-            credentials.credentials,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False},
-        )
-        return payload
-    except JWTError as e:
+        from services.db import get_supabase
+        sb = get_supabase()
+        result = sb.auth.get_user(token)
+        user = result.user
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        return {
+            "sub": user.id,
+            "email": user.email,
+            "user_metadata": user.user_metadata or {},
+            "app_metadata": user.app_metadata or {},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
 
