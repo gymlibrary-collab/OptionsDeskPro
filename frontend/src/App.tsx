@@ -8,11 +8,12 @@ import StrategyScanner from './components/StrategyScanner'
 import LoginPage from './components/LoginPage'
 import AdminPanel from './components/AdminPanel'
 import PnLChart from './components/PnLChart'
+import UserGuide from './components/UserGuide'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
 import api from './api/client'
 
-type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin'
+type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin' | 'guide'
 
 export interface OrderPrefill {
   symbol: string
@@ -74,6 +75,7 @@ function Dashboard() {
     { key: 'positions', label: 'Positions', short: 'P&L' },
     { key: 'orders', label: 'Orders', short: 'Orders' },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
+    { key: 'guide', label: 'User Guide', short: 'Guide' },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'Admin', short: 'Admin' }] : []),
   ]
 
@@ -84,7 +86,7 @@ function Dashboard() {
     .join('')
     .toUpperCase()
 
-  const showSidebar = !isMobile && activeTab !== 'admin'
+  const showSidebar = !isMobile && activeTab !== 'admin' && activeTab !== 'guide'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace", overflow: 'hidden' }}>
@@ -92,7 +94,6 @@ function Dashboard() {
       {/* ── Header ── */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? '8px 12px' : '10px 20px', flexShrink: 0 }}>
         {isMobile ? (
-          // Mobile: two-row header
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '16px', fontWeight: 700, color: C.accent, letterSpacing: '-0.5px', flexShrink: 0 }}>⬡ OptionsDesk</span>
@@ -104,7 +105,6 @@ function Dashboard() {
                 placeholder="Symbol"
               />
               <button onClick={handleSearch} style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Go</button>
-              {/* Avatar + sign out condensed */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="avatar" style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${C.accent}` }} />
@@ -116,7 +116,6 @@ function Dashboard() {
             <QuoteBar symbol={symbol} />
           </div>
         ) : (
-          // Desktop: single-row header
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <span style={{ fontSize: '18px', fontWeight: 700, color: C.accent, letterSpacing: '-0.5px', whiteSpace: 'nowrap' }}>⬡ OptionsDesk</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -146,7 +145,7 @@ function Dashboard() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
-          {/* Tab bar — horizontally scrollable on mobile */}
+          {/* Tab bar */}
           <div style={{ display: 'flex', gap: '2px', padding: isMobile ? '6px 8px 0' : '8px 16px 0', background: C.surface, borderBottom: `1px solid ${C.border}`, flexShrink: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
             {tabs.map(tab => (
               <button
@@ -178,6 +177,7 @@ function Dashboard() {
             {activeTab === 'positions' && <><Positions key={orderRefresh} /><PnLChart /></>}
             {activeTab === 'orders' && <Orders key={orderRefresh} />}
             {activeTab === 'scanner' && <StrategyScanner onAddToOrder={handleRowClick} />}
+            {activeTab === 'guide' && <UserGuide isAdmin={isAdmin} />}
             {activeTab === 'admin' && isAdmin && <AdminPanel />}
           </div>
         </div>
@@ -193,58 +193,32 @@ function Dashboard() {
       {/* ── Mobile: floating Order button + bottom drawer ── */}
       {isMobile && activeTab !== 'admin' && (
         <>
-          {/* FAB */}
           {!orderDrawerOpen && (
             <button
               onClick={() => setOrderDrawerOpen(true)}
               style={{
-                position: 'fixed',
-                bottom: '20px',
-                right: '20px',
-                background: C.accent,
-                border: 'none',
-                borderRadius: '28px',
-                color: '#fff',
-                padding: '14px 22px',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: 'pointer',
+                position: 'fixed', bottom: '20px', right: '20px',
+                background: C.accent, border: 'none', borderRadius: '28px',
+                color: '#fff', padding: '14px 22px', fontSize: '14px',
+                fontWeight: 700, cursor: 'pointer',
                 boxShadow: '0 4px 20px rgba(124,106,247,0.5)',
-                zIndex: 100,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
+                zIndex: 100, display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
               <span style={{ fontSize: '18px' }}>+</span> Place Order
             </button>
           )}
-
-          {/* Bottom drawer overlay */}
           {orderDrawerOpen && (
             <>
-              <div
-                onClick={() => setOrderDrawerOpen(false)}
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }}
-              />
+              <div onClick={() => setOrderDrawerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }} />
               <div style={{
-                position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                background: C.surface,
-                borderTop: `2px solid ${C.accent}`,
-                borderRadius: '16px 16px 0 0',
-                zIndex: 201,
-                maxHeight: '85vh',
-                overflowY: 'auto',
+                position: 'fixed', bottom: 0, left: 0, right: 0,
+                background: C.surface, borderTop: `2px solid ${C.accent}`,
+                borderRadius: '16px 16px 0 0', zIndex: 201, maxHeight: '85vh', overflowY: 'auto',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 0' }}>
                   <span style={{ fontWeight: 700, color: C.text, fontSize: '15px' }}>Order Entry</span>
-                  <button
-                    onClick={() => setOrderDrawerOpen(false)}
-                    style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: '20px', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
-                  >×</button>
+                  <button onClick={() => setOrderDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: '20px', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
                 <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
               </div>
