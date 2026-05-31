@@ -106,7 +106,7 @@ export const getPositions = () =>
 export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio').then(r => r.data)
 
-// ─── Strategy Intelligence ──────────────────────────────────────────────────
+// ─── Strategy Intelligence ─────────────────────────────────────────────
 
 export interface StrategyRecommendation {
   key: string
@@ -221,5 +221,24 @@ export const getBrokerAccount = () =>
 
 export const getPnLHistory = () =>
   api.get('/auth/pnl-history').then(r => r.data)
+
+// ─── Trading Desk — Reddit buzz ───────────────────────────────────────────
+
+export interface RedditPost {
+  title: string
+  subreddit: string
+  score: number
+  num_comments: number
+  url: string
+  flair: string
+  created_utc: number
+}
+
+export const getEarningsBuzz   = (): Promise<RedditPost[]> => api.get('/trading/buzz/earnings').then(r => r.data)
+export const getStocksBuzz     = (): Promise<RedditPost[]> => api.get('/trading/buzz/stocks').then(r => r.data)
+export const getCryptoBuzz     = (): Promise<RedditPost[]> => api.get('/trading/buzz/crypto').then(r => r.data)
+export const getTokensBuzz     = (): Promise<RedditPost[]> => api.get('/trading/buzz/tokens').then(r => r.data)
+export const getSelectedBuzz   = (symbols: string): Promise<RedditPost[]> =>
+  api.get(`/trading/buzz/selected?symbols=${encodeURIComponent(symbols)}`).then(r => r.data)
 
 export default api
