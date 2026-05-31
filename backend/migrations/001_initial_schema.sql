@@ -23,7 +23,8 @@ create table if not exists public.user_whitelist (
   email text not null unique,
   added_by uuid references auth.users(id),
   added_at timestamptz not null default now(),
-  note text
+  note text,
+  role text not null default 'user' check (role in ('user', 'admin'))
 );
 alter table public.user_whitelist enable row level security;
 
@@ -103,6 +104,6 @@ create table if not exists public.activity_log (
 alter table public.activity_log enable row level security;
 
 -- Seed admin whitelist
-insert into public.user_whitelist (email, note)
-values ('leonard.simgt@gmail.com', 'Admin account')
+insert into public.user_whitelist (email, role, note)
+values ('leonard.simgt@gmail.com', 'admin', 'Admin account')
 on conflict (email) do nothing;
