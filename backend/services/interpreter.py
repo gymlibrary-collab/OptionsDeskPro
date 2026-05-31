@@ -13,7 +13,7 @@ def _days_to_expiry(expiry: str) -> int:
         return 0
 
 
-def _market_snapshot(symbol: str, bias_analysis: dict) -> str:
+def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) -> str:
     price = bias_analysis.get("price", 0.0)
     sma20 = bias_analysis.get("sma20", 0.0)
     sma50 = bias_analysis.get("sma50", 0.0)
@@ -111,10 +111,65 @@ def _market_snapshot(symbol: str, bias_analysis: dict) -> str:
         )
     )
 
-    return f"{ma_line}\n\n{rsi_line}\n\n{strength_line}"
+    extra_paras = []
+    if ctx:
+        tech = ctx.get("technicals") or {}
+        if tech:
+            macd_bias = tech.get("macd_bias", "")
+            macd_div = tech.get("macd_diverging", False)
+            atr_pct = tech.get("atr_pct", 0.0)
+            vol_trend = tech.get("volume_trend", "normal")
+            vol_ratio = tech.get("volume_ratio_5_20", 1.0)
+
+            macd_dir = "above" if macd_bias == "bullish" else "below"
+            div_note = (
+                "The histogram is expanding, meaning momentum is building in that direction."
+                if macd_div
+                else "The histogram is contracting, suggesting the move may be losing steam."
+            )
+            vol_note = (
+                f"Volume is running {vol_ratio:.1f}× its 20-day average — elevated activity suggests institutional participation."
+                if vol_trend == "rising"
+                else f"Volume is subdued at {vol_ratio:.1f}× its 20-day average — the move lacks strong conviction behind it."
+                if vol_trend == "falling"
+                else f"Volume is tracking close to its 20-day average — normal participation, no unusual accumulation or distribution."
+            )
+            extra_paras.append(
+                f"The MACD indicator shows the fast line {macd_dir} the signal line, pointing to a {macd_bias} momentum read. "
+                f"{div_note} The ATR (average true range) is {atr_pct:.1f}% of the stock price — "
+                f"this means the market is pricing in a typical daily move of about {atr_pct:.1f}% in either direction. "
+                f"{vol_note}"
+            )
+
+        earnings = ctx.get("earnings") or {}
+        days_earn = earnings.get("days_until_earnings")
+        if days_earn is not None and 0 <= days_earn <= 30:
+            extra_paras.append(
+                f"EARNINGS ALERT: {symbol} reports earnings in approximately {days_earn} day{'s' if days_earn != 1 else ''}. "
+                f"Earnings events typically cause implied volatility to spike in the days leading up to the announcement "
+                f"and then sharply collapse immediately afterward (known as the 'IV crush'). "
+                f"Any strategy you put on now will be heavily influenced by this event — "
+                f"factor in whether your expiry straddles the earnings date before entering."
+            )
+
+        news = ctx.get("news") or []
+        if news:
+            headlines_text = "; ".join(
+                f'"{h["title"]}"' + (f' ({h["publisher"]})' if h.get("publisher") else "")
+                for h in news[:4]
+            )
+            extra_paras.append(
+                f"Recent headlines for {symbol}: {headlines_text}. "
+                f"News flow can accelerate or reverse the technical picture — "
+                f"read the headlines in the context of the directional signal above. "
+                f"Positive catalysts reinforce bullish setups; negative headlines increase the risk of downside gaps."
+            )
+
+    parts = [ma_line, rsi_line, strength_line] + extra_paras
+    return "\n\n".join(parts)
 
 
-def _iv_context(symbol: str, iv_analysis: dict) -> str:
+def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
     ivr = iv_analysis.get("iv_rank", 0.0)
     iv_pct = iv_analysis.get("current_iv", 0.0) * 100
     hv_30 = iv_analysis.get("hv_30d", 0.0) * 100
@@ -177,10 +232,55 @@ def _iv_context(symbol: str, iv_analysis: dict) -> str:
             f"This is what tastylive calls 'selling overpriced insurance.'"
         )
 
-    return base + hv_line + interpretation
+    term_para = ""
+    skew_para = ""
+    if ctx:
+        ts = ctx.get("term_structure") or {}
+        if ts:
+            slope = ts.get("term_slope", "flat")
+            front_iv_pct = (ts.get("front_month_iv") or 0) * 100
+            back_iv_pct = (ts.get("back_month_iv") or 0) * 100
+            front_exp = ts.get("front_expiry", "")
+            back_exp = ts.get("back_expiry", "")
+
+            if slope == "contango" and front_iv_pct > 0 and back_iv_pct > 0:
+                term_para = (
+                    f"\n\nThe IV term structure is in contango — near-term options ({front_exp}) carry {front_iv_pct:.1f}% IV "
+                    f"while further-out options ({back_exp}) have {back_iv_pct:.1f}% IV. "
+                    f"This is the normal state: the market is more uncertain about the near-term than the long-term. "
+                    f"Front-month premium sellers benefit from this structure because near-term options decay faster "
+                    f"and carry relatively more premium per day."
+                )
+            elif slope == "backwardation" and front_iv_pct > 0 and back_iv_pct > 0:
+                term_para = (
+                    f"\n\nThe IV term structure is in backwardation — near-term options ({front_exp}) carry {front_iv_pct:.1f}% IV "
+                    f"but further-out options ({back_exp}) have only {back_iv_pct:.1f}% IV. "
+                    f"This is unusual and typically signals an imminent near-term event (earnings, FDA decision, macro data) "
+                    f"driving front-month premium above back-month. "
+                    f"Selling front-month premium into backwardation can be lucrative but requires caution "
+                    f"around the catalyst that is driving the elevated near-term IV."
+                )
+
+            skew_label = ts.get("skew_label", "normal")
+            skew_val = ts.get("put_skew", 0.0)
+            if skew_label == "elevated":
+                skew_para = (
+                    f"\n\nPut skew is elevated — out-of-the-money puts are carrying {skew_val*100:.1f}% more IV "
+                    f"than at-the-money calls. This means the market is paying a premium to protect against a sharp downside move. "
+                    f"Elevated put skew benefits put sellers (you collect more for downside protection) "
+                    f"but also signals that large players are hedging — pay attention to why."
+                )
+            elif skew_label == "low":
+                skew_para = (
+                    f"\n\nPut skew is compressed — downside puts are cheap relative to calls. "
+                    f"This typically appears in strongly trending markets where fear of a crash is low. "
+                    f"It makes buying downside protection relatively cheap if you want to hedge a long position."
+                )
+
+    return base + hv_line + interpretation + term_para + skew_para
 
 
-def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, strategy: dict) -> str:
+def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, strategy: dict, ctx: dict | None = None) -> str:
     iv_env = iv_analysis.get("iv_environment", "MEDIUM")
     ivr = iv_analysis.get("iv_rank", 0.0)
     bias = bias_analysis.get("bias", "NEUTRAL")
@@ -287,10 +387,88 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
             f"and targets the {dte_target}-day expiration window where time decay is most efficient."
         )
 
-    return f"{core}\n\n{risk_note}\n\n{pop_note}\n\n{complexity_note}"
+    extra_confirmations = []
+    if ctx:
+        tech = ctx.get("technicals") or {}
+        if tech:
+            macd_bias = tech.get("macd_bias", "")
+            macd_div = tech.get("macd_diverging", False)
+            if macd_bias:
+                alignment = (
+                    "aligns with" if (
+                        (macd_bias == "bullish" and "BULLISH" in bias)
+                        or (macd_bias == "bearish" and "BEARISH" in bias)
+                        or (macd_bias == "bullish" and bias == "NEUTRAL_BULLISH")
+                        or (macd_bias == "bearish" and bias == "NEUTRAL_BEARISH")
+                    ) else "diverges from"
+                )
+                extra_confirmations.append(
+                    f"MACD confirmation: the MACD is currently {macd_bias}, which {alignment} the directional bias. "
+                    + (
+                        "With MACD momentum building (expanding histogram), the setup has multiple confirming signals."
+                        if alignment == "aligns with" and macd_div
+                        else "The histogram is contracting — momentum may be fading, so watch for a MACD crossover before adding size."
+                        if alignment == "aligns with"
+                        else "When MACD diverges from the primary bias, it's a signal to reduce position size and wait for alignment before entering."
+                    )
+                )
+
+        flow = ctx.get("flow") or {}
+        if flow and flow.get("total_volume", 0) > 1000:
+            pcr = flow.get("put_call_ratio_volume", 1.0)
+            flow_bias_str = flow.get("flow_bias", "neutral")
+            unusual_calls = flow.get("unusual_call_strikes", [])
+            unusual_puts = flow.get("unusual_put_strikes", [])
+            pcr_note = (
+                f"The put/call volume ratio is {pcr:.2f} — "
+                + (
+                    "call volume dominates, a bullish signal that suggests large traders are positioning for upside."
+                    if flow_bias_str in ("bullish", "strongly_bullish")
+                    else "put volume dominates, a bearish signal that suggests hedging or downside bets from larger players."
+                    if flow_bias_str in ("bearish", "strongly_bearish")
+                    else "roughly balanced between calls and puts, with no strong institutional directional signal."
+                )
+            )
+            unusual_note = ""
+            if unusual_calls:
+                unusual_note += f" Unusual call activity detected at strikes ${', $'.join(str(int(s)) for s in unusual_calls)} — volume exceeded open interest, signalling new bullish positioning."
+            if unusual_puts:
+                unusual_note += f" Unusual put activity at strikes ${', $'.join(str(int(s)) for s in unusual_puts)} — volume exceeded open interest, signalling new bearish or protective positioning."
+            extra_confirmations.append(f"Options flow: {pcr_note}{unusual_note}")
+
+        earnings = ctx.get("earnings") or {}
+        days_earn = earnings.get("days_until_earnings")
+        if days_earn is not None:
+            strategy_key = strategy.get("key", "")
+            is_seller = strategy_key in (
+                "short_strangle", "iron_condor", "short_straddle", "iron_fly",
+                "short_naked_put", "short_put_vertical", "jade_lizard",
+                "short_naked_call", "short_call_vertical", "reverse_jade_lizard", "covered_call",
+            )
+            if 0 <= days_earn <= 14:
+                extra_confirmations.append(
+                    f"Earnings risk — IMPORTANT: {symbol} reports earnings in {days_earn} day{'s' if days_earn != 1 else ''}. "
+                    + (
+                        f"Selling premium into an earnings event is high-risk: implied volatility will collapse immediately after the announcement, "
+                        f"but the stock may gap sharply through your strikes. "
+                        f"tastylive's rule: either close the position before earnings, or size it at half your normal allocation."
+                        if is_seller
+                        else f"Buying options into an earnings event can be powerful — you benefit from both the directional move AND the pre-earnings IV expansion. "
+                        f"However, if the stock moves less than the options are pricing in, IV crush can hurt you even if you're directionally right."
+                    )
+                )
+            elif 15 <= days_earn <= 30:
+                extra_confirmations.append(
+                    f"Earnings in {days_earn} days: this trade may overlap with the earnings event depending on the expiry chosen. "
+                    f"Check whether your selected expiry date is before or after the earnings date — "
+                    f"a pre-earnings expiry avoids the event entirely; a post-earnings expiry captures the IV expansion but takes on event risk."
+                )
+
+    all_parts = [core, risk_note, pop_note, complexity_note] + extra_confirmations
+    return "\n\n".join(all_parts)
 
 
-def _trade_plain_english(symbol: str, trade: dict) -> str:
+def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> str:
     legs = trade.get("legs", [])
     net = trade.get("estimated_credit_or_debit", 0.0)
     expiry = trade.get("expiry", "")
@@ -300,6 +478,24 @@ def _trade_plain_english(symbol: str, trade: dict) -> str:
     sections.append(
         f"Here is exactly what this trade looks like, leg by leg:"
     )
+
+    if ctx:
+        tech = ctx.get("technicals") or {}
+        atr_pct = tech.get("atr_pct", 0.0)
+        atr = tech.get("atr", 0.0)
+        earnings = ctx.get("earnings") or {}
+        days_earn = earnings.get("days_until_earnings")
+        if atr_pct > 0:
+            sections.insert(1,
+                f"Before we look at the legs: {symbol}'s average daily move (ATR) is ${atr:.2f}, or {atr_pct:.1f}% of the stock price. "
+                f"This is the market's expectation of a typical day's range. "
+                f"Use this to calibrate your strike selection — strikes within 1–2 ATRs of the current price are likely to be tested during the trade."
+            )
+        if days_earn is not None and 0 <= days_earn <= int(trade.get("dte", 45) or 45):
+            sections.append(
+                f"NOTE: Earnings are in approximately {days_earn} days, which falls within this trade's {_days_to_expiry(trade.get('expiry', ''))} day window. "
+                f"The trade will experience an IV crush event around earnings — plan for it and consider whether to close before the announcement."
+            )
 
     for i, leg in enumerate(legs, 1):
         action = leg.get("action", "buy")
@@ -785,15 +981,16 @@ def generate_narrative(
     bias_analysis: dict,
     strategy: dict,
     trade: dict,
+    market_context: dict | None = None,
 ) -> dict:
     if trade.get("error"):
         strat_key_err = strategy.get("key", "")
         strat_name_err = strategy.get("name", "this strategy")
         return {
             "headline": f"{symbol} — {strat_name_err}: market data ready, trade structure unavailable.",
-            "market_snapshot": _market_snapshot(symbol, bias_analysis),
-            "iv_context": _iv_context(symbol, iv_analysis),
-            "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy),
+            "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
+            "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
+            "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
             "trade_plain_english": f"The specific strike/expiry data needed to build this trade could not be retrieved right now ({trade['error']}). The analysis above still applies — when data is available, this strategy remains the recommendation given current IV and bias conditions.",
             "profit_scenario": "",
             "loss_scenario": "",
@@ -838,10 +1035,10 @@ def generate_narrative(
 
     return {
         "headline": headline,
-        "market_snapshot": _market_snapshot(symbol, bias_analysis),
-        "iv_context": _iv_context(symbol, iv_analysis),
-        "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy),
-        "trade_plain_english": _trade_plain_english(symbol, trade),
+        "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
+        "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
+        "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
+        "trade_plain_english": _trade_plain_english(symbol, trade, ctx=market_context),
         "profit_scenario": _profit_scenario(symbol, trade, strategy),
         "loss_scenario": _loss_scenario(symbol, trade, strategy),
         "defensive_tactic": _defensive_tactic(strat_key),
