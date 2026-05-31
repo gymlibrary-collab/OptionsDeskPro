@@ -9,11 +9,12 @@ import LoginPage from './components/LoginPage'
 import AdminPanel from './components/AdminPanel'
 import PnLChart from './components/PnLChart'
 import UserGuide from './components/UserGuide'
+import TradingDesk from './components/TradingDesk'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
 import api from './api/client'
 
-type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin' | 'guide'
+type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin' | 'guide' | 'trading'
 
 export interface OrderPrefill {
   symbol: string
@@ -72,6 +73,7 @@ function Dashboard() {
 
   const tabs: { key: Tab; label: string; short: string }[] = [
     { key: 'chain', label: 'Options Chain', short: 'Chain' },
+    { key: 'trading', label: 'Trading Desk', short: 'Desk' },
     { key: 'positions', label: 'Positions', short: 'P&L' },
     { key: 'orders', label: 'Orders', short: 'Orders' },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
@@ -86,7 +88,7 @@ function Dashboard() {
     .join('')
     .toUpperCase()
 
-  const showSidebar = !isMobile && activeTab !== 'admin' && activeTab !== 'guide'
+  const showSidebar = !isMobile && activeTab !== 'admin' && activeTab !== 'guide' && activeTab !== 'trading'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace", overflow: 'hidden' }}>
@@ -177,6 +179,7 @@ function Dashboard() {
           {/* Tab content */}
           <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
             {activeTab === 'chain' && <OptionsChain symbol={symbol} onRowClick={handleRowClick} />}
+            {activeTab === 'trading' && <TradingDesk />}
             {activeTab === 'positions' && <><Positions key={orderRefresh} /><PnLChart /></>}
             {activeTab === 'orders' && <Orders key={orderRefresh} />}
             {activeTab === 'scanner' && <StrategyScanner onAddToOrder={handleRowClick} />}
