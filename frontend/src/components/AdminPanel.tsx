@@ -172,15 +172,16 @@ export default function AdminPanel() {
     setInviting(true)
     try {
       await api.post('/admin/users/invite', { email, role: inviteRole })
-      setInviteSuccess(`${email} added as ${inviteRole}.`)
+      setInviteSuccess(`${email} invited as ${inviteRole}.`)
       setInviteEmail('')
       setInviteRole('user')
-      await loadUsers()
     } catch (e: any) {
       setInviteError(e?.response?.data?.detail || 'Failed to invite user.')
     } finally {
       setInviting(false)
     }
+    // Refresh list separately — don't let this failure affect the invite result
+    loadUsers().catch(() => {})
   }
 
   const handleRoleChange = async (userId: string, role: Role) => {
