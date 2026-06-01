@@ -142,6 +142,7 @@ export interface Narrative {
   profit_scenario: string
   loss_scenario: string
   defensive_tactic: string
+  trade_ticket?: string
   execution_checklist: string[]
   confirmation_summary: string
 }

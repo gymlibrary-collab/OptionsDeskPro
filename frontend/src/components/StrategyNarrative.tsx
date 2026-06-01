@@ -9,6 +9,7 @@ export interface Narrative {
   profit_scenario: string
   loss_scenario: string
   defensive_tactic: string
+  trade_ticket?: string
   execution_checklist: string[]
   confirmation_summary: string
 }
@@ -225,75 +226,145 @@ export default function StrategyNarrative({ narrative }: Props) {
         </div>
       </div>
 
-      {/* Execution Checklist */}
-      <div
-        style={{
-          background: '#0d0f18',
-          border: `1px solid ${C.border}`,
-          borderRadius: '8px',
-          padding: '14px 16px',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        }}
-      >
+      {/* Execution Section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+        {/* Trade Ticket */}
+        {narrative.trade_ticket && (
+          <div style={{
+            background: '#0a1628',
+            border: `1px solid #3b82f688`,
+            borderRadius: '8px',
+            padding: '14px 16px',
+          }}>
+            <div style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: '#3b82f6',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              marginBottom: '8px',
+            }}>
+              Order Ticket — Enter This Exactly in Your Broker
+            </div>
+            <div style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#e2e8f0',
+              background: '#0f1e38',
+              border: '1px solid #3b82f633',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              lineHeight: 1.6,
+              letterSpacing: '0.02em',
+            }}>
+              {narrative.trade_ticket}
+            </div>
+            <div style={{ fontSize: '11px', color: C.muted, marginTop: '6px' }}>
+              This is the exact combined order to place. Follow the step-by-step guide below to enter it in your broker.
+            </div>
+          </div>
+        )}
+
+        {/* Step-by-step Checklist */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '10px',
+            background: '#0d0f18',
+            border: `1px solid ${C.border}`,
+            borderRadius: '8px',
+            padding: '14px 16px',
           }}
         >
           <div
             style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              color: C.muted,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '12px',
             }}
           >
-            Execution Checklist
-          </div>
-          <button
-            onClick={handleCopyChecklist}
-            style={{
-              background: copied ? `${C.green}22` : C.surface2,
-              border: `1px solid ${copied ? C.green : C.border}`,
-              color: copied ? C.green : C.muted,
-              borderRadius: '5px',
-              padding: '3px 10px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              transition: 'all 0.15s',
-            }}
-          >
-            {copied ? 'Copied!' : 'Copy Checklist'}
-          </button>
-        </div>
-        <ol
-          style={{
-            margin: 0,
-            paddingLeft: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}
-        >
-          {narrative.execution_checklist.map((step, i) => (
-            <li
-              key={i}
+            <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Step-by-Step Execution Guide
+            </div>
+            <button
+              onClick={handleCopyChecklist}
               style={{
-                fontSize: '12px',
-                color: C.text,
-                lineHeight: 1.55,
+                background: copied ? `${C.green}22` : C.surface2,
+                border: `1px solid ${copied ? C.green : C.border}`,
+                color: copied ? C.green : C.muted,
+                borderRadius: '5px',
+                padding: '3px 10px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                transition: 'all 0.15s',
               }}
             >
-              {step}
-            </li>
-          ))}
-        </ol>
+              {copied ? 'Copied!' : 'Copy Guide'}
+            </button>
+          </div>
+          <ol
+            style={{
+              margin: 0,
+              paddingLeft: '0',
+              listStyle: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            {narrative.execution_checklist.map((step, i) => {
+              const firstWord = step.split(' ')[0]
+              const isKeyword = /^(OPEN|NAVIGATE|SELECT|LEG|COMBINE|SET|MARK|HARD)/.test(firstWord)
+              const colonIdx = step.indexOf(':')
+              const label = isKeyword && colonIdx > 0 ? step.slice(0, colonIdx) : null
+              const body  = label ? step.slice(colonIdx + 1).trim() : step
+
+              return (
+                <li
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'flex-start',
+                    background: '#13151f',
+                    borderRadius: '6px',
+                    padding: '9px 12px',
+                    border: `1px solid ${C.border}44`,
+                  }}
+                >
+                  <span style={{
+                    flexShrink: 0,
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: C.accent + '22',
+                    border: `1px solid ${C.accent}55`,
+                    color: C.accent,
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: '1px',
+                  }}>
+                    {i + 1}
+                  </span>
+                  <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6 }}>
+                    {label && (
+                      <span style={{ fontWeight: 700, color: C.accent, marginRight: '6px' }}>
+                        {label}:
+                      </span>
+                    )}
+                    {body}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
       </div>
     </div>
   )
