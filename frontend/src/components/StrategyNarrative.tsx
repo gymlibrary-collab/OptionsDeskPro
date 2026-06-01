@@ -226,7 +226,21 @@ export default function StrategyNarrative({ narrative }: Props) {
         </div>
       </div>
 
-      {/* Execution Section */}
+      {/* Execution Section — only shown when live options data was available */}
+      {narrative.execution_checklist.length === 0 && (
+        <div style={{
+          background: C.surface2,
+          border: `1px solid ${C.border}`,
+          borderRadius: '8px',
+          padding: '12px 16px',
+          fontSize: '12px',
+          color: C.muted,
+        }}>
+          <span style={{ fontWeight: 700, color: C.amber }}>Execution guide unavailable.</span>
+          {' '}Live options chain data could not be fetched for this symbol (yfinance). The analysis above is still valid — once market data is available, expand this strategy again for the full step-by-step execution guide.
+        </div>
+      )}
+      {narrative.execution_checklist.length > 0 && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
         {/* Trade Ticket */}
@@ -366,6 +380,7 @@ export default function StrategyNarrative({ narrative }: Props) {
           </ol>
         </div>
       </div>
+      )}
     </div>
   )
 }
