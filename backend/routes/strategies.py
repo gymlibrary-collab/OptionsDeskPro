@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_strategies, build_trade, STRATEGIES
-from services.market_data import get_options_chain, get_quote
+from services.market_data import get_options_chain, get_quote, synthetic_options_chain
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
@@ -96,8 +96,17 @@ async def analyze_symbol(symbol: str):
         spot, enriched_chain = _get_enriched_chain_for_symbol(symbol)
     except Exception as e:
         logger.warning(f"Could not load options chain for {symbol}: {e}")
-        enriched_chain = {"expirations": [], "expiry": None, "calls": [], "puts": []}
+        enriched_chain = None
         spot = bias_data.get("price", 0.0)
+
+    # Fall back to Black-Scholes synthetic chain when Yahoo Finance is unavailable
+    if not enriched_chain or not enriched_chain.get("expirations"):
+        logger.info(f"Generating synthetic options chain for {symbol} (live data unavailable)")
+        spot = spot or bias_data.get("price", 1.0)
+        current_iv = iv_data.get("current_iv", 0.30) or 0.30
+        raw = synthetic_options_chain(symbol, spot, current_iv)
+        enriched_chain = _enrich_chain_with_greeks(raw, spot)
+        enriched_chain["_synthetic"] = True
 
     # Gather supplementary market context (earnings, news, technicals, IV term structure, flow)
     try:
@@ -110,6 +119,8 @@ async def analyze_symbol(symbol: str):
         strategy_key = rec["key"]
         try:
             trade = build_trade(symbol, strategy_key, enriched_chain, spot)
+            if enriched_chain.get("_synthetic"):
+                trade["_synthetic"] = True
         except Exception as e:
             logger.warning(f"build_trade failed for {strategy_key}: {e}")
             trade = {"error": str(e)}

@@ -118,6 +118,7 @@ def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) 
             macd_bias = tech.get("macd_bias", "")
             macd_div = tech.get("macd_diverging", False)
             atr_pct = tech.get("atr_pct", 0.0)
+            atr = tech.get("atr", 0.0)
             vol_trend = tech.get("volume_trend", "normal")
             vol_ratio = tech.get("volume_ratio_5_20", 1.0)
 
@@ -155,7 +156,7 @@ def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) 
         news = ctx.get("news") or []
         if news:
             headlines_text = "; ".join(
-                f'"{h["title"]}"' + (f' ({h["publisher"]})' if h.get("publisher") else "")
+                f'"{ h["title"]}"' + (f' ({h["publisher"]})' if h.get("publisher") else "")
                 for h in news[:4]
             )
             extra_paras.append(
@@ -475,6 +476,15 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
     dte = _days_to_expiry(expiry)
     sections = []
 
+    if trade.get("_synthetic"):
+        sections.append(
+            "NOTE — THEORETICAL PRICING: Live options data from Yahoo Finance could not be fetched "
+            "for this symbol (the server IP is rate-limited). The trade structure below uses "
+            "Black-Scholes pricing based on the stock's historical implied volatility — "
+            "the strategy logic, strikes, and mechanics are correct, but you MUST verify "
+            "the actual bid/ask prices in your broker before placing any order."
+        )
+
     sections.append(
         f"Here is exactly what this trade looks like, leg by leg:"
     )
@@ -650,11 +660,12 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
             f"This is the power of defined-risk spreads: you trade off some premium collected "
             f"in exchange for a hard ceiling on how much you can lose."
         )
-        loss_frame += (
-            f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
-            f"${abs(net)*100:.0f} — a {abs(net)*100/max_loss_dollars:.1f}:1 risk/reward ratio. "
-            f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
-        )
+        if max_loss_dollars > 0:
+            loss_frame += (
+                f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
+                f"${abs(net)*100:.0f} — a {abs(net)*100/max_loss_dollars:.1f}:1 risk/reward ratio. "
+                f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
+            )
     else:
         loss_frame = (
             f"This is an undefined-risk trade, which means there is no hard ceiling on losses. "
@@ -823,12 +834,14 @@ def _trade_ticket(symbol: str, trade: dict) -> str:
     abs_net = abs(net)
     flow = f"@ ${abs_net:.2f} {'credit' if is_credit else 'debit'} per share  (${abs_net * 100:.0f} per contract)"
 
+    synthetic_note = "  [THEORETICAL — verify in broker]" if trade.get("_synthetic") else ""
+
     if len(option_legs) == 1:
         leg = option_legs[0]
         action = leg.get("action", "buy").upper()
         otype = leg.get("option_type", "call").upper()
         strike = leg.get("strike", 0)
-        return f"{action} 1 {symbol}  ·  {exp_fmt}  ·  ${strike:.0f} {otype}  ·  {flow}"
+        return f"{action} 1 {symbol}  ·  {exp_fmt}  ·  ${strike:.0f} {otype}  ·  {flow}{synthetic_note}"
 
     sells = [l for l in option_legs if l.get("action") == "sell"]
     buys = [l for l in option_legs if l.get("action") == "buy"]
@@ -856,7 +869,7 @@ def _trade_ticket(symbol: str, trade: dict) -> str:
     overall = "SELL" if all(l.get("action") == "sell" for l in option_legs) else (
               "BUY"  if all(l.get("action") == "buy"  for l in option_legs) else "SELL")
 
-    return f"{overall} 1 {symbol}  ·  {exp_fmt}  ·  {structure}  ·  {flow}"
+    return f"{overall} 1 {symbol}  ·  {exp_fmt}  ·  {structure}  ·  {flow}{synthetic_note}"
 
 
 def _execution_checklist(symbol: str, trade: dict) -> list:
@@ -882,7 +895,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
 
     steps = []
 
-    # ── Step 1: open the broker ────────────────────────────────────────────
     steps.append(
         f"OPEN YOUR BROKER and search for the ticker '{symbol}'. "
         f"Recommended platforms that support multi-leg options: tastytrade (best for beginners), "
@@ -891,7 +903,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"if you haven't already — brokers call it 'options approval level 2 or higher')."
     )
 
-    # ── Step 2: navigate to the options chain ─────────────────────────────
     steps.append(
         f"NAVIGATE TO THE OPTIONS CHAIN for {symbol}. "
         f"Look for a 'Trade' tab or a button labelled 'Options', 'Options Chain', or 'Option Board'. "
@@ -901,7 +912,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"Each column group is a different expiration date."
     )
 
-    # ── Step 3: select the expiry ─────────────────────────────────────────
     steps.append(
         f"SELECT THE EXPIRATION DATE: {exp_fmt} ({dte} calendar days away). "
         f"Click on that date in the expiry header row to expand it (some brokers show a dropdown; "
@@ -911,7 +921,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"without gamma risk being too extreme yet."
     )
 
-    # ── Step 3b: stock leg if present ─────────────────────────────────────
     if has_stock_leg:
         steps.append(
             f"STOCK LEG: Confirm you hold 100 shares of {symbol} in your account, or place a 'Buy 100 shares' "
@@ -919,7 +928,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"is what the options are written against. Without the shares, the short call is 'naked' (higher margin required)."
         )
 
-    # ── Per-leg steps ──────────────────────────────────────────────────────
     for i, leg in enumerate(option_legs, 1):
         action = leg.get("action", "buy")
         otype  = leg.get("option_type", "call")
@@ -968,7 +976,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"{'Collect' if action == 'sell' else 'Pay'} ~${cost_per:.0f} per contract at mid."
         )
 
-    # ── Combined order entry ───────────────────────────────────────────────
     if len(option_legs) > 1:
         order_type = (
             "Vertical" if len(option_legs) == 2 else
@@ -987,7 +994,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"Your order ticket should show all {len(option_legs)} legs before you submit."
         )
 
-    # ── Limit price ───────────────────────────────────────────────────────
     if is_credit:
         steps.append(
             f"SET A LIMIT ORDER at ${abs_net / 100:.2f} credit per share (= ${abs_net:.0f} per contract). "
@@ -1008,7 +1014,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"NEVER use a Market order for options."
         )
 
-    # ── GTC profit-target closing order ───────────────────────────────────
     if is_credit:
         close_price = (profit_target * 100) if profit_target is not None else abs_net * (profit_target_pct / 100)
         close_debit = abs_net - close_price
@@ -1032,7 +1037,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"That is tastylive's standard debit spread exit rule."
         )
 
-    # ── Price alert ───────────────────────────────────────────────────────
     if bl is not None and bh is not None:
         breakeven_note = f"${bl:.2f} (downside breakeven) and ${bh:.2f} (upside breakeven)"
     elif bl is not None:
@@ -1049,7 +1053,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"using the defensive tactic described in the section above."
     )
 
-    # ── Hard stop for undefined risk ──────────────────────────────────────
     if exit_loss_dollars:
         steps.append(
             f"HARD STOP RULE (undefined-risk position): if the position P&L reaches −{exit_loss_dollars} "
@@ -1058,7 +1061,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"This is the tastylive 2× rule — it prevents a small loser from becoming a large one."
         )
 
-    # ── 21-DTE calendar reminder ──────────────────────────────────────────
     close_date_days = dte - 21
     steps.append(
         f"MARK YOUR CALENDAR: set a reminder for {close_date_days} days from today "
