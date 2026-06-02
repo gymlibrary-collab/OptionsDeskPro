@@ -50,13 +50,19 @@ def place_order(symbol: str, expiry: str, strike: float, option_type: str,
     Returns a dict with: alpaca_id, option_symbol, status, filled_avg_price.
     Raises on failure.
     """
-    from alpaca.trading.requests import OptionOrderRequest
     from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
+
+    # OptionOrderRequest was added in alpaca-py 0.9 but may be absent in some builds;
+    # MarketOrderRequest works for option symbols in all versions.
+    try:
+        from alpaca.trading.requests import OptionOrderRequest as _OrderReq
+    except ImportError:
+        from alpaca.trading.requests import MarketOrderRequest as _OrderReq
 
     client = _get_client()
     option_symbol = _resolve_option_symbol(client, symbol, expiry, strike, option_type)
 
-    order_req = OptionOrderRequest(
+    order_req = _OrderReq(
         symbol=option_symbol,
         qty=quantity,
         side=OrderSide.BUY if action.lower() == "buy" else OrderSide.SELL,
