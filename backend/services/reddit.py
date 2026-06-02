@@ -1,64 +1,87 @@
 """
-Reddit public JSON API client with per-key in-memory caching.
-No auth required — uses the unauthenticated JSON endpoint.
+Market news service using yfinance.
+Reddit's public JSON API is blocked from cloud/server IPs; yfinance news
+is already used elsewhere in the app and works reliably.
 """
 import time
 import logging
-import requests
+from datetime import datetime
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "OptionsDesk/1.0"}
-
-# (timestamp, data)
 _cache: dict[str, tuple[float, list]] = {}
 
 TTL = {
-    "earnings": 300,   # 5 min
-    "stocks":   300,   # 5 min
-    "crypto":   180,   # 3 min
-    "selected": 300,   # 5 min
-    "tokens":   600,   # 10 min
+    "earnings": 300,
+    "stocks":   300,
+    "crypto":   180,
+    "selected": 300,
+    "tokens":   600,
 }
 
-
-def _fetch(subreddit: str, sort: str = "hot", limit: int = 20) -> list:
-    url = f"https://www.reddit.com/r/{subreddit}/{sort}.json?limit={limit}"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=8)
-        r.raise_for_status()
-        children = r.json()["data"]["children"]
-        return [_fmt(c["data"]) for c in children if not c["data"].get("stickied")]
-    except Exception as e:
-        logger.warning(f"Reddit fetch r/{subreddit}: {e}")
-        return []
+STOCK_SYMBOLS  = ["SPY", "QQQ", "AAPL", "TSLA", "NVDA", "AMZN", "MSFT", "META", "GOOGL", "NFLX"]
+CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
+TOKEN_SYMBOLS  = ["SOL-USD", "AVAX-USD", "DOT-USD", "LINK-USD", "MATIC-USD", "ADA-USD"]
+EARNINGS_KW    = {"earnings", "results", "eps", "revenue", "beat", "miss",
+                  "guidance", "quarterly", "profit", "loss", "q1", "q2", "q3", "q4"}
 
 
-def _search(subreddit: str, query: str, limit: int = 10) -> list:
-    url = (
-        f"https://www.reddit.com/r/{subreddit}/search.json"
-        f"?q={requests.utils.quote(query)}&sort=new&limit={limit}&restrict_sr=1"
+def _parse_time(item: dict) -> int:
+    t = item.get("providerPublishTime")
+    if t and isinstance(t, (int, float)):
+        return int(t)
+    content = item.get("content") or {}
+    pub = content.get("pubDate", "")
+    if pub:
+        try:
+            return int(datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp())
+        except Exception:
+            pass
+    return int(time.time())
+
+
+def _fmt(item: dict, flair: str = "") -> dict | None:
+    content = item.get("content") or {}
+    title = item.get("title") or content.get("title", "")
+    if not title:
+        return None
+    publisher = (
+        item.get("publisher")
+        or (content.get("provider") or {}).get("displayName", "")
+        or "Market News"
     )
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=8)
-        r.raise_for_status()
-        children = r.json()["data"]["children"]
-        return [_fmt(c["data"]) for c in children]
-    except Exception as e:
-        logger.warning(f"Reddit search r/{subreddit} '{query}': {e}")
-        return []
-
-
-def _fmt(d: dict) -> dict:
+    url = (
+        item.get("link")
+        or (content.get("canonicalUrl") or {}).get("url", "")
+        or (content.get("clickThroughUrl") or {}).get("url", "")
+        or ""
+    )
     return {
-        "title":        d.get("title", ""),
-        "subreddit":    d.get("subreddit", ""),
-        "score":        d.get("score", 0),
-        "num_comments": d.get("num_comments", 0),
-        "url":          f"https://reddit.com{d.get('permalink', '')}",
-        "flair":        d.get("link_flair_text") or "",
-        "created_utc":  int(d.get("created_utc", 0)),
+        "title":        title,
+        "subreddit":    publisher,
+        "score":        0,
+        "num_comments": 0,
+        "url":          url,
+        "flair":        flair,
+        "created_utc":  _parse_time(item),
     }
+
+
+def _news_for_symbols(symbols: list[str], max_per: int = 6) -> list:
+    seen: set[str] = set()
+    results = []
+    for sym in symbols:
+        try:
+            news = yf.Ticker(sym).news or []
+            for item in news[:max_per]:
+                fmt = _fmt(item, flair=sym.replace("-USD", ""))
+                if fmt and fmt["title"] not in seen:
+                    seen.add(fmt["title"])
+                    results.append(fmt)
+        except Exception as e:
+            logger.debug(f"News fetch failed for {sym}: {e}")
+    return sorted(results, key=lambda x: x["created_utc"], reverse=True)
 
 
 def _cached(key: str, ttl: int, fn) -> list:
@@ -74,41 +97,30 @@ def _cached(key: str, ttl: int, fn) -> list:
 
 def get_earnings_buzz() -> list:
     def fetch():
-        keywords = {"earnings", "results", "eps", "revenue", "beat", "miss",
-                    "guidance", "q1", "q2", "q3", "q4", "quarterly", "profit", "loss"}
-        posts = _fetch("earnings", "hot", 20) + _fetch("stocks", "hot", 20)
-        hits = [p for p in posts if any(k in p["title"].lower() for k in keywords)]
-        return sorted(hits or posts, key=lambda x: x["score"], reverse=True)[:20]
+        posts = _news_for_symbols(STOCK_SYMBOLS, max_per=8)
+        hits = [p for p in posts if any(k in p["title"].lower() for k in EARNINGS_KW)]
+        return (hits or posts)[:20]
     return _cached("earnings", TTL["earnings"], fetch)
 
 
 def get_stocks_buzz() -> list:
-    def fetch():
-        posts = _fetch("wallstreetbets", "hot", 20) + _fetch("stocks", "hot", 15)
-        return sorted(posts, key=lambda x: x["score"], reverse=True)[:25]
-    return _cached("stocks", TTL["stocks"], fetch)
+    return _cached("stocks", TTL["stocks"],
+                   lambda: _news_for_symbols(STOCK_SYMBOLS, max_per=6)[:25])
 
 
 def get_crypto_buzz() -> list:
-    def fetch():
-        posts = _fetch("CryptoCurrency", "hot", 20) + _fetch("CryptoMarkets", "hot", 15)
-        return sorted(posts, key=lambda x: x["score"], reverse=True)[:25]
-    return _cached("crypto", TTL["crypto"], fetch)
+    return _cached("crypto", TTL["crypto"],
+                   lambda: _news_for_symbols(CRYPTO_SYMBOLS, max_per=8)[:25])
 
 
 def get_selected_stocks_buzz(symbols: list[str]) -> list:
     if not symbols:
         return []
     key = "sel_" + "_".join(sorted(s.upper() for s in symbols))
-    def fetch():
-        query = " OR ".join(f"${s.upper()}" for s in symbols[:6])
-        posts = _search("wallstreetbets", query, 12) + _search("options", query, 10)
-        return sorted(posts, key=lambda x: x["score"], reverse=True)[:20]
-    return _cached(key, TTL["selected"], fetch)
+    return _cached(key, TTL["selected"],
+                   lambda: _news_for_symbols(symbols, max_per=8)[:20])
 
 
 def get_new_tokens_buzz() -> list:
-    def fetch():
-        posts = _fetch("CryptoMoonShots", "hot", 20) + _fetch("altcoin", "hot", 15)
-        return sorted(posts, key=lambda x: x["score"], reverse=True)[:25]
-    return _cached("tokens", TTL["tokens"], fetch)
+    return _cached("tokens", TTL["tokens"],
+                   lambda: _news_for_symbols(TOKEN_SYMBOLS, max_per=8)[:25])

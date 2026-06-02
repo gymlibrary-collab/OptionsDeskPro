@@ -49,16 +49,22 @@ function PostRow({ post }: { post: RedditPost }) {
         {post.title}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '10px', background: '#2d3148', color: C.accent, padding: '1px 6px', borderRadius: '10px', fontWeight: 600 }}>
-          r/{post.subreddit}
-        </span>
+        {post.subreddit && (
+          <span style={{ fontSize: '10px', background: '#2d3148', color: C.accent, padding: '1px 6px', borderRadius: '10px', fontWeight: 600 }}>
+            {post.subreddit}
+          </span>
+        )}
         {post.flair && (
           <span style={{ fontSize: '10px', color: C.muted, background: '#1e2235', padding: '1px 6px', borderRadius: '10px' }}>
             {post.flair}
           </span>
         )}
-        <span style={{ fontSize: '10px', color: C.green, marginLeft: 'auto' }}>▲ {fmtScore(post.score)}</span>
-        <span style={{ fontSize: '10px', color: C.muted }}>💬 {fmtScore(post.num_comments)}</span>
+        {post.score > 0 && (
+          <span style={{ fontSize: '10px', color: C.green, marginLeft: 'auto' }}>▲ {fmtScore(post.score)}</span>
+        )}
+        {post.num_comments > 0 && (
+          <span style={{ fontSize: '10px', color: C.muted, marginLeft: post.score > 0 ? undefined : 'auto' }}>💬 {fmtScore(post.num_comments)}</span>
+        )}
         <span style={{ fontSize: '10px', color: C.muted }}>{relTime(post.created_utc)}</span>
       </div>
     </a>
