@@ -150,15 +150,28 @@ def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
     elif spot < 500:  inc = 5.0
     else:             inc = 10.0
 
-    def _next_friday(d: date) -> date:
-        skip = (4 - d.weekday()) % 7
-        return d + timedelta(days=skip or 7)
+    from calendar import monthcalendar, FRIDAY as _FRI
+
+    def _third_friday(year: int, month: int) -> date:
+        """Standard monthly options expiry: 3rd Friday of the month."""
+        weeks = monthcalendar(year, month)
+        fridays = [w[_FRI] for w in weeks if w[_FRI] != 0]
+        return date(year, month, fridays[2])
 
     today = date.today()
-    expirations = sorted({
-        _next_friday(today + timedelta(days=d)).isoformat()
-        for d in [21, 35, 45, 63, 90]
-    })
+    # Build the next 6 standard monthly expirations (3rd Friday of each month)
+    expirations = []
+    y, m = today.year, today.month
+    for _ in range(7):
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+        tf = _third_friday(y, m)
+        if tf > today:
+            expirations.append(tf.isoformat())
+        if len(expirations) == 6:
+            break
+    expirations = sorted(expirations)
 
     def _dte(s: str) -> int:
         try: return max(0, (date.fromisoformat(s) - today).days)
