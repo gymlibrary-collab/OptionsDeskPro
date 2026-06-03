@@ -51,6 +51,9 @@ export interface OrderRequest {
   option_type: string
   action: string
   quantity: number
+  strategy_key?: string
+  strategy_name?: string
+  profit_target_pct?: number
 }
 
 export interface Order {
@@ -77,6 +80,10 @@ export interface Position {
   pnl: number
   delta: number
   gamma: number
+  strategy_key?: string
+  strategy_name?: string
+  profit_target_pct?: number
+  entry_action?: string
 }
 
 export interface PortfolioSummary {
@@ -106,7 +113,7 @@ export const getPositions = () =>
 export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio').then(r => r.data)
 
-// ─── Strategy Intelligence ─────────────────────────────────────────────
+// ─── Strategy Intelligence ──────────────────────────────────────────────────────
 
 export interface StrategyRecommendation {
   key: string
@@ -223,7 +230,7 @@ export const getBrokerAccount = () =>
 export const getPnLHistory = () =>
   api.get('/auth/pnl-history').then(r => r.data)
 
-// ─── Trading Desk — Reddit buzz ───────────────────────────────────────────
+// ─── Trading Desk — Reddit buzz ─────────────────────────────────────────────────────
 
 export interface RedditPost {
   title: string
