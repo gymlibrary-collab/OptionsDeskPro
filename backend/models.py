@@ -27,6 +27,9 @@ class OrderRequest(BaseModel):
     option_type: str  # "call" or "put"
     action: str  # "buy" or "sell"
     quantity: int
+    strategy_key: Optional[str] = None
+    strategy_name: Optional[str] = None
+    profit_target_pct: Optional[float] = None
 
 
 class Order(BaseModel):
@@ -40,6 +43,9 @@ class Order(BaseModel):
     quantity: int
     price: float
     status: str  # "filled", "rejected", "pending"
+    strategy_key: Optional[str] = None
+    strategy_name: Optional[str] = None
+    profit_target_pct: Optional[float] = None
 
 
 class Position(BaseModel):
@@ -53,6 +59,10 @@ class Position(BaseModel):
     pnl: float
     delta: float
     gamma: float
+    strategy_key: Optional[str] = None
+    strategy_name: Optional[str] = None
+    profit_target_pct: Optional[float] = None
+    entry_action: Optional[str] = None
 
 
 class PortfolioSummary(BaseModel):
