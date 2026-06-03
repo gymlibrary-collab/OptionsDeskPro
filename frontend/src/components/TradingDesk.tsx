@@ -105,7 +105,7 @@ function BuzzPanel({ title, fetchFn, refreshInterval, headerExtra }: BuzzPanelPr
   }, [load, refreshInterval])
 
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: '320px' }}>
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <div style={{ width: '3px', height: '16px', background: C.accent, borderRadius: '2px', flexShrink: 0 }} />
         <span style={{ fontWeight: 700, fontSize: '12px', color: C.text, flex: 1 }}>{title}</span>
@@ -121,7 +121,7 @@ function BuzzPanel({ title, fetchFn, refreshInterval, headerExtra }: BuzzPanelPr
           style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '13px', padding: '0 2px', lineHeight: 1 }}
         >↻</button>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '32px' }}>
             <span style={{ color: C.muted, fontSize: '12px' }}>Loading…</span>
@@ -174,23 +174,189 @@ function SelectedStocksPanel() {
   )
 }
 
-export default function TradingDesk() {
+// ── Resizable panel wrapper ────────────────────────────────────────────────
+
+type PanelId = 'earnings' | 'stocks' | 'crypto' | 'selected' | 'tokens'
+
+interface PanelSize { colSpan: number; height: number }
+
+const DEFAULTS: Record<PanelId, PanelSize> = {
+  earnings: { colSpan: 2, height: 420 },
+  stocks:   { colSpan: 2, height: 420 },
+  crypto:   { colSpan: 2, height: 420 },
+  selected: { colSpan: 3, height: 420 },
+  tokens:   { colSpan: 3, height: 420 },
+}
+
+const STORAGE_KEY = 'tradingDeskSizes'
+
+function loadSizes(): Record<PanelId, PanelSize> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) }
+  } catch {}
+  return { ...DEFAULTS }
+}
+
+interface ResizablePanelProps {
+  size: PanelSize
+  onResize: (h: number) => void
+  onColSpan: (s: number) => void
+  children: React.ReactNode
+}
+
+function ResizablePanel({ size, onResize, onColSpan, children }: ResizablePanelProps) {
+  const startY = useRef(0)
+  const startH = useRef(0)
+  const handleRef = useRef<HTMLDivElement>(null)
+
+  const startDrag = (e: React.MouseEvent) => {
+    e.preventDefault()
+    startY.current = e.clientY
+    startH.current = size.height
+
+    const onMove = (me: MouseEvent) => {
+      const next = Math.max(180, startH.current + me.clientY - startY.current)
+      onResize(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      if (handleRef.current) handleRef.current.style.borderTopColor = C.border
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const btnStyle = (disabled: boolean): React.CSSProperties => ({
+    background: 'transparent',
+    border: `1px solid ${disabled ? '#3a3f5c44' : '#3a3f5c'}`,
+    borderRadius: '3px',
+    color: disabled ? C.border : C.muted,
+    fontSize: '11px',
+    padding: '1px 5px',
+    cursor: disabled ? 'default' : 'pointer',
+    lineHeight: 1.4,
+    fontWeight: 700,
+  })
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', minHeight: 0 }}>
-      <div style={{ gridColumn: 'span 2' }}>
-        <BuzzPanel title="Results Reporting" fetchFn={getEarningsBuzz} refreshInterval={300_000} />
+    <div style={{ gridColumn: `span ${size.colSpan}`, display: 'flex', flexDirection: 'column', userSelect: 'none' }}>
+      {/* Width control strip */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', marginBottom: '4px', height: '20px' }}>
+        <span style={{ fontSize: '10px', color: C.muted, marginRight: '2px' }}>width</span>
+        <button
+          style={btnStyle(size.colSpan <= 1)}
+          disabled={size.colSpan <= 1}
+          onClick={() => onColSpan(Math.max(1, size.colSpan - 1))}
+          title="Narrower"
+        >◂</button>
+        <span style={{ fontSize: '10px', color: C.muted, minWidth: '22px', textAlign: 'center' }}>{size.colSpan}/6</span>
+        <button
+          style={btnStyle(size.colSpan >= 6)}
+          disabled={size.colSpan >= 6}
+          onClick={() => onColSpan(Math.min(6, size.colSpan + 1))}
+          title="Wider"
+        >▸</button>
       </div>
-      <div style={{ gridColumn: 'span 2' }}>
-        <BuzzPanel title="Buzz about Stocks" fetchFn={getStocksBuzz} refreshInterval={300_000} />
+
+      {/* Panel content at fixed height */}
+      <div style={{ height: `${size.height}px`, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {children}
       </div>
-      <div style={{ gridColumn: 'span 2' }}>
-        <BuzzPanel title="Buzz about Crypto" fetchFn={getCryptoBuzz} refreshInterval={180_000} />
+
+      {/* Height drag handle */}
+      <div
+        ref={handleRef}
+        onMouseDown={startDrag}
+        onMouseEnter={() => { if (handleRef.current) handleRef.current.style.borderTopColor = C.accent }}
+        onMouseLeave={() => { if (handleRef.current) handleRef.current.style.borderTopColor = C.border }}
+        title="Drag to resize height"
+        style={{
+          height: '8px',
+          cursor: 'ns-resize',
+          borderTop: `2px solid ${C.border}`,
+          borderRadius: '0 0 4px 4px',
+          transition: 'border-color 0.15s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '6px',
+        }}
+      >
+        <div style={{ width: '24px', height: '2px', background: C.border, borderRadius: '1px', marginTop: '2px' }} />
       </div>
-      <div style={{ gridColumn: 'span 3' }}>
-        <SelectedStocksPanel />
+    </div>
+  )
+}
+
+// ── TradingDesk ────────────────────────────────────────────────────────
+
+export default function TradingDesk() {
+  const [sizes, setSizes] = useState<Record<PanelId, PanelSize>>(loadSizes)
+
+  const updateSize = (id: PanelId, patch: Partial<PanelSize>) => {
+    setSizes(prev => {
+      const next = { ...prev, [id]: { ...prev[id], ...patch } }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  const resetLayout = () => {
+    setSizes({ ...DEFAULTS })
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+  }
+
+  const panels: { id: PanelId; el: React.ReactNode }[] = [
+    { id: 'earnings', el: <BuzzPanel title="Results Reporting"        fetchFn={getEarningsBuzz} refreshInterval={300_000} /> },
+    { id: 'stocks',   el: <BuzzPanel title="Buzz about Stocks"        fetchFn={getStocksBuzz}   refreshInterval={300_000} /> },
+    { id: 'crypto',   el: <BuzzPanel title="Buzz about Crypto"        fetchFn={getCryptoBuzz}   refreshInterval={180_000} /> },
+    { id: 'selected', el: <SelectedStocksPanel /> },
+    { id: 'tokens',   el: <BuzzPanel title="Buzz about New Tokens"    fetchFn={getTokensBuzz}   refreshInterval={600_000} /> },
+  ]
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '10px' }}>
+        <span style={{ fontSize: '11px', color: C.muted, marginRight: '10px' }}>
+          Drag bottom edge to resize height · use ◂ ▸ to adjust width
+        </span>
+        <button
+          onClick={resetLayout}
+          style={{
+            background: 'transparent',
+            border: `1px solid #3a3f5c`,
+            borderRadius: '6px',
+            color: C.muted,
+            padding: '5px 12px',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#3a3f5c'; e.currentTarget.style.color = C.muted }}
+        >
+          ↺ Reset Layout
+        </button>
       </div>
-      <div style={{ gridColumn: 'span 3' }}>
-        <BuzzPanel title="Buzz about New Tokens" fetchFn={getTokensBuzz} refreshInterval={600_000} />
+
+      {/* Panel grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '14px', alignItems: 'start' }}>
+        {panels.map(({ id, el }) => (
+          <ResizablePanel
+            key={id}
+            size={sizes[id]}
+            onResize={h => updateSize(id, { height: h })}
+            onColSpan={s => updateSize(id, { colSpan: s })}
+          >
+            {el}
+          </ResizablePanel>
+        ))}
       </div>
     </div>
   )
