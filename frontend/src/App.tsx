@@ -181,16 +181,13 @@ function Dashboard() {
         )}
       </div>
 
-      {/* ── Trading Desk workspace ── */}
-      {activeDesk === 'trading' && (
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
-          <TradingDesk />
-        </div>
-      )}
+      {/* ── Trading Desk workspace ── always mounted to preserve state */}
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px', display: activeDesk === 'trading' ? 'block' : 'none' }}>
+        <TradingDesk />
+      </div>
 
-      {/* ── Options Desk workspace ── */}
-      {activeDesk === 'options' && (
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* ── Options Desk workspace ── always mounted to preserve state */}
+      <div style={{ display: activeDesk === 'options' ? 'flex' : 'none', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
             {/* Tab bar */}
@@ -219,14 +216,28 @@ function Dashboard() {
               ))}
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — all tabs stay mounted to preserve state; inactive ones are hidden */}
             <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
-              {activeTab === 'chain' && <OptionsChain symbol={symbol} onRowClick={handleRowClick} />}
-              {activeTab === 'positions' && <><Positions key={orderRefresh} /><PnLChart /></>}
-              {activeTab === 'orders' && <Orders key={orderRefresh} />}
-              {activeTab === 'scanner' && <StrategyScanner onAddToOrder={handleRowClick} />}
-              {activeTab === 'guide' && <UserGuide isAdmin={isAdmin} />}
-              {activeTab === 'admin' && isAdmin && <AdminPanel />}
+              <div style={{ display: activeTab === 'chain' ? 'block' : 'none' }}>
+                <OptionsChain symbol={symbol} onRowClick={handleRowClick} />
+              </div>
+              <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>
+                <Positions key={orderRefresh} /><PnLChart />
+              </div>
+              <div style={{ display: activeTab === 'orders' ? 'block' : 'none' }}>
+                <Orders key={orderRefresh} />
+              </div>
+              <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
+                <StrategyScanner onAddToOrder={handleRowClick} />
+              </div>
+              <div style={{ display: activeTab === 'guide' ? 'block' : 'none' }}>
+                <UserGuide isAdmin={isAdmin} />
+              </div>
+              {isAdmin && (
+                <div style={{ display: activeTab === 'admin' ? 'block' : 'none' }}>
+                  <AdminPanel />
+                </div>
+              )}
             </div>
           </div>
 
@@ -237,7 +248,6 @@ function Dashboard() {
             </div>
           )}
         </div>
-      )}
 
       {/* ── Mobile: floating Order button + bottom drawer (Options Desk only) ── */}
       {isMobile && activeDesk === 'options' && activeTab !== 'admin' && (
