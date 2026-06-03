@@ -10,6 +10,7 @@ import AdminPanel from './components/AdminPanel'
 import PnLChart from './components/PnLChart'
 import UserGuide from './components/UserGuide'
 import TradingDesk from './components/TradingDesk'
+import StockOrderEntry from './components/StockOrderEntry'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
 import api from './api/client'
@@ -246,8 +247,15 @@ function Dashboard() {
 
           {/* Desktop sidebar */}
           {showSidebar && (
-            <div style={{ width: '300px', flexShrink: 0, background: C.surface, borderLeft: `1px solid ${C.border}`, overflow: 'auto' }}>
-              <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
+            <div style={{ width: isTablet ? '300px' : '600px', flexShrink: 0, background: C.surface, borderLeft: `1px solid ${C.border}`, overflow: 'auto', display: 'flex' }}>
+              <div style={{ width: '300px', flexShrink: 0, borderRight: isTablet ? 'none' : `1px solid ${C.border}` }}>
+                <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
+              </div>
+              {!isTablet && (
+                <div style={{ width: '300px', flexShrink: 0 }}>
+                  <StockOrderEntry onOrderPlaced={handleOrderPlaced} />
+                </div>
+              )}
             </div>
           )}
         </div>
