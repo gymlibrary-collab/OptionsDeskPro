@@ -1,5 +1,7 @@
 import time
 import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter
 
 from services.iv_analysis import get_iv_rank, get_directional_bias
@@ -151,69 +153,72 @@ async def analyze_symbol(symbol: str):
     }
 
 
+def _scan_one(symbol: str) -> dict:
+    """Fetch IV + bias for a single symbol (runs in thread pool)."""
+    try:
+        iv_data = get_iv_rank(symbol)
+        bias_data = get_directional_bias(symbol)
+
+        iv_env = iv_data.get("iv_environment", "MEDIUM")
+        bias = bias_data.get("bias", "NEUTRAL")
+        recs = recommend_strategies(iv_env, bias)
+        top_rec = recs[0] if recs else None
+
+        scan_narrative = None
+        if top_rec:
+            try:
+                scan_narrative = {
+                    "headline": _build_scan_headline(symbol, iv_data, bias_data, top_rec),
+                    "confirmation_summary": "",
+                }
+            except Exception as e:
+                logger.debug(f"Scan narrative failed for {symbol}: {e}")
+
+        return {
+            "symbol": symbol,
+            "price": bias_data.get("price", 0.0),
+            "iv_rank": iv_data.get("iv_rank", 0.0),
+            "current_iv": iv_data.get("current_iv", 0.0),
+            "iv_environment": iv_env,
+            "percentile_label": iv_data.get("percentile_label", ""),
+            "bias": bias,
+            "bias_strength": bias_data.get("strength", "MODERATE"),
+            "rsi14": bias_data.get("rsi14", 50.0),
+            "top_strategy": top_rec,
+            "scan_narrative": scan_narrative,
+            "error": iv_data.get("error") or bias_data.get("error"),
+        }
+    except Exception as e:
+        logger.error(f"Scan error for {symbol}: {e}")
+        return {
+            "symbol": symbol,
+            "price": 0.0,
+            "iv_rank": 0.0,
+            "current_iv": 0.0,
+            "iv_environment": "MEDIUM",
+            "percentile_label": "IVR N/A",
+            "bias": "NEUTRAL",
+            "bias_strength": "MODERATE",
+            "rsi14": 50.0,
+            "top_strategy": None,
+            "scan_narrative": None,
+            "error": str(e),
+        }
+
+
 @router.get("/strategies/scan")
 async def scan_watchlist(symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT"):
     """
-    Scan a comma-separated list of symbols.
+    Scan a comma-separated list of symbols in parallel.
     For each: compute IV rank + bias, return top 1 strategy recommendation.
     Returns list sorted by IVR descending (highest IV opportunities first).
     """
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    results = []
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=min(len(symbol_list), 8)) as pool:
+        tasks = [loop.run_in_executor(pool, _scan_one, sym) for sym in symbol_list]
+        results = await asyncio.gather(*tasks)
 
-    for symbol in symbol_list:
-        try:
-            iv_data = get_iv_rank(symbol)
-            time.sleep(0.5)  # Avoid yfinance rate limiting
-            bias_data = get_directional_bias(symbol)
-
-            iv_env = iv_data.get("iv_environment", "MEDIUM")
-            bias = bias_data.get("bias", "NEUTRAL")
-            recs = recommend_strategies(iv_env, bias)
-            top_rec = recs[0] if recs else None
-
-            # Add brief narrative (headline + confirmation_summary) for scan table
-            scan_narrative = None
-            if top_rec:
-                try:
-                    scan_narrative = {
-                        "headline": _build_scan_headline(symbol, iv_data, bias_data, top_rec),
-                        "confirmation_summary": "",
-                    }
-                except Exception as e:
-                    logger.debug(f"Scan narrative failed for {symbol}: {e}")
-
-            results.append({
-                "symbol": symbol,
-                "price": bias_data.get("price", 0.0),
-                "iv_rank": iv_data.get("iv_rank", 0.0),
-                "current_iv": iv_data.get("current_iv", 0.0),
-                "iv_environment": iv_env,
-                "percentile_label": iv_data.get("percentile_label", ""),
-                "bias": bias,
-                "bias_strength": bias_data.get("strength", "MODERATE"),
-                "rsi14": bias_data.get("rsi14", 50.0),
-                "top_strategy": top_rec,
-                "scan_narrative": scan_narrative,
-                "error": iv_data.get("error") or bias_data.get("error"),
-            })
-
-        except Exception as e:
-            logger.error(f"Scan error for {symbol}: {e}")
-            results.append({
-                "symbol": symbol,
-                "price": 0.0,
-                "iv_rank": 0.0,
-                "current_iv": 0.0,
-                "iv_environment": "MEDIUM",
-                "percentile_label": "IVR N/A",
-                "bias": "NEUTRAL",
-                "bias_strength": "MODERATE",
-                "rsi14": 50.0,
-                "top_strategy": None,
-                "error": str(e),
-            })
-
-    # Sort by IVR descending — highest opportunity first
+    results = list(results)
     results.sort(key=lambda x: x.get("iv_rank", 0.0), reverse=True)
     return results
