@@ -113,7 +113,7 @@ export const getPositions = () =>
 export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio').then(r => r.data)
 
-// ─── Strategy Intelligence ──────────────────────────────────────────────────────
+// --- Strategy Intelligence ---
 
 export interface StrategyRecommendation {
   key: string
@@ -230,7 +230,7 @@ export const getBrokerAccount = () =>
 export const getPnLHistory = () =>
   api.get('/auth/pnl-history').then(r => r.data)
 
-// ─── Trading Desk — Reddit buzz ─────────────────────────────────────────────────────
+// --- Trading Desk - Reddit buzz ---
 
 export interface RedditPost {
   title: string
@@ -248,5 +248,35 @@ export const getCryptoBuzz     = (): Promise<RedditPost[]> => api.get('/trading/
 export const getTokensBuzz     = (): Promise<RedditPost[]> => api.get('/trading/buzz/tokens').then(r => r.data)
 export const getSelectedBuzz   = (symbols: string): Promise<RedditPost[]> =>
   api.get(`/trading/buzz/selected?symbols=${encodeURIComponent(symbols)}`).then(r => r.data)
+
+// --- Stock Orders ---
+
+export interface StockOrderRequest {
+  symbol: string
+  action: 'buy' | 'sell'
+  quantity: number
+  order_type: 'market' | 'limit'
+  limit_price?: number
+}
+
+export interface StockOrder {
+  id: string
+  timestamp: string
+  symbol: string
+  action: string
+  quantity: number
+  order_type: string
+  limit_price?: number
+  fill_price: number
+  total_value: number
+  status: string
+  alpaca_id?: string
+}
+
+export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =>
+  api.post<StockOrder>('/stock-orders', order).then(r => r.data)
+
+export const getStockOrders = (): Promise<StockOrder[]> =>
+  api.get<StockOrder[]>('/stock-orders').then(r => r.data)
 
 export default api

@@ -140,25 +140,37 @@ function ivColor(iv: number) {
   return '#94a3b8'
 }
 
+const REFRESH_INTERVAL_MS = 60_000
+
 export default function OptionsChain({ symbol, onRowClick }: Props) {
   const [data, setData] = useState<OptionsChainResponse | null>(null)
   const [selectedExpiry, setSelectedExpiry] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [hoveredStrike, setHoveredStrike] = useState<number | null>(null)
   const [hoveredSide, setHoveredSide] = useState<'call' | 'put' | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL_MS / 1000)
+  const expiryRef = React.useRef(selectedExpiry)
 
-  const fetchChain = useCallback(async (expiry?: string) => {
-    setLoading(true)
+  useEffect(() => { expiryRef.current = selectedExpiry }, [selectedExpiry])
+
+  const fetchChain = useCallback(async (expiry?: string, silent = false) => {
+    if (silent) setRefreshing(true)
+    else setLoading(true)
     setError('')
     try {
       const d = await getOptionsChain(symbol, expiry || undefined)
       setData(d)
-      if (d.expiry) setSelectedExpiry(d.expiry)
+      if (d.expiry && !expiry) setSelectedExpiry(d.expiry)
+      setLastUpdated(new Date())
+      setCountdown(REFRESH_INTERVAL_MS / 1000)
     } catch (e: any) {
-      setError(e?.message || 'Failed to load options chain')
+      if (!silent) setError(e?.message || 'Failed to load options chain')
     } finally {
-      setLoading(false)
+      if (silent) setRefreshing(false)
+      else setLoading(false)
     }
   }, [symbol])
 
@@ -167,6 +179,20 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     setSelectedExpiry('')
     fetchChain()
   }, [symbol])
+
+  // Auto-refresh every 60 s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchChain(expiryRef.current || undefined, true)
+    }, REFRESH_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [fetchChain])
+
+  // Countdown ticker
+  useEffect(() => {
+    const tick = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(tick)
+  }, [])
 
   const handleExpiryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value
@@ -206,7 +232,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
 
   const spotPrice = data.quote?.price || 0
 
-  // Build a merged strike list
   const callsByStrike = new Map<number, OptionContract>()
   const putsByStrike = new Map<number, OptionContract>()
   const allStrikes = new Set<number>()
@@ -222,7 +247,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
 
   const sortedStrikes = Array.from(allStrikes).sort((a, b) => a - b)
 
-  // Find nearest ATM strike
   let atmStrike = sortedStrikes[0]
   let minDiff = Infinity
   for (const s of sortedStrikes) {
@@ -233,7 +257,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     }
   }
 
-  // Focus on strikes near ATM (show ~30 above/below)
   const atmIdx = sortedStrikes.indexOf(atmStrike)
   const range = 20
   const visibleStrikes = sortedStrikes.slice(
@@ -241,8 +264,8 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     Math.min(sortedStrikes.length, atmIdx + range + 1)
   )
 
-  const callHeaders = ['Bid', 'Ask', 'Last', 'Vol', 'OI', 'IV', 'Δ Delta']
-  const putHeaders = ['Δ Delta', 'IV', 'OI', 'Vol', 'Last', 'Ask', 'Bid']
+  const callHeaders = ['Bid', 'Ask', 'Last', 'Vol', 'OI', 'IV', 'Delta']
+  const putHeaders = ['Delta', 'IV', 'OI', 'Vol', 'Last', 'Ask', 'Bid']
 
   return (
     <div style={styles.wrap}>
@@ -264,6 +287,20 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
             Showing {visibleStrikes.length} strikes
           </span>
         )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          {lastUpdated && (
+            <span style={{ fontSize: '11px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>
+              {refreshing ? 'Refreshing...' : `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · next in ${countdown}s`}
+            </span>
+          )}
+          <button
+            onClick={() => fetchChain(selectedExpiry || undefined, true)}
+            disabled={refreshing || loading}
+            style={{ background: 'transparent', border: '1px solid #3a3f5c', borderRadius: '6px', color: C.muted, padding: '4px 10px', fontSize: '11px', cursor: 'pointer', opacity: refreshing ? 0.5 : 1 }}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div style={styles.tableWrap}>
@@ -323,127 +360,26 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
 
               return (
                 <tr key={strike}>
-                  {/* Call cells */}
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmt(call.bid) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmt(call.ask) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmt(call.lastPrice) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmtVol(call.volume) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmtVol(call.openInterest) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: call ? ivColor(call.impliedVolatility) : C.muted }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? `${(call.impliedVolatility * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: '#22c55e' }}
-                    onClick={() => call && handleCallClick(call)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {call ? fmt(call.delta, 3) : '—'}
-                  </td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.bid) : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.ask) : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.lastPrice) : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmtVol(call.volume) : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmtVol(call.openInterest) : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: call ? ivColor(call.impliedVolatility) : C.muted }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? `${(call.impliedVolatility * 100).toFixed(1)}%` : '—'}</td>
+                  <td style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: '#22c55e' }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.delta, 3) : '—'}</td>
 
-                  {/* Strike cell */}
                   <td style={isATM ? styles.strikeITM : styles.strikeCell}>
                     {fmt(strike)}
                     {isATM && <span style={{ fontSize: '9px', color: '#7c6af7', display: 'block' }}>ATM</span>}
                   </td>
 
-                  {/* Put cells */}
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: '#ef4444' }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmt(put.delta, 3) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: put ? ivColor(put.impliedVolatility) : C.muted }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? `${(put.impliedVolatility * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmtVol(put.openInterest) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmtVol(put.volume) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmt(put.lastPrice) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmt(put.ask) : '—'}
-                  </td>
-                  <td
-                    style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
-                    onClick={() => put && handlePutClick(put)}
-                    onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
-                    onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
-                  >
-                    {put ? fmt(put.bid) : '—'}
-                  </td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: '#ef4444' }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmt(put.delta, 3) : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: put ? ivColor(put.impliedVolatility) : C.muted }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? `${(put.impliedVolatility * 100).toFixed(1)}%` : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmtVol(put.openInterest) : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmtVol(put.volume) : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmt(put.lastPrice) : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmt(put.ask) : '—'}</td>
+                  <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmt(put.bid) : '—'}</td>
                 </tr>
               )
             })}
