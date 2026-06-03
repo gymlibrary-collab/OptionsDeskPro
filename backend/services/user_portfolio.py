@@ -46,7 +46,7 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         }).eq("user_id", user_id).execute()
         _update_position(sb, user_id, req, price)
 
-    # Insert order
+    # Insert order with strategy metadata
     order_row = {
         "user_id": user_id,
         "symbol": req.symbol.upper(),
@@ -58,6 +58,9 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         "price": price,
         "status": status,
         "alpaca_id": alpaca_id,
+        "strategy_key": req.strategy_key,
+        "strategy_name": req.strategy_name,
+        "profit_target_pct": req.profit_target_pct,
     }
     result = sb.table("orders").insert(order_row).execute()
     row = result.data[0]
@@ -72,6 +75,9 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         quantity=row["quantity"],
         price=row["price"],
         status=row["status"],
+        strategy_key=row.get("strategy_key"),
+        strategy_name=row.get("strategy_name"),
+        profit_target_pct=row.get("profit_target_pct"),
     )
 
 
@@ -107,6 +113,7 @@ def _update_position(sb, user_id: str, req: OrderRequest, price: float):
                 }).eq("id", pos["id"]).execute()
     else:
         qty = req.quantity if req.action.lower() == "buy" else -req.quantity
+        # Strategy metadata stored on first open — drives P&L monitoring
         sb.table("positions").insert({
             "user_id": user_id,
             "symbol": req.symbol.upper(),
@@ -115,6 +122,10 @@ def _update_position(sb, user_id: str, req: OrderRequest, price: float):
             "option_type": req.option_type.lower(),
             "quantity": qty,
             "avg_cost": price,
+            "strategy_key": req.strategy_key,
+            "strategy_name": req.strategy_name,
+            "profit_target_pct": req.profit_target_pct,
+            "entry_action": req.action.lower(),
         }).execute()
 
 
@@ -152,6 +163,10 @@ def get_positions(user_id: str) -> list[Position]:
             pnl=round(pnl, 2),
             delta=greeks.get("delta", 0.0),
             gamma=greeks.get("gamma", 0.0),
+            strategy_key=pos.get("strategy_key"),
+            strategy_name=pos.get("strategy_name"),
+            profit_target_pct=pos.get("profit_target_pct"),
+            entry_action=pos.get("entry_action"),
         ))
     return result
 
@@ -175,6 +190,9 @@ def get_orders(user_id: str) -> list[Order]:
             quantity=r["quantity"],
             price=r["price"],
             status=r["status"],
+            strategy_key=r.get("strategy_key"),
+            strategy_name=r.get("strategy_name"),
+            profit_target_pct=r.get("profit_target_pct"),
         )
         for r in rows
     ]

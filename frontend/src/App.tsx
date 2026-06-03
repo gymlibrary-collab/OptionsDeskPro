@@ -24,6 +24,9 @@ export interface OrderPrefill {
   option_type: 'call' | 'put'
   bid: number
   ask: number
+  strategy_key?: string
+  strategy_name?: string
+  profit_target_pct?: number
 }
 
 const C = {
