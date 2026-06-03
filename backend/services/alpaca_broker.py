@@ -108,3 +108,37 @@ def get_positions() -> list[dict]:
                 "unrealized_pl": float(p.unrealized_pl) if p.unrealized_pl else None,
             })
     return result
+
+
+def place_stock_order(symbol: str, action: str, quantity: int,
+                      order_type: str = "market", limit_price: float = None) -> dict:
+    """Place a stock market or limit order via Alpaca paper trading."""
+    from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
+    from alpaca.trading.enums import OrderSide, TimeInForce
+
+    client = _get_client()
+    side = OrderSide.BUY if action.lower() == "buy" else OrderSide.SELL
+
+    if order_type == "limit" and limit_price:
+        req = LimitOrderRequest(
+            symbol=symbol.upper(),
+            qty=quantity,
+            side=side,
+            time_in_force=TimeInForce.DAY,
+            limit_price=limit_price,
+        )
+    else:
+        req = MarketOrderRequest(
+            symbol=symbol.upper(),
+            qty=quantity,
+            side=side,
+            time_in_force=TimeInForce.DAY,
+        )
+
+    order = client.submit_order(req)
+    logger.info("Alpaca stock order: %s %s x%d → %s", action, symbol.upper(), quantity, order.id)
+    return {
+        "alpaca_id": str(order.id),
+        "status": str(order.status),
+        "fill_price": float(order.filled_avg_price) if order.filled_avg_price else None,
+    }

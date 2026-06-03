@@ -70,3 +70,25 @@ class PortfolioSummary(BaseModel):
     positions_value: float
     total_value: float
     total_pnl: float
+
+
+class StockOrderRequest(BaseModel):
+    symbol: str
+    action: str  # "buy" or "sell"
+    quantity: int
+    order_type: str = "market"  # "market" or "limit"
+    limit_price: Optional[float] = None
+
+
+class StockOrder(BaseModel):
+    id: str
+    timestamp: datetime
+    symbol: str
+    action: str
+    quantity: int
+    order_type: str
+    limit_price: Optional[float] = None
+    fill_price: float
+    total_value: float
+    status: str
+    alpaca_id: Optional[str] = None
