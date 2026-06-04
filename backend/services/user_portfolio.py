@@ -23,9 +23,12 @@ def ensure_portfolio(user_id: str) -> dict:
 def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:
     sb = get_supabase()
     portfolio = ensure_portfolio(user_id)
-    price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
-    if price <= 0:
-        price = 0.01
+    if req.price and req.price > 0:
+        price = req.price
+    else:
+        price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
+        if price <= 0:
+            price = 0.01
     total_cost = price * req.quantity * 100
     cash = float(portfolio["cash"])
 
@@ -113,7 +116,6 @@ def _update_position(sb, user_id: str, req: OrderRequest, price: float):
                 }).eq("id", pos["id"]).execute()
     else:
         qty = req.quantity if req.action.lower() == "buy" else -req.quantity
-        # Strategy metadata stored on first open — drives P&L monitoring
         sb.table("positions").insert({
             "user_id": user_id,
             "symbol": req.symbol.upper(),
@@ -247,3 +249,91 @@ def log_activity(user_id: str, email: str, ip: str = None):
             "login_count": 1,
             "ip_address": ip,
         }).execute()
+
+
+def place_stock_order(user_id: str, req, alpaca_id: str = None, fill_price: float = None):
+    from models import StockOrderRequest, StockOrder
+    sb = get_supabase()
+    portfolio = ensure_portfolio(user_id)
+    cash = float(portfolio["cash"])
+
+    if fill_price and fill_price > 0:
+        price = fill_price
+    else:
+        try:
+            q = get_quote(req.symbol)
+            price = q["price"]
+        except Exception:
+            price = 0.0
+
+    total_value = price * req.quantity
+    status = "filled"
+
+    if req.action.lower() == "buy":
+        if cash < total_value:
+            status = "rejected"
+        else:
+            cash -= total_value
+    else:
+        cash += total_value
+
+    if status == "filled":
+        sb.table("portfolios").update({
+            "cash": cash,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).execute()
+
+    row_data = {
+        "user_id": user_id,
+        "symbol": req.symbol.upper(),
+        "action": req.action.lower(),
+        "quantity": req.quantity,
+        "order_type": req.order_type,
+        "limit_price": req.limit_price,
+        "fill_price": price,
+        "total_value": total_value,
+        "status": status,
+        "alpaca_id": alpaca_id,
+    }
+    result = sb.table("stock_orders").insert(row_data).execute()
+    row = result.data[0]
+    from models import StockOrder
+    return StockOrder(
+        id=row["id"],
+        timestamp=row["created_at"],
+        symbol=row["symbol"],
+        action=row["action"],
+        quantity=row["quantity"],
+        order_type=row["order_type"],
+        limit_price=row.get("limit_price"),
+        fill_price=row["fill_price"],
+        total_value=row["total_value"],
+        status=row["status"],
+        alpaca_id=row.get("alpaca_id"),
+    )
+
+
+def get_stock_orders(user_id: str, limit: int = 50):
+    from models import StockOrder
+    sb = get_supabase()
+    rows = sb.table("stock_orders").select("*")\
+        .eq("user_id", user_id)\
+        .order("created_at", desc=True)\
+        .limit(limit)\
+        .execute().data
+    return [
+        StockOrder(
+            id=r["id"],
+            timestamp=r["created_at"],
+            symbol=r["symbol"],
+            action=r["action"],
+            quantity=r["quantity"],
+            order_type=r["order_type"],
+            limit_price=r.get("limit_price"),
+            fill_price=r["fill_price"],
+            total_value=r["total_value"],
+            status=r["status"],
+            alpaca_id=r.get("alpaca_id"),
+        )
+        for r in rows
+    ]

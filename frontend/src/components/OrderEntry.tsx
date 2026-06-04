@@ -170,6 +170,7 @@ interface ConfirmState {
   action: 'buy' | 'sell'
   qty: number
   estimatedCost: number
+  fillPrice: number
   req: OrderRequest
 }
 
@@ -182,6 +183,7 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
   const [quantity, setQuantity] = useState('1')
   const [bidPrice, setBidPrice] = useState(0)
   const [askPrice, setAskPrice] = useState(0)
+  const [fillPriceInput, setFillPriceInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ success: boolean; msg: string } | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<ConfirmState | null>(null)
@@ -194,15 +196,18 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
       setOptionType(prefill.option_type)
       setBidPrice(prefill.bid)
       setAskPrice(prefill.ask)
+      const suggested = action === 'buy' ? prefill.ask : prefill.bid
+      setFillPriceInput(suggested > 0 ? fmt(suggested) : '')
       setFeedback(null)
     }
   }, [prefill])
 
   const strikeNum = parseFloat(strike) || 0
   const qty = parseInt(quantity) || 1
-  const midPrice = (bidPrice + askPrice) / 2
-  const fillPrice = action === 'buy' ? askPrice : bidPrice
-  const estimatedCost = fillPrice > 0 ? fillPrice * qty * 100 : midPrice * qty * 100
+  const midPrice = bidPrice > 0 && askPrice > 0 ? (bidPrice + askPrice) / 2 : 0
+  const parsedFillPrice = parseFloat(fillPriceInput) || 0
+  const fillPrice = parsedFillPrice > 0 ? parsedFillPrice : (action === 'buy' ? askPrice : bidPrice)
+  const estimatedCost = fillPrice > 0 ? fillPrice * qty * 100 : 0
 
   const handleSubmit = () => {
     if (!symbol || !expiry || !strikeNum || qty <= 0) {
@@ -216,8 +221,9 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
       option_type: optionType,
       action,
       quantity: qty,
+      price: parsedFillPrice > 0 ? parsedFillPrice : undefined,
     }
-    setPendingConfirm({ symbol, expiry, strike: strikeNum, optionType, action, qty, estimatedCost, req })
+    setPendingConfirm({ symbol, expiry, strike: strikeNum, optionType, action, qty, estimatedCost, fillPrice, req })
   }
 
   const handleConfirm = async () => {
@@ -248,14 +254,12 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
 
   return (
     <>
-      {/* Confirmation Modal */}
       {pendingConfirm && (
         <div style={modalOverlayStyle} onClick={() => setPendingConfirm(null)}>
           <div style={modalBoxStyle} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: C.text, borderBottom: `1px solid ${C.border}`, paddingBottom: '12px' }}>
               Confirm Order
             </div>
-
             <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
               You're about to{' '}
               <strong style={{ color: pendingConfirm.action === 'buy' ? C.green : C.red }}>
@@ -264,61 +268,38 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
               {pendingConfirm.qty} contract{pendingConfirm.qty > 1 ? 's' : ''} of{' '}
               <strong>{pendingConfirm.symbol}</strong> ${pendingConfirm.strike}{' '}
               {pendingConfirm.optionType.toUpperCase()} expiring{' '}
-              <strong>{pendingConfirm.expiry}</strong>.
+              <strong>{pendingConfirm.expiry}</strong> at{' '}
+              <strong style={{ color: C.accent }}>${fmt(pendingConfirm.fillPrice)}</strong> per contract.
             </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div style={{
-                flex: 1,
-                background: '#0f2d1a',
-                border: `1px solid ${C.green}44`,
-                borderRadius: '8px',
-                padding: '10px 14px',
-              }}>
-                <div style={{ fontSize: '10px', color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
-                  Estimated {pendingConfirm.action === 'buy' ? 'Cost' : 'Credit'}
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: pendingConfirm.action === 'buy' ? C.red : C.green, fontVariantNumeric: 'tabular-nums' }}>
-                  {pendingConfirm.estimatedCost > 0 ? `$${fmt(pendingConfirm.estimatedCost)}` : '—'}
-                </div>
+            <div style={{
+              background: '#0f2d1a',
+              border: `1px solid ${C.green}44`,
+              borderRadius: '8px',
+              padding: '10px 14px',
+            }}>
+              <div style={{ fontSize: '10px', color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
+                Estimated {pendingConfirm.action === 'buy' ? 'Cost' : 'Credit'}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: pendingConfirm.action === 'buy' ? C.red : C.green, fontVariantNumeric: 'tabular-nums' }}>
+                {pendingConfirm.estimatedCost > 0 ? `$${fmt(pendingConfirm.estimatedCost)}` : '—'}
+              </div>
+              <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>
+                {pendingConfirm.qty} contract{pendingConfirm.qty > 1 ? 's' : ''} × ${fmt(pendingConfirm.fillPrice)} × 100
               </div>
             </div>
-
             <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.5 }}>
-              This is a simulated paper-trading order. Once confirmed, it will be recorded and reflected in your positions and P&L.
+              Paper trading order — recorded at your specified fill price.
             </div>
-
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 onClick={() => setPendingConfirm(null)}
-                style={{
-                  flex: 1,
-                  padding: '11px',
-                  borderRadius: '8px',
-                  border: `1px solid ${C.border}`,
-                  background: C.surface,
-                  color: C.muted,
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
+                style={{ flex: 1, padding: '11px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
-                style={{
-                  flex: 2,
-                  padding: '11px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: pendingConfirm.action === 'buy' ? C.green : C.red,
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  letterSpacing: '0.04em',
-                }}
+                style={{ flex: 2, padding: '11px', borderRadius: '8px', border: 'none', background: pendingConfirm.action === 'buy' ? C.green : C.red, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em' }}
               >
                 Confirm {pendingConfirm.action === 'buy' ? 'Buy' : 'Sell'}
               </button>
@@ -327,114 +308,98 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
         </div>
       )}
 
-    <div style={styles.panel}>
-      <div style={styles.title}>Order Entry</div>
+      <div style={styles.panel}>
+        <div style={styles.title}>Order Entry</div>
 
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Symbol</label>
-        <input
-          style={styles.input}
-          value={symbol}
-          onChange={e => setSymbol(e.target.value.toUpperCase())}
-          placeholder="SPY"
-        />
-      </div>
-
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Expiry</label>
-        <input
-          style={styles.input}
-          value={expiry}
-          onChange={e => setExpiry(e.target.value)}
-          placeholder="YYYY-MM-DD"
-        />
-      </div>
-
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Strike</label>
-        <input
-          style={styles.input}
-          value={strike}
-          onChange={e => setStrike(e.target.value)}
-          placeholder="500.00"
-          type="number"
-          step="0.5"
-        />
-      </div>
-
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Type</label>
-        <div style={styles.toggleRow}>
-          <button style={styles.toggleBtn(optionType === 'call', 'call')} onClick={() => setOptionType('call')}>
-            Call
-          </button>
-          <button style={styles.toggleBtn(optionType === 'put', 'put')} onClick={() => setOptionType('put')}>
-            Put
-          </button>
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Symbol</label>
+          <input style={styles.input} value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="SPY" />
         </div>
-      </div>
 
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Action</label>
-        <div style={styles.toggleRow}>
-          <button style={styles.toggleBtn(action === 'buy', 'buy')} onClick={() => setAction('buy')}>
-            Buy
-          </button>
-          <button style={styles.toggleBtn(action === 'sell', 'sell')} onClick={() => setAction('sell')}>
-            Sell
-          </button>
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Expiry</label>
+          <input style={styles.input} value={expiry} onChange={e => setExpiry(e.target.value)} placeholder="YYYY-MM-DD" />
         </div>
-      </div>
 
-      <div style={styles.fieldGroup}>
-        <label style={styles.label}>Quantity (Contracts)</label>
-        <input
-          style={styles.input}
-          value={quantity}
-          onChange={e => setQuantity(e.target.value)}
-          placeholder="1"
-          type="number"
-          min="1"
-          step="1"
-        />
-      </div>
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Strike</label>
+          <input style={styles.input} value={strike} onChange={e => setStrike(e.target.value)} placeholder="500.00" type="number" step="0.5" />
+        </div>
 
-      <div style={styles.divider} />
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Type</label>
+          <div style={styles.toggleRow}>
+            <button style={styles.toggleBtn(optionType === 'call', 'call')} onClick={() => setOptionType('call')}>Call</button>
+            <button style={styles.toggleBtn(optionType === 'put', 'put')} onClick={() => setOptionType('put')}>Put</button>
+          </div>
+        </div>
 
-      <div style={styles.estimateBox}>
-        <span style={styles.estimateLabel}>Estimated {action === 'buy' ? 'Cost' : 'Credit'}</span>
-        <span style={{
-          ...styles.estimateValue,
-          color: action === 'buy' ? '#ef4444' : '#22c55e',
-        }}>
-          {estimatedCost > 0 ? `$${fmt(estimatedCost)}` : '—'}
-        </span>
-        {fillPrice > 0 && (
-          <span style={styles.estimateSub}>
-            {qty} contract{qty > 1 ? 's' : ''} × ${fmt(fillPrice)} × 100 shares
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Action</label>
+          <div style={styles.toggleRow}>
+            <button style={styles.toggleBtn(action === 'buy', 'buy')} onClick={() => setAction('buy')}>Buy</button>
+            <button style={styles.toggleBtn(action === 'sell', 'sell')} onClick={() => setAction('sell')}>Sell</button>
+          </div>
+        </div>
+
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Quantity (Contracts)</label>
+          <input style={styles.input} value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="1" type="number" min="1" step="1" />
+        </div>
+
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Fill Price (per contract)</label>
+          <input
+            style={styles.input}
+            value={fillPriceInput}
+            onChange={e => setFillPriceInput(e.target.value)}
+            placeholder={midPrice > 0 ? fmt(midPrice) : '0.00'}
+            type="number"
+            step="0.01"
+            min="0"
+          />
+          {bidPrice > 0 && askPrice > 0 && (
+            <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+              <button onClick={() => setFillPriceInput(fmt(bidPrice))} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #3a3f5c', background: C.surface, color: C.muted, cursor: 'pointer' }}>Bid {fmt(bidPrice)}</button>
+              <button onClick={() => setFillPriceInput(fmt(midPrice))} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #3a3f5c', background: C.surface, color: C.muted, cursor: 'pointer' }}>Mid {fmt(midPrice)}</button>
+              <button onClick={() => setFillPriceInput(fmt(askPrice))} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #3a3f5c', background: C.surface, color: C.muted, cursor: 'pointer' }}>Ask {fmt(askPrice)}</button>
+            </div>
+          )}
+        </div>
+
+        <div style={styles.divider} />
+
+        <div style={styles.estimateBox}>
+          <span style={styles.estimateLabel}>Estimated {action === 'buy' ? 'Cost' : 'Credit'}</span>
+          <span style={{ ...styles.estimateValue, color: action === 'buy' ? '#ef4444' : '#22c55e' }}>
+            {estimatedCost > 0 ? `$${fmt(estimatedCost)}` : '—'}
           </span>
-        )}
-        {bidPrice > 0 && askPrice > 0 && (
-          <span style={styles.estimateSub}>
-            Bid: ${fmt(bidPrice)} / Ask: ${fmt(askPrice)} / Mid: ${fmt(midPrice)}
-          </span>
+          {fillPrice > 0 && (
+            <span style={styles.estimateSub}>
+              {qty} contract{qty > 1 ? 's' : ''} x ${fmt(fillPrice)} x 100 shares
+            </span>
+          )}
+          {bidPrice > 0 && askPrice > 0 && (
+            <span style={styles.estimateSub}>
+              Bid: ${fmt(bidPrice)} / Ask: ${fmt(askPrice)} / Mid: ${fmt(midPrice)}
+            </span>
+          )}
+        </div>
+
+        <button
+          style={{ ...styles.submitBtn(action), opacity: submitting ? 0.6 : 1 }}
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? 'Placing...' : `${action === 'buy' ? 'Buy' : 'Sell'} ${qty} Contract${qty > 1 ? 's' : ''}`}
+        </button>
+
+        {feedback && (
+          <div style={styles.feedback(feedback.success)}>
+            {feedback.msg}
+          </div>
         )}
       </div>
-
-      <button
-        style={{ ...styles.submitBtn(action), opacity: submitting ? 0.6 : 1 }}
-        onClick={handleSubmit}
-        disabled={submitting}
-      >
-        {submitting ? 'Placing...' : `${action === 'buy' ? 'Buy' : 'Sell'} ${qty} Contract${qty > 1 ? 's' : ''}`}
-      </button>
-
-      {feedback && (
-        <div style={styles.feedback(feedback.success)}>
-          {feedback.msg}
-        </div>
-      )}
-    </div>
     </>
   )
 }

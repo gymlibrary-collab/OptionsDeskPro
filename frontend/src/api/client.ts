@@ -51,6 +51,7 @@ export interface OrderRequest {
   option_type: string
   action: string
   quantity: number
+  price?: number
   strategy_key?: string
   strategy_name?: string
   profit_target_pct?: number

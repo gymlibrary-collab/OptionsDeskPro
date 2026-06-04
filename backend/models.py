@@ -27,6 +27,7 @@ class OrderRequest(BaseModel):
     option_type: str  # "call" or "put"
     action: str  # "buy" or "sell"
     quantity: int
+    price: Optional[float] = None  # user-supplied fill price; falls back to market quote if omitted
     strategy_key: Optional[str] = None
     strategy_name: Optional[str] = None
     profit_target_pct: Optional[float] = None
