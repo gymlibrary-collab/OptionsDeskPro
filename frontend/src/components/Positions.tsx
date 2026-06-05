@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, getOrders, Position, PortfolioSummary, Order } from '../api/client'
+import { getPositions, getPortfolio, Position, PortfolioSummary } from '../api/client'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -14,18 +14,15 @@ function dte(expiry: string): number {
   } catch { return 0 }
 }
 
-// P&L as % of capital at risk (direction-aware)
 function pnlPct(pos: Position): number {
   const basis = pos.avg_cost * Math.abs(pos.quantity) * 100
   return basis > 0 ? (pos.pnl / basis) * 100 : 0
 }
 
-// Profit target: use strategy's if available, else tastylive default 50%
 function profitTarget(pos: Position): number {
   return pos.profit_target_pct ?? 50
 }
 
-// Stop loss: 50% of premium for long, 200% of credit (2× rule) for short
 function stopLoss(pos: Position): number {
   return (pos.entry_action ?? (pos.quantity > 0 ? 'buy' : 'sell')) === 'buy' ? -50 : -200
 }
@@ -61,7 +58,7 @@ const styles = {
   thLeft: { padding: '9px 12px', textAlign: 'left' as const, color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' as const, letterSpacing: '0.06em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' as const, background: C.surface },
   td: { padding: '8px 12px', textAlign: 'right' as const, color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' as const },
   tdLeft: { padding: '8px 12px', textAlign: 'left' as const, color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' as const },
-  badge: (type: 'call' | 'put') => ({
+  typeBadge: (type: string) => ({
     display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
     background: type === 'call' ? '#0d1a2d' : '#2d1a2d',
     color: type === 'call' ? '#3b82f6' : '#a855f7',
@@ -88,7 +85,6 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
         const target = profitTarget(a.pos)
         const stop = stopLoss(a.pos)
         const stratLabel = a.pos.strategy_name ? `[${a.pos.strategy_name}] ` : ''
-
         let bg: string, border: string, icon: string, headline: string, detail: string
         if (a.kind === 'profit') {
           bg = '#0f2d1a'; border = C.green; icon = '✅'
@@ -103,7 +99,6 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
           headline = `21-DTE CLOSE — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
           detail = `${stratLabel}${dte(a.pos.expiry)} days to expiry. tastylive rule: close at 21 DTE regardless of P&L.`
         }
-
         return (
           <div key={i} style={{ background: bg, border: `1px solid ${border}66`, borderRadius: '10px', padding: '14px 16px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -117,7 +112,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
                     <li>Go to <strong>Order Entry</strong> (right sidebar). On mobile tap <strong>"+ Place Order"</strong>.</li>
                     <li>Fill in: Symbol <strong>{a.pos.symbol}</strong> · Expiry <strong>{a.pos.expiry}</strong> · Strike <strong>${fmt(a.pos.strike)}</strong> · Type <strong>{a.pos.option_type.toUpperCase()}</strong></li>
                     <li>Set Action to <strong>{a.pos.quantity > 0 ? 'SELL' : 'BUY'}</strong> (opposite of your entry) · Quantity <strong>{Math.abs(a.pos.quantity)}</strong></li>
-                    <li>Click the button and confirm. This position will disappear once filled.</li>
+                    <li>Click the button and confirm. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
                   </ol>
                 </div>
               </div>
@@ -135,10 +130,8 @@ function TargetBar({ pos }: { pos: Position }) {
   const stop = stopLoss(pos)
   const hitProfit = pct >= target
   const hitStop = pct <= stop
-
   const progress = hitProfit ? 1 : Math.max(0, Math.min(pct / target, 1))
   const barColor = hitProfit ? C.green : hitStop ? C.red : pct > 0 ? C.accent : C.red
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', minWidth: '100px' }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: hitProfit ? C.green : hitStop ? C.red : C.muted }}>
@@ -167,8 +160,6 @@ export default function Positions() {
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  // Auto-refresh every 2 minutes
   useEffect(() => {
     const id = setInterval(load, 120_000)
     return () => clearInterval(id)
@@ -177,7 +168,6 @@ export default function Positions() {
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
 
-  // Compute alerts: profit target hit, stop loss hit, or 21 DTE
   const alerts: Alert[] = positions.flatMap(pos => {
     const pct = pnlPct(pos)
     const list: Alert[] = []
@@ -189,53 +179,22 @@ export default function Positions() {
 
   return (
     <div style={styles.wrap}>
-
-      {/* Alert banner */}
       <AlertBanner alerts={alerts} />
-
-      {/* Summary cards + refresh */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
         <div style={styles.summaryRow}>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Cash Balance</span>
-            <span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Positions Value</span>
-            <span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Total Value</span>
-            <span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Unrealized P&L</span>
-            <span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>
-              {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
-            </span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Net Delta</span>
-            <span style={styles.cardValue}>{fmt(totalDelta, 1)}</span>
-          </div>
+          <div style={styles.card}><span style={styles.cardLabel}>Cash Balance</span><span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span></div>
+          <div style={styles.card}><span style={styles.cardLabel}>Positions Value</span><span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span></div>
+          <div style={styles.card}><span style={styles.cardLabel}>Total Value</span><span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span></div>
+          <div style={styles.card}><span style={styles.cardLabel}>Unrealized P&L</span><span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>{totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}</span></div>
+          <div style={styles.card}><span style={styles.cardLabel}>Net Delta</span><span style={styles.cardValue}>{fmt(totalDelta, 1)}</span></div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', marginLeft: 'auto' }}>
-          <button
-            onClick={load}
-            disabled={loading}
-            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            {loading ? 'Refreshing…' : '↻ Refresh'}
-          </button>
+          <button onClick={load} disabled={loading} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>{loading ? 'Refreshing…' : '↻ Refresh'}</button>
           <span style={{ fontSize: '10px', color: C.muted }}>Auto-refreshes every 2 min · Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
       </div>
-
-      {/* Positions table */}
       {positions.length === 0 ? (
-        <div style={styles.empty}>
-          {loading ? 'Loading positions…' : 'No open positions. Run a strategy scan and place a paper trade to start monitoring.'}
-        </div>
+        <div style={styles.empty}>{loading ? 'Loading positions…' : 'No open positions. Run a strategy scan and place a paper trade to start monitoring.'}</div>
       ) : (
         <div style={styles.tableWrap}>
           <table style={styles.table}>
@@ -268,38 +227,23 @@ export default function Positions() {
                 const hitTarget = pct >= target
                 const hitStop = pct <= stopLoss(pos)
                 const rowBg = hitTarget ? `${C.green}08` : hitStop ? `${C.red}08` : daysLeft <= 21 ? `${C.amber}05` : undefined
+                const action = (pos.entry_action ?? (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
+                const totalCost = pos.avg_cost * Math.abs(pos.quantity) * 100
                 return (
                   <tr key={i} style={rowBg ? { background: rowBg } : undefined}>
                     <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>{pos.symbol}</td>
-                    <td style={styles.tdLeft}>
-                      {pos.strategy_name
-                        ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span>
-                        : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>
-                      }
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.actionBadge(pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell'))}>
-                        {(pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.badge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span>
-                    </td>
+                    <td style={styles.tdLeft}>{pos.strategy_name ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span> : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>}</td>
+                    <td style={styles.td}><span style={styles.actionBadge(action)}>{action.toUpperCase()}</span></td>
+                    <td style={styles.td}><span style={styles.typeBadge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span></td>
                     <td style={styles.td}>{pos.expiry}</td>
                     <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
                     <td style={styles.td}>${fmt(pos.strike)}</td>
-                    <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
-                      {pos.quantity > 0 ? '+' : ''}{pos.quantity}
-                    </td>
+                    <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>{pos.quantity > 0 ? '+' : ''}{pos.quantity}</td>
                     <td style={styles.td}>${fmt(pos.avg_cost)}</td>
-                    <td style={{ ...styles.td, color: C.muted }}>${fmt(pos.avg_cost * Math.abs(pos.quantity) * 100)}</td>
+                    <td style={{ ...styles.td, color: C.muted }}>${fmt(totalCost, 0)}</td>
                     <td style={styles.td}>${fmt(pos.current_price)}</td>
-                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>
-                      {pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}
-                    </td>
-                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 700 }}>
-                      {pct >= 0 ? '+' : ''}{fmt(pct)}%
-                    </td>
+                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</td>
+                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 700 }}>{pct >= 0 ? '+' : ''}{fmt(pct)}%</td>
                     <td style={styles.td}><TargetBar pos={pos} /></td>
                     <td style={styles.td}>{fmt(pos.delta, 3)}</td>
                   </tr>
@@ -307,17 +251,10 @@ export default function Positions() {
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: '10px', fontSize: '11px', color: C.muted, textAlign: 'right' }}>
-            Strategy-linked positions use the recommended profit target. Manual positions default to +50% (tastylive standard). DTE turns amber at 21 days, red at 7.
-          </div>
+          <div style={{ marginTop: '10px', fontSize: '11px', color: C.muted, textAlign: 'right' }}>Strategy-linked positions use the recommended profit target. Manual positions default to +50% (tastylive standard). DTE turns amber at 21 days, red at 7.</div>
         </div>
       )}
-
-      {/* How to close guide */}
       <HowToClose />
-
-      {/* Trade history */}
-      <TradeHistory />
     </div>
   )
 }
@@ -326,28 +263,16 @@ function HowToClose() {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-      >
+      <button onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
         <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>📋 How to close a position — step by step</span>
         <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ background: '#0f1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div>
-            </div>
-            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div>
-            </div>
-            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div>
-            </div>
+            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div></div>
+            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div></div>
+            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div></div>
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Steps to close any position</div>
@@ -360,125 +285,6 @@ function HowToClose() {
               <li>Click the button and confirm. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
             </ol>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function fmtDate(ts: string) {
-  return new Date(ts).toLocaleString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  })
-}
-
-function TradeHistory() {
-  const [open, setOpen] = useState(false)
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await getOrders()
-      setOrders(data)
-      setLoaded(true)
-    } catch {}
-    finally { setLoading(false) }
-  }, [])
-
-  const handleToggle = () => {
-    const next = !open
-    setOpen(next)
-    if (next && !loaded) load()
-  }
-
-  const filled = orders.filter(o => o.status === 'filled')
-  const totalBought = filled
-    .filter(o => o.action === 'buy')
-    .reduce((acc, o) => acc + o.price * o.quantity * 100, 0)
-
-  const actionBadge = (action: string) => ({
-    display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
-    background: action === 'buy' ? '#0f2d1a' : '#2d0f0f',
-    color: action === 'buy' ? C.green : C.red,
-    border: `1px solid ${action === 'buy' ? C.green : C.red}40`,
-    textTransform: 'uppercase' as const, letterSpacing: '0.04em',
-  })
-
-  const typeBadge = (type: string) => ({
-    display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
-    background: type === 'call' ? '#0d1a2d' : '#2d1a2d',
-    color: type === 'call' ? '#3b82f6' : '#a855f7',
-    border: `1px solid ${type === 'call' ? '#3b82f6' : '#a855f7'}40`,
-  })
-
-  const statusBadge = (status: string) => {
-    const map: Record<string, { bg: string; color: string }> = {
-      filled: { bg: '#0f2d1a', color: C.green },
-      rejected: { bg: '#2d0f0f', color: C.red },
-      pending: { bg: '#1a1a0f', color: C.amber },
-    }
-    const c = map[status] || { bg: C.surface2, color: C.muted }
-    return {
-      display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
-      background: c.bg, color: c.color, textTransform: 'uppercase' as const, letterSpacing: '0.05em',
-    }
-  }
-
-  return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button
-        onClick={handleToggle}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>🗂 Trade History</span>
-          {loaded && orders.length > 0 && (
-            <span style={{ fontSize: '11px', background: C.surface2, border: `1px solid ${C.border}`, color: C.muted, padding: '1px 8px', borderRadius: '8px' }}>
-              {orders.length} orders · {filled.length} filled · ${fmt(totalBought)} bought
-            </span>
-          )}
-        </div>
-        <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ background: '#0f1117', padding: '12px 16px' }}>
-          {loading && <div style={{ color: C.muted, fontSize: '13px', padding: '16px 0', textAlign: 'center' }}>Loading trade history…</div>}
-          {!loading && orders.length === 0 && (
-            <div style={{ color: C.muted, fontSize: '13px', padding: '16px 0', textAlign: 'center' }}>No orders placed yet.</div>
-          )}
-          {!loading && orders.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
-                <thead>
-                  <tr>
-                    {['Time', 'Symbol', 'Action', 'Type', 'Expiry', 'Strike', 'Qty', 'Fill Price', 'Total Value', 'Status'].map((h, i) => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: i <= 1 ? 'left' : 'right' as const, color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap', background: C.surface2 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map(o => (
-                    <tr key={o.id}>
-                      <td style={{ padding: '7px 12px', textAlign: 'left', color: C.muted, fontSize: '12px', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{fmtDate(o.timestamp)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 700, color: C.accent, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.symbol}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={actionBadge(o.action)}>{o.action.toUpperCase()}</span></td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={typeBadge(o.option_type)}>{o.option_type.toUpperCase()}</span></td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.expiry}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.strike)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.quantity}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.price)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.muted, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.price * o.quantity * 100)}</td>
-                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={statusBadge(o.status)}>{o.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
     </div>

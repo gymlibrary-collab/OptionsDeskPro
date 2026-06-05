@@ -51,10 +51,6 @@ export interface OrderRequest {
   option_type: string
   action: string
   quantity: number
-  price?: number
-  strategy_key?: string
-  strategy_name?: string
-  profit_target_pct?: number
 }
 
 export interface Order {
@@ -94,6 +90,34 @@ export interface PortfolioSummary {
   total_pnl: number
 }
 
+export interface RiskSignal {
+  level: 'green' | 'yellow' | 'red'
+  type: string
+  msg: string
+}
+
+export interface PositionRisk {
+  symbol: string
+  expiry: string
+  strike: number
+  option_type: string
+  quantity: number
+  avg_cost: number
+  current_price: number
+  pnl: number
+  strategy_key?: string
+  strategy_name?: string
+  profit_target_pct: number
+  entry_action?: string
+  dte: number
+  pnl_pct: number
+  risk_level: 'green' | 'yellow' | 'red'
+  iv_rank?: number
+  iv_environment?: string
+  bias?: string
+  signals: RiskSignal[]
+}
+
 export const getQuote = (symbol: string) =>
   api.get<Quote>(`/options/quote/${symbol}`).then(r => r.data)
 
@@ -114,7 +138,10 @@ export const getPositions = () =>
 export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio').then(r => r.data)
 
-// --- Strategy Intelligence ---
+export const getPositionsRisk = (): Promise<PositionRisk[]> =>
+  api.get<PositionRisk[]>('/positions/risk').then(r => r.data)
+
+// ─── Strategy Intelligence ─────────────────────────────────────────────
 
 export interface StrategyRecommendation {
   key: string
@@ -223,7 +250,7 @@ export const analyzeSymbol = (symbol: string): Promise<AnalyzeSymbolResponse> =>
   api.get(`/strategies/analyze/${symbol}`).then(r => r.data)
 
 export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
-  api.get(`/strategies/scan`, { params: { symbols }, timeout: 60000 }).then(r => r.data)
+  api.get(`/strategies/scan`, { params: { symbols } }).then(r => r.data)
 
 export const getBrokerAccount = () =>
   api.get('/broker/account').then(r => r.data)
@@ -231,7 +258,7 @@ export const getBrokerAccount = () =>
 export const getPnLHistory = () =>
   api.get('/auth/pnl-history').then(r => r.data)
 
-// --- Trading Desk - Reddit buzz ---
+// ─── Trading Desk — Reddit buzz ───────────────────────────────────────────
 
 export interface RedditPost {
   title: string
@@ -250,7 +277,7 @@ export const getTokensBuzz     = (): Promise<RedditPost[]> => api.get('/trading/
 export const getSelectedBuzz   = (symbols: string): Promise<RedditPost[]> =>
   api.get(`/trading/buzz/selected?symbols=${encodeURIComponent(symbols)}`).then(r => r.data)
 
-// --- Stock Orders ---
+// ─── Stock Orders ────────────────────────────────────────────────────────────
 
 export interface StockOrderRequest {
   symbol: string
@@ -279,38 +306,5 @@ export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =
 
 export const getStockOrders = (): Promise<StockOrder[]> =>
   api.get<StockOrder[]>('/stock-orders').then(r => r.data)
-
-// ─── Risk Monitor ───────────────────────────────────────────────────────────────────────────────
-
-export interface RiskSignal {
-  level: 'green' | 'yellow' | 'red'
-  type: string
-  msg: string
-}
-
-export interface PositionRisk {
-  symbol: string
-  expiry: string
-  strike: number
-  option_type: string
-  quantity: number
-  avg_cost: number
-  current_price: number
-  pnl: number
-  strategy_key?: string
-  strategy_name?: string
-  profit_target_pct: number
-  entry_action?: string
-  dte: number
-  pnl_pct: number
-  risk_level: 'green' | 'yellow' | 'red'
-  iv_rank?: number
-  iv_environment?: string
-  bias?: string
-  signals: RiskSignal[]
-}
-
-export const getPositionsRisk = (): Promise<PositionRisk[]> =>
-  api.get<PositionRisk[]>('/positions/risk', { timeout: 30000 }).then(r => r.data)
 
 export default api

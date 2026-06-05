@@ -180,7 +180,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     fetchChain()
   }, [symbol])
 
-  // Auto-refresh every 60 s
   useEffect(() => {
     const interval = setInterval(() => {
       fetchChain(expiryRef.current || undefined, true)
@@ -188,7 +187,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     return () => clearInterval(interval)
   }, [fetchChain])
 
-  // Countdown ticker
   useEffect(() => {
     const tick = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000)
     return () => clearInterval(tick)
@@ -264,8 +262,8 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
     Math.min(sortedStrikes.length, atmIdx + range + 1)
   )
 
-  const callHeaders = ['Bid', 'Ask', 'Last', 'Vol', 'OI', 'IV', 'Delta']
-  const putHeaders = ['Delta', 'IV', 'OI', 'Vol', 'Last', 'Ask', 'Bid']
+  const callHeaders = ['Bid', 'Ask', 'Last', 'Vol', 'OI', 'IV', 'Δ Delta']
+  const putHeaders = ['Δ Delta', 'IV', 'OI', 'Vol', 'Last', 'Ask', 'Bid']
 
   return (
     <div style={styles.wrap}>
@@ -290,7 +288,7 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           {lastUpdated && (
             <span style={{ fontSize: '11px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>
-              {refreshing ? 'Refreshing...' : `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · next in ${countdown}s`}
+              {refreshing ? 'Refreshing…' : `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · next in ${countdown}s`}
             </span>
           )}
           <button
@@ -307,45 +305,14 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
         <table style={styles.table}>
           <thead style={styles.thead}>
             <tr>
-              <th
-                colSpan={callHeaders.length}
-                style={{
-                  ...styles.sectionHeader,
-                  color: '#22c55e',
-                  borderBottom: `1px solid ${C.border}`,
-                }}
-              >
-                Calls
-              </th>
-              <th
-                style={{
-                  ...styles.th('center'),
-                  background: '#252836',
-                  fontSize: '11px',
-                  color: '#e2e8f0',
-                }}
-              >
-                Strike
-              </th>
-              <th
-                colSpan={putHeaders.length}
-                style={{
-                  ...styles.sectionHeader,
-                  color: '#ef4444',
-                  borderBottom: `1px solid ${C.border}`,
-                }}
-              >
-                Puts
-              </th>
+              <th colSpan={callHeaders.length} style={{ ...styles.sectionHeader, color: '#22c55e', borderBottom: `1px solid ${C.border}` }}>Calls</th>
+              <th style={{ ...styles.th('center'), background: '#252836', fontSize: '11px', color: '#e2e8f0' }}>Strike</th>
+              <th colSpan={putHeaders.length} style={{ ...styles.sectionHeader, color: '#ef4444', borderBottom: `1px solid ${C.border}` }}>Puts</th>
             </tr>
             <tr>
-              {callHeaders.map(h => (
-                <th key={h} style={styles.th()}>{h}</th>
-              ))}
+              {callHeaders.map(h => (<th key={h} style={styles.th()}>{h}</th>))}
               <th style={styles.th('center')}>—</th>
-              {putHeaders.map(h => (
-                <th key={h} style={styles.th()}>{h}</th>
-              ))}
+              {putHeaders.map(h => (<th key={h} style={styles.th()}>{h}</th>))}
             </tr>
           </thead>
           <tbody>
@@ -357,7 +324,6 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
               const putITM = put?.inTheMoney ?? false
               const hoverCall = hoveredStrike === strike && hoveredSide === 'call'
               const hoverPut = hoveredStrike === strike && hoveredSide === 'put'
-
               return (
                 <tr key={strike}>
                   <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.bid) : '—'}</td>
@@ -367,12 +333,7 @@ export default function OptionsChain({ symbol, onRowClick }: Props) {
                   <td style={{ ...td(), ...callRowStyle(callITM, hoverCall) }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmtVol(call.openInterest) : '—'}</td>
                   <td style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: call ? ivColor(call.impliedVolatility) : C.muted }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? `${(call.impliedVolatility * 100).toFixed(1)}%` : '—'}</td>
                   <td style={{ ...td(), ...callRowStyle(callITM, hoverCall), color: '#22c55e' }} onClick={() => call && handleCallClick(call)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{call ? fmt(call.delta, 3) : '—'}</td>
-
-                  <td style={isATM ? styles.strikeITM : styles.strikeCell}>
-                    {fmt(strike)}
-                    {isATM && <span style={{ fontSize: '9px', color: '#7c6af7', display: 'block' }}>ATM</span>}
-                  </td>
-
+                  <td style={isATM ? styles.strikeITM : styles.strikeCell}>{fmt(strike)}{isATM && <span style={{ fontSize: '9px', color: '#7c6af7', display: 'block' }}>ATM</span>}</td>
                   <td style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: '#ef4444' }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmt(put.delta, 3) : '—'}</td>
                   <td style={{ ...td(), ...putRowStyle(putITM, hoverPut), color: put ? ivColor(put.impliedVolatility) : C.muted }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? `${(put.impliedVolatility * 100).toFixed(1)}%` : '—'}</td>
                   <td style={{ ...td(), ...putRowStyle(putITM, hoverPut) }} onClick={() => put && handlePutClick(put)} onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }} onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}>{put ? fmtVol(put.openInterest) : '—'}</td>
