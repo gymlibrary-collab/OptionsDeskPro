@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, Position, PortfolioSummary } from '../api/client'
+import { getPositions, getPortfolio, getOrders, Position, PortfolioSummary, Order } from '../api/client'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -315,6 +315,9 @@ export default function Positions() {
 
       {/* How to close guide */}
       <HowToClose />
+
+      {/* Trade history */}
+      <TradeHistory />
     </div>
   )
 }
@@ -357,6 +360,125 @@ function HowToClose() {
               <li>Click the button and confirm. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
             </ol>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function fmtDate(ts: string) {
+  return new Date(ts).toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  })
+}
+
+function TradeHistory() {
+  const [open, setOpen] = useState(false)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getOrders()
+      setOrders(data)
+      setLoaded(true)
+    } catch {}
+    finally { setLoading(false) }
+  }, [])
+
+  const handleToggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && !loaded) load()
+  }
+
+  const filled = orders.filter(o => o.status === 'filled')
+  const totalBought = filled
+    .filter(o => o.action === 'buy')
+    .reduce((acc, o) => acc + o.price * o.quantity * 100, 0)
+
+  const actionBadge = (action: string) => ({
+    display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
+    background: action === 'buy' ? '#0f2d1a' : '#2d0f0f',
+    color: action === 'buy' ? C.green : C.red,
+    border: `1px solid ${action === 'buy' ? C.green : C.red}40`,
+    textTransform: 'uppercase' as const, letterSpacing: '0.04em',
+  })
+
+  const typeBadge = (type: string) => ({
+    display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
+    background: type === 'call' ? '#0d1a2d' : '#2d1a2d',
+    color: type === 'call' ? '#3b82f6' : '#a855f7',
+    border: `1px solid ${type === 'call' ? '#3b82f6' : '#a855f7'}40`,
+  })
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { bg: string; color: string }> = {
+      filled: { bg: '#0f2d1a', color: C.green },
+      rejected: { bg: '#2d0f0f', color: C.red },
+      pending: { bg: '#1a1a0f', color: C.amber },
+    }
+    const c = map[status] || { bg: C.surface2, color: C.muted }
+    return {
+      display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
+      background: c.bg, color: c.color, textTransform: 'uppercase' as const, letterSpacing: '0.05em',
+    }
+  }
+
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
+      <button
+        onClick={handleToggle}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>🗂 Trade History</span>
+          {loaded && orders.length > 0 && (
+            <span style={{ fontSize: '11px', background: C.surface2, border: `1px solid ${C.border}`, color: C.muted, padding: '1px 8px', borderRadius: '8px' }}>
+              {orders.length} orders · {filled.length} filled · ${fmt(totalBought)} bought
+            </span>
+          )}
+        </div>
+        <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ background: '#0f1117', padding: '12px 16px' }}>
+          {loading && <div style={{ color: C.muted, fontSize: '13px', padding: '16px 0', textAlign: 'center' }}>Loading trade history…</div>}
+          {!loading && orders.length === 0 && (
+            <div style={{ color: C.muted, fontSize: '13px', padding: '16px 0', textAlign: 'center' }}>No orders placed yet.</div>
+          )}
+          {!loading && orders.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
+                <thead>
+                  <tr>
+                    {['Time', 'Symbol', 'Action', 'Type', 'Expiry', 'Strike', 'Qty', 'Fill Price', 'Total Value', 'Status'].map((h, i) => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: i <= 1 ? 'left' : 'right' as const, color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap', background: C.surface2 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(o => (
+                    <tr key={o.id}>
+                      <td style={{ padding: '7px 12px', textAlign: 'left', color: C.muted, fontSize: '12px', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{fmtDate(o.timestamp)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 700, color: C.accent, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.symbol}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={actionBadge(o.action)}>{o.action.toUpperCase()}</span></td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={typeBadge(o.option_type)}>{o.option_type.toUpperCase()}</span></td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.expiry}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.strike)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>{o.quantity}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.text, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.price)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: C.muted, borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}>${fmt(o.price * o.quantity * 100)}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' }}><span style={statusBadge(o.status)}>{o.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

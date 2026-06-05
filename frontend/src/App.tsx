@@ -3,7 +3,6 @@ import QuoteBar from './components/QuoteBar'
 import OptionsChain from './components/OptionsChain'
 import OrderEntry from './components/OrderEntry'
 import Positions from './components/Positions'
-import Orders from './components/Orders'
 import StrategyScanner from './components/StrategyScanner'
 import LoginPage from './components/LoginPage'
 import AdminPanel from './components/AdminPanel'
@@ -17,7 +16,7 @@ import { useWindowSize } from './hooks/useWindowSize'
 import api from './api/client'
 
 type Desk = 'options' | 'trading'
-type Tab = 'chain' | 'positions' | 'orders' | 'scanner' | 'admin' | 'guide'
+type Tab = 'chain' | 'positions' | 'scanner' | 'admin' | 'guide'
 
 export interface OrderPrefill {
   symbol: string
@@ -81,7 +80,6 @@ function Dashboard() {
   const tabs: { key: Tab; label: string; short: string }[] = [
     { key: 'chain', label: 'Options Chain', short: 'Chain' },
     { key: 'positions', label: 'Positions', short: 'P&L' },
-    { key: 'orders', label: 'Orders', short: 'Orders' },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
     { key: 'guide', label: 'User Guide', short: 'Guide' },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'Admin', short: 'Admin' }] : []),
@@ -230,9 +228,6 @@ function Dashboard() {
                 <Positions key={orderRefresh} />
                 <PnLChart />
                 <RiskMonitor key={orderRefresh} />
-              </div>
-              <div style={{ display: activeTab === 'orders' ? 'block' : 'none' }}>
-                <Orders key={orderRefresh} />
               </div>
               <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
                 <StrategyScanner onAddToOrder={handleRowClick} />
