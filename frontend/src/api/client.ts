@@ -51,6 +51,7 @@ export interface OrderRequest {
   option_type: string
   action: string
   quantity: number
+  price?: number
 }
 
 export interface Order {
