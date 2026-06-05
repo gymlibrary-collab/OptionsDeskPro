@@ -228,10 +228,8 @@ function Dashboard() {
               </div>
               <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>
                 <Positions key={orderRefresh} />
-                <div style={{ display: 'flex', gap: '16px', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}><PnLChart /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}><RiskMonitor key={orderRefresh} /></div>
-                </div>
+                <PnLChart />
+                <RiskMonitor key={orderRefresh} />
               </div>
               <div style={{ display: activeTab === 'orders' ? 'block' : 'none' }}>
                 <Orders key={orderRefresh} />

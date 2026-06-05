@@ -45,7 +45,6 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
     expiry_date = date.fromisoformat(pos.expiry)
     dte = max((expiry_date - date.today()).days, 0)
 
-    # P&L% from the trader's perspective
     if pos.avg_cost > 0:
         is_long = (pos.entry_action or "buy").lower() == "buy"
         if is_long:
@@ -69,46 +68,46 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
     # ── Time decay ────────────────────────────────────────────────────────────────────
     if dte == 0:
         signals.append({"level": "red", "type": "dte",
-                         "msg": "Expires TODAY — close immediately"})
+                         "msg": "This contract expires TODAY. Do not let it expire — close it immediately to get whatever value remains."})
         escalate("red")
     elif dte <= 3:
         if pnl_pct < 0:
             signals.append({"level": "red", "type": "dte",
-                             "msg": f"{dte} DTE with unrealized loss — expiry imminent, consider closing"})
+                             "msg": f"Only {dte} day(s) left and you're down {abs(pnl_pct):.0f}%. With so little time, the premium has almost no chance to recover. Close now to stop the bleeding."})
             escalate("red")
         else:
             signals.append({"level": "yellow", "type": "dte",
-                             "msg": f"{dte} DTE — very close to expiry, lock in gains"})
+                             "msg": f"Only {dte} day(s) to expiry. You're in profit — lock in those gains now before time decay and overnight risk erode them."})
             escalate("yellow")
     elif dte <= 7:
         signals.append({"level": "yellow", "type": "dte",
-                         "msg": f"{dte} DTE — theta accelerating, manage soon"})
+                         "msg": f"{dte} days to expiry. Time decay (theta) is eating into your premium quickly. If you haven't hit your target yet, decide whether to hold or take what you have."})
         escalate("yellow")
     elif dte <= 21:
         signals.append({"level": "yellow", "type": "dte",
-                         "msg": f"{dte} DTE — entering high-decay window (21 DTE)"})
+                         "msg": f"{dte} days to expiry. You've entered the danger zone. The tastylive rule is to close at 21 DTE because theta accelerates and the risk/reward worsens from here."})
         escalate("yellow")
 
     # ── P&L thresholds ──────────────────────────────────────────────────────────────────
-    loss_limit = profit_target_pct  # e.g. target 50% → exit at -50% (2× credit rule)
+    loss_limit = profit_target_pct
     if pnl_pct <= -(loss_limit * 2):
         signals.append({"level": "red", "type": "pnl",
-                         "msg": f"Down {abs(pnl_pct):.0f}% — well beyond stop-loss, exit now"})
+                         "msg": f"You're down {abs(pnl_pct):.0f}% — more than twice the recommended stop of {loss_limit:.0f}%. Exit immediately. Do not wait for a recovery that may not come."})
         escalate("red")
     elif pnl_pct <= -loss_limit:
         signals.append({"level": "red", "type": "pnl",
-                         "msg": f"Down {abs(pnl_pct):.0f}% — hit stop-loss threshold ({loss_limit:.0f}%), consider closing"})
+                         "msg": f"You've hit your stop-loss at -{loss_limit:.0f}% (currently down {abs(pnl_pct):.0f}%). The rule is to exit here without hesitation — take the loss and protect your account."})
         escalate("red")
     elif pnl_pct <= -(loss_limit * 0.5):
         signals.append({"level": "yellow", "type": "pnl",
-                         "msg": f"Down {abs(pnl_pct):.0f}% — approaching stop-loss, monitor closely"})
+                         "msg": f"You're down {abs(pnl_pct):.0f}%, getting close to the {loss_limit:.0f}% stop. Watch this carefully — if it moves further against you, don't hesitate to close."})
         escalate("yellow")
     elif pnl_pct >= profit_target_pct:
         signals.append({"level": "green", "type": "pnl",
-                         "msg": f"Profit target hit! +{pnl_pct:.0f}% vs {profit_target_pct:.0f}% target — consider closing"})
+                         "msg": f"Profit target hit! You're up {pnl_pct:.0f}% vs your {profit_target_pct:.0f}% goal. Close this trade and bank the profit — don't let a winner turn into a loser."})
     elif pnl_pct >= profit_target_pct * 0.75:
         signals.append({"level": "green", "type": "pnl",
-                         "msg": f"Approaching target — +{pnl_pct:.0f}% of {profit_target_pct:.0f}% goal"})
+                         "msg": f"Almost there — you're at {pnl_pct:.0f}% of your {profit_target_pct:.0f}% target. Stay alert and be ready to close when it hits."})
 
     # ── IV regime ─────────────────────────────────────────────────────────────────────────
     iv_rank_val = None
@@ -122,18 +121,18 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
             expected_iv_envs = [e.upper() for e in strat.get("iv_environment", [])]
             if iv_env_val and iv_env_val not in expected_iv_envs:
                 signals.append({"level": "yellow", "type": "iv",
-                                 "msg": f"IV environment now {iv_env_val} (strategy built for {'/'.join(expected_iv_envs)}) — edge has shifted"})
+                                 "msg": f"Market volatility has shifted to {iv_env_val}. Your {pos.strategy_name or pos.strategy_key} was built for {'/'.join(expected_iv_envs)} conditions — the original edge may be gone. Consider whether this trade still makes sense."})
                 escalate("yellow")
 
         is_long = (pos.entry_action or "buy").lower() == "buy"
         if iv_rank_val is not None:
             if iv_rank_val > 75 and is_long:
                 signals.append({"level": "yellow", "type": "iv",
-                                 "msg": f"IVR {iv_rank_val:.0f} — elevated IV inflating premium cost for long positions"})
+                                 "msg": f"IV Rank is {iv_rank_val:.0f} — volatility is elevated, which inflates premium prices. As a buyer, you're paying a high price. High IV tends to contract, which can hurt long positions even if the stock moves your way."})
                 escalate("yellow")
             elif iv_rank_val < 20 and not is_long:
                 signals.append({"level": "yellow", "type": "iv",
-                                 "msg": f"IVR {iv_rank_val:.0f} — low IV reduces premium-selling edge"})
+                                 "msg": f"IV Rank is {iv_rank_val:.0f} — volatility is very low, which means little premium to collect. Short option strategies work best when IV is high. The edge on this trade is reduced."})
                 escalate("yellow")
 
     # ── Directional bias ─────────────────────────────────────────────────────────────────
@@ -147,16 +146,16 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
             opp = opposites.get(bias_val)
             if opp and opp in strategy_dirs:
                 signals.append({"level": "red", "type": "bias",
-                                 "msg": f"Bias reversed to {bias_val} — directly conflicts with {pos.strategy_name or pos.strategy_key}"})
+                                 "msg": f"The market has turned {bias_val.lower()} — this directly works against your {pos.strategy_name or pos.strategy_key}. The trade is now fighting the trend. Seriously consider closing."})
                 escalate("red")
             elif bias_val not in strategy_dirs and bias_val != "NEUTRAL":
                 signals.append({"level": "yellow", "type": "bias",
-                                 "msg": f"Bias shifted to {bias_val} — no longer aligned with strategy direction"})
+                                 "msg": f"Market bias has shifted to {bias_val.lower()}, which no longer aligns with this strategy's direction. The trade can still work, but the wind is no longer at your back."})
                 escalate("yellow")
 
     if not signals:
         signals.append({"level": "green", "type": "healthy",
-                         "msg": "All conditions within normal parameters"})
+                         "msg": "All conditions look good — no urgent signals. Keep monitoring as market conditions change."})
 
     return {
         "symbol": pos.symbol,
@@ -195,5 +194,4 @@ async def get_positions_risk(payload: dict = Depends(verify_token)):
         results = await asyncio.gather(*tasks)
 
     market = {sym: (iv, bias) for sym, iv, bias in results}
-
     return [_assess_risk(pos, *market.get(pos.symbol, (None, None))) for pos in positions]
