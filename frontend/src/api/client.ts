@@ -280,4 +280,37 @@ export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =
 export const getStockOrders = (): Promise<StockOrder[]> =>
   api.get<StockOrder[]>('/stock-orders').then(r => r.data)
 
+// ─── Risk Monitor ───────────────────────────────────────────────────────────────────────────────
+
+export interface RiskSignal {
+  level: 'green' | 'yellow' | 'red'
+  type: string
+  msg: string
+}
+
+export interface PositionRisk {
+  symbol: string
+  expiry: string
+  strike: number
+  option_type: string
+  quantity: number
+  avg_cost: number
+  current_price: number
+  pnl: number
+  strategy_key?: string
+  strategy_name?: string
+  profit_target_pct: number
+  entry_action?: string
+  dte: number
+  pnl_pct: number
+  risk_level: 'green' | 'yellow' | 'red'
+  iv_rank?: number
+  iv_environment?: string
+  bias?: string
+  signals: RiskSignal[]
+}
+
+export const getPositionsRisk = (): Promise<PositionRisk[]> =>
+  api.get<PositionRisk[]>('/positions/risk', { timeout: 30000 }).then(r => r.data)
+
 export default api

@@ -11,6 +11,7 @@ import PnLChart from './components/PnLChart'
 import UserGuide from './components/UserGuide'
 import TradingDesk from './components/TradingDesk'
 import StockOrderEntry from './components/StockOrderEntry'
+import RiskMonitor from './components/RiskMonitor'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
 import api from './api/client'
@@ -226,7 +227,11 @@ function Dashboard() {
                 <OptionsChain symbol={symbol} onRowClick={handleRowClick} />
               </div>
               <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>
-                <Positions key={orderRefresh} /><PnLChart />
+                <Positions key={orderRefresh} />
+                <div style={{ display: 'flex', gap: '16px', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><PnLChart /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><RiskMonitor key={orderRefresh} /></div>
+                </div>
               </div>
               <div style={{ display: activeTab === 'orders' ? 'block' : 'none' }}>
                 <Orders key={orderRefresh} />
