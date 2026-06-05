@@ -114,6 +114,8 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
   const entryAction = (pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
   const qty = Math.abs(pos.quantity)
   const totalCost = pos.avg_cost * qty * 100
+  const currentValue = pos.current_price * qty * 100
+  const priceUp = pos.current_price >= pos.avg_cost
   const redSignals = pos.signals.filter(s => s.level === 'red')
   const yellowSignals = pos.signals.filter(s => s.level === 'yellow')
   const greenSignals = pos.signals.filter(s => s.level === 'green')
@@ -131,7 +133,7 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
             {pos.strategy_name && <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>{pos.strategy_name}</span>}
           </div>
           <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>
-            {qty} contract{qty !== 1 ? 's' : ''}{' · '}Unit price <strong style={{ color: C.text }}>${fmt(pos.avg_cost)}</strong>{' · '}Total <strong style={{ color: C.text }}>${fmt(totalCost, 0)}</strong>{' · '}Now ${fmt(pos.current_price)}/share
+            {qty} contract{qty !== 1 ? 's' : ''}{' · '}Entry <strong style={{ color: C.text }}>${fmt(pos.avg_cost)}</strong>/share · <strong style={{ color: C.text }}>${fmt(totalCost, 0)}</strong> total
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
@@ -142,8 +144,10 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Days Left</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}</span></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>P&L</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.pnl >= 0 ? C.green : C.red }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Unit Price</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>${fmt(pos.avg_cost)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Contract Total</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Entry Price</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>${fmt(pos.avg_cost)}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Entry Value</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Current Price</span><span style={{ fontSize: '14px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(pos.current_price)}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Current Value</span><span style={{ fontSize: '14px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(currentValue, 0)}</span></div>
         {pos.iv_rank !== undefined && pos.iv_rank !== null && <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>IV Rank</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.iv_rank > 50 ? C.yellow : C.text }}>{fmt(pos.iv_rank, 0)}</span></div>}
         {pos.bias && <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mkt Bias</span><span style={{ fontSize: '13px', fontWeight: 700, color: pos.bias === 'BULLISH' ? C.green : pos.bias === 'BEARISH' ? C.red : C.muted }}>{pos.bias}</span></div>}
         <div style={{ flex: 1, minWidth: '140px' }}><ProgressBar pct={pos.pnl_pct} target={pos.profit_target_pct} level={pos.risk_level} /></div>
