@@ -67,6 +67,14 @@ const styles = {
     color: type === 'call' ? '#3b82f6' : '#a855f7',
     border: `1px solid ${type === 'call' ? '#3b82f6' : '#a855f7'}40`,
   }),
+  actionBadge: (action: string) => ({
+    display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
+    background: action === 'buy' ? '#0f2d1a' : '#2d0f0f',
+    color: action === 'buy' ? '#22c55e' : '#ef4444',
+    border: `1px solid ${action === 'buy' ? '#22c55e' : '#ef4444'}40`,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+  }),
   empty: { textAlign: 'center' as const, color: C.muted, padding: '40px', fontSize: '14px' },
   loading: { color: C.muted, fontSize: '13px', padding: '20px 0' },
 }
@@ -235,12 +243,14 @@ export default function Positions() {
               <tr>
                 <th style={styles.thLeft}>Symbol</th>
                 <th style={styles.thLeft}>Strategy</th>
+                <th style={styles.th}>Action</th>
+                <th style={styles.th}>Type</th>
                 <th style={styles.th}>Expiry</th>
                 <th style={styles.th}>DTE</th>
                 <th style={styles.th}>Strike</th>
-                <th style={styles.th}>Type</th>
                 <th style={styles.th}>Qty</th>
-                <th style={styles.th}>Avg Cost</th>
+                <th style={styles.th}>Unit Price</th>
+                <th style={styles.th}>Total Cost</th>
                 <th style={styles.th}>Current</th>
                 <th style={styles.th}>P&L $</th>
                 <th style={styles.th}>P&L %</th>
@@ -267,16 +277,22 @@ export default function Positions() {
                         : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>
                       }
                     </td>
-                    <td style={styles.td}>{pos.expiry}</td>
-                    <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
-                    <td style={styles.td}>${fmt(pos.strike)}</td>
+                    <td style={styles.td}>
+                      <span style={styles.actionBadge(pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell'))}>
+                        {(pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toUpperCase()}
+                      </span>
+                    </td>
                     <td style={styles.td}>
                       <span style={styles.badge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span>
                     </td>
+                    <td style={styles.td}>{pos.expiry}</td>
+                    <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
+                    <td style={styles.td}>${fmt(pos.strike)}</td>
                     <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
                       {pos.quantity > 0 ? '+' : ''}{pos.quantity}
                     </td>
                     <td style={styles.td}>${fmt(pos.avg_cost)}</td>
+                    <td style={{ ...styles.td, color: C.muted }}>${fmt(pos.avg_cost * Math.abs(pos.quantity) * 100)}</td>
                     <td style={styles.td}>${fmt(pos.current_price)}</td>
                     <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>
                       {pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}
