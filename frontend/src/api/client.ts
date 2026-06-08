@@ -332,4 +332,20 @@ export interface TradeRecordRequest {
 export const recordTrade = (req: TradeRecordRequest): Promise<{ recorded: number; strategy: string }> =>
   api.post('/trades/record', req).then(r => r.data)
 
+// ─── Watchlist ────────────────────────────────────────────────────────────────
+
+export interface WatchlistState {
+  symbols: string[]
+  tier: string
+  max_symbols: number | null
+  scans_used: number
+  max_scans_per_month: number | null
+}
+
+export const getWatchlist = (): Promise<WatchlistState> =>
+  api.get('/watchlist').then(r => r.data)
+
+export const saveWatchlist = (symbols: string[]): Promise<{ saved: number; tier: string }> =>
+  api.put('/watchlist', { symbols }).then(r => r.data)
+
 export default api

@@ -1,6 +1,7 @@
 import time
 import logging
-from fastapi import APIRouter
+from datetime import date, datetime
+from fastapi import APIRouter, Depends, HTTPException
 
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_strategies, recommend_by_category, build_trade, STRATEGIES
@@ -8,7 +9,9 @@ from services.market_data import get_options_chain, get_quote, synthetic_options
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
-from datetime import date
+from services.auth_utils import verify_token
+from services.db import get_supabase
+from services.tier_limits import get_user_tier, get_limits
 
 logger = logging.getLogger(__name__)
 
@@ -157,13 +160,61 @@ async def analyze_symbol(symbol: str):
 
 
 @router.get("/strategies/scan")
-async def scan_watchlist(symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT"):
+async def scan_watchlist(
+    symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT",
+    payload: dict = Depends(verify_token),
+):
     """
     Scan a comma-separated list of symbols.
-    For each: compute IV rank + bias, return top 1 strategy recommendation.
+    Enforces per-tier symbol count and monthly scan limits.
     Returns list sorted by IVR descending (highest IV opportunities first).
     """
+    user_id = payload["sub"]
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+
+    db = get_supabase()
+    tier = get_user_tier(db, user_id)
+    limits = get_limits(tier)
+
+    max_syms = limits["max_symbols"]
+    if max_syms is not None and len(symbol_list) > max_syms:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "symbol_limit_exceeded",
+                "limit": max_syms,
+                "tier": tier,
+                "message": f"Your {tier} plan supports scanning up to {max_syms} symbols at a time.",
+            },
+        )
+
+    max_scans = limits["max_scans_per_month"]
+    if max_scans is not None:
+        month = datetime.utcnow().strftime("%Y-%m")
+        usage_result = (
+            db.table("scan_usage")
+            .select("scans_used")
+            .eq("user_id", user_id)
+            .eq("month", month)
+            .execute()
+        )
+        scans_used = usage_result.data[0]["scans_used"] if usage_result.data else 0
+        if scans_used >= max_scans:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "scan_limit_reached",
+                    "limit": max_scans,
+                    "used": scans_used,
+                    "tier": tier,
+                    "message": f"You've used all {max_scans} scans for this month on your {tier} plan.",
+                },
+            )
+        db.table("scan_usage").upsert(
+            {"user_id": user_id, "month": month, "scans_used": scans_used + 1, "last_scan_at": datetime.utcnow().isoformat()},
+            on_conflict="user_id,month",
+        ).execute()
+
     results = []
 
     for symbol in symbol_list:
