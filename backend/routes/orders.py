@@ -1,9 +1,8 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from models import OrderRequest, StockOrderRequest
+from models import OrderRequest, TradeRecordRequest
 from services.auth_utils import verify_token, get_user_id
 from services import user_portfolio
-import services.alpaca_broker as alpaca
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,29 +16,8 @@ def place_order(req: OrderRequest, payload: dict = Depends(verify_token)):
         raise HTTPException(status_code=400, detail="Action must be 'buy' or 'sell'")
     if req.option_type.lower() not in ("call", "put"):
         raise HTTPException(status_code=400, detail="option_type must be 'call' or 'put'")
-
     user_id = get_user_id(payload)
-
-    if alpaca.is_configured():
-        try:
-            result = alpaca.place_order(
-                symbol=req.symbol,
-                expiry=req.expiry,
-                strike=req.strike,
-                option_type=req.option_type,
-                action=req.action,
-                quantity=req.quantity,
-            )
-            alpaca_id = result.get("alpaca_id")
-            order = user_portfolio.place_order(user_id, req, alpaca_id=alpaca_id)
-            order.status = result["status"]
-            return order
-        except Exception as e:
-            logger.error("Alpaca order failed: %s", e)
-            raise HTTPException(status_code=502, detail=f"Alpaca order failed: {e}")
-    else:
-        order = user_portfolio.place_order(user_id, req)
-        return order
+    return user_portfolio.place_order(user_id, req)
 
 
 @router.get("/orders")
@@ -48,52 +26,10 @@ def list_orders(payload: dict = Depends(verify_token)):
     return user_portfolio.get_orders(user_id)
 
 
-@router.get("/broker/account")
-def broker_account(payload: dict = Depends(verify_token)):
-    """Return live Alpaca account info when configured."""
-    if not alpaca.is_configured():
-        return {"configured": False, "message": "Alpaca keys not set — using paper trading"}
-    try:
-        info = alpaca.get_account()
-        info["configured"] = True
-        return info
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-@router.post("/stock-orders")
-def place_stock_order(req: StockOrderRequest, payload: dict = Depends(verify_token)):
-    if req.quantity <= 0:
-        raise HTTPException(status_code=400, detail="Quantity must be positive")
-    if req.action.lower() not in ("buy", "sell"):
-        raise HTTPException(status_code=400, detail="Action must be 'buy' or 'sell'")
-
+@router.post("/trades/record")
+def record_trade(req: TradeRecordRequest, payload: dict = Depends(verify_token)):
+    """Record a real multi-leg strategy trade for monitoring."""
+    if not req.legs:
+        raise HTTPException(status_code=400, detail="At least one leg required")
     user_id = get_user_id(payload)
-
-    if alpaca.is_configured():
-        try:
-            result = alpaca.place_stock_order(
-                symbol=req.symbol,
-                action=req.action,
-                quantity=req.quantity,
-                order_type=req.order_type,
-                limit_price=req.limit_price,
-            )
-            order = user_portfolio.place_stock_order(
-                user_id, req,
-                alpaca_id=result.get("alpaca_id"),
-                fill_price=result.get("fill_price"),
-            )
-            order.status = result["status"]
-            return order
-        except Exception as e:
-            logger.error("Alpaca stock order failed: %s", e)
-            raise HTTPException(status_code=502, detail=f"Alpaca order failed: {e}")
-    else:
-        return user_portfolio.place_stock_order(user_id, req)
-
-
-@router.get("/stock-orders")
-def list_stock_orders(payload: dict = Depends(verify_token)):
-    user_id = get_user_id(payload)
-    return user_portfolio.get_stock_orders(user_id)
+    return user_portfolio.record_trade(user_id, req)

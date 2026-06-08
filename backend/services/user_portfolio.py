@@ -22,34 +22,10 @@ def ensure_portfolio(user_id: str) -> dict:
 
 def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:
     sb = get_supabase()
-    portfolio = ensure_portfolio(user_id)
-    if req.price and req.price > 0:
-        price = req.price
-    else:
-        price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
-        if price <= 0:
-            price = 0.01
-    total_cost = price * req.quantity * 100
-    cash = float(portfolio["cash"])
-
-    status = "filled"
-    if req.action.lower() == "buy":
-        if cash < total_cost:
-            status = "rejected"
-        else:
-            cash -= total_cost
-    else:
-        cash += total_cost
-
-    # Update cash
-    if status == "filled":
-        sb.table("portfolios").update({
-            "cash": cash,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("user_id", user_id).execute()
-        _update_position(sb, user_id, req, price)
-
-    # Insert order with strategy metadata
+    price = req.price if (req.price and req.price > 0) else get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
+    if price <= 0:
+        price = 0.01
+    _update_position(sb, user_id, req, price)
     order_row = {
         "user_id": user_id,
         "symbol": req.symbol.upper(),
@@ -59,8 +35,7 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         "action": req.action.lower(),
         "quantity": req.quantity,
         "price": price,
-        "status": status,
-        "alpaca_id": alpaca_id,
+        "status": "filled",
         "strategy_key": req.strategy_key,
         "strategy_name": req.strategy_name,
         "profit_target_pct": req.profit_target_pct,
@@ -82,6 +57,61 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         strategy_name=row.get("strategy_name"),
         profit_target_pct=row.get("profit_target_pct"),
     )
+
+
+def record_trade(user_id: str, req) -> dict:
+    """Record a real multi-leg strategy trade for monitoring. Nets quantities per strike."""
+    sb = get_supabase()
+    leg_map: dict = {}
+    for leg in req.legs:
+        key = (req.expiry, round(leg.strike, 2), leg.option_type.lower())
+        qty_delta = leg.quantity if leg.action.lower() == "buy" else -leg.quantity
+        if key not in leg_map:
+            leg_map[key] = {"qty": 0, "price": leg.price, "action": leg.action}
+        leg_map[key]["qty"] += qty_delta
+
+    recorded = 0
+    for (expiry, strike, opt_type), info in leg_map.items():
+        if info["qty"] == 0:
+            continue
+        existing = sb.table("positions").select("*") \
+            .eq("user_id", user_id) \
+            .eq("symbol", req.symbol.upper()) \
+            .eq("expiry", expiry) \
+            .eq("strike", strike) \
+            .eq("option_type", opt_type) \
+            .execute().data
+        if existing:
+            pos = existing[0]
+            old_qty = pos["quantity"]
+            old_avg = float(pos["avg_cost"])
+            new_qty = old_qty + info["qty"]
+            if new_qty == 0:
+                sb.table("positions").delete().eq("id", pos["id"]).execute()
+            else:
+                new_avg = (old_avg * abs(old_qty) + info["price"] * abs(info["qty"])) / abs(new_qty) if new_qty != 0 else info["price"]
+                sb.table("positions").update({
+                    "quantity": new_qty,
+                    "avg_cost": round(new_avg, 4),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", pos["id"]).execute()
+        else:
+            sb.table("positions").insert({
+                "user_id": user_id,
+                "symbol": req.symbol.upper(),
+                "expiry": expiry,
+                "strike": strike,
+                "option_type": opt_type,
+                "quantity": info["qty"],
+                "avg_cost": info["price"],
+                "strategy_key": req.strategy_key,
+                "strategy_name": req.strategy_name,
+                "profit_target_pct": req.profit_target_pct,
+                "entry_action": "buy" if info["qty"] > 0 else "sell",
+            }).execute()
+        recorded += 1
+
+    return {"recorded": recorded, "strategy": req.strategy_name}
 
 
 def _update_position(sb, user_id: str, req: OrderRequest, price: float):
@@ -201,15 +231,13 @@ def get_orders(user_id: str) -> list[Order]:
 
 
 def get_summary(user_id: str) -> PortfolioSummary:
-    sb = get_supabase()
-    portfolio = ensure_portfolio(user_id)
     positions = get_positions(user_id)
     positions_value = sum(p.current_price * p.quantity * 100 for p in positions)
     total_pnl = sum(p.pnl for p in positions)
     return PortfolioSummary(
-        cash=round(float(portfolio["cash"]), 2),
+        cash=0.0,
         positions_value=round(positions_value, 2),
-        total_value=round(float(portfolio["cash"]) + positions_value, 2),
+        total_value=round(positions_value, 2),
         total_pnl=round(total_pnl, 2),
     )
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -27,7 +27,7 @@ class OrderRequest(BaseModel):
     option_type: str  # "call" or "put"
     action: str  # "buy" or "sell"
     quantity: int
-    price: Optional[float] = None  # user-supplied fill price; falls back to market quote if omitted
+    price: Optional[float] = None
     strategy_key: Optional[str] = None
     strategy_name: Optional[str] = None
     profit_target_pct: Optional[float] = None
@@ -43,7 +43,7 @@ class Order(BaseModel):
     action: str
     quantity: int
     price: float
-    status: str  # "filled", "rejected", "pending"
+    status: str
     strategy_key: Optional[str] = None
     strategy_name: Optional[str] = None
     profit_target_pct: Optional[float] = None
@@ -75,9 +75,9 @@ class PortfolioSummary(BaseModel):
 
 class StockOrderRequest(BaseModel):
     symbol: str
-    action: str  # "buy" or "sell"
+    action: str
     quantity: int
-    order_type: str = "market"  # "market" or "limit"
+    order_type: str = "market"
     limit_price: Optional[float] = None
 
 
@@ -93,3 +93,21 @@ class StockOrder(BaseModel):
     total_value: float
     status: str
     alpaca_id: Optional[str] = None
+
+
+class TradeLegRecord(BaseModel):
+    role: str
+    option_type: str
+    strike: float
+    action: str   # "buy" or "sell"
+    quantity: int
+    price: float  # mid price at time of recording
+
+
+class TradeRecordRequest(BaseModel):
+    symbol: str
+    strategy_key: str
+    strategy_name: str
+    expiry: str
+    profit_target_pct: float
+    legs: List[TradeLegRecord]
