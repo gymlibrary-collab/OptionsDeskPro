@@ -134,10 +134,10 @@ export const getOrders = () =>
   api.get<Order[]>('/orders').then(r => r.data)
 
 export const getPositions = () =>
-  api.get<Position[]>('/positions').then(r => r.data)
+  api.get<Position[]>('/positions', { timeout: 45000 }).then(r => r.data)
 
 export const getPortfolio = () =>
-  api.get<PortfolioSummary>('/portfolio').then(r => r.data)
+  api.get<PortfolioSummary>('/portfolio', { timeout: 45000 }).then(r => r.data)
 
 export const getPositionsRisk = (): Promise<PositionRisk[]> =>
   api.get<PositionRisk[]>('/positions/risk').then(r => r.data)

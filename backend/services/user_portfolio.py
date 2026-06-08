@@ -1,1 +1,324 @@
-"""\nDB-backed portfolio operations. Each function takes user_id and operates\non that user's data in Supabase. Replaces the in-memory Portfolio class\nfor authenticated users.\n"""\nfrom datetime import datetime, timezone, date\nimport math\nfrom scipy.stats import norm\nfrom services.db import get_supabase\nfrom services.market_data import get_options_chain, get_option_price, get_quote\nfrom services.greeks import calculate_greeks\nfrom models import Order, OrderRequest, Position, PortfolioSummary\n\n\ndef _bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:\n    \"\"\"Black-Scholes theoretical option price.\"\"\"\n    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:\n        return 0.0\n    try:\n        sqrt_T = math.sqrt(T)\n        d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)\n        d2 = d1 - sigma * sqrt_T\n        if option_type.lower() == \"call\":\n            return round(S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2), 2)\n        else:\n            return round(K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1), 2)\n    except Exception:\n        return 0.0\n\n\ndef ensure_portfolio(user_id: str) -> dict:\n    \"\"\"Create portfolio row if it doesn't exist. Return portfolio row.\"\"\"\n    sb = get_supabase()\n    result = sb.table(\"portfolios\").select(\"*\").eq(\"user_id\", user_id).execute()\n    if result.data:\n        return result.data[0]\n    sb.table(\"portfolios\").insert({\"user_id\": user_id, \"cash\": 100000.0}).execute()\n    return {\"user_id\": user_id, \"cash\": 100000.0}\n\n\ndef place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:\n    sb = get_supabase()\n    portfolio = ensure_portfolio(user_id)\n    price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)\n    if price <= 0:\n        price = 0.01\n    total_cost = price * req.quantity * 100\n    cash = float(portfolio[\"cash\"])\n\n    status = \"filled\"\n    if req.action.lower() == \"buy\":\n        if cash < total_cost:\n            status = \"rejected\"\n        else:\n            cash -= total_cost\n    else:\n        cash += total_cost\n\n    # Update cash\n    if status == \"filled\":\n        sb.table(\"portfolios\").update({\n            \"cash\": cash,\n            \"updated_at\": datetime.now(timezone.utc).isoformat(),\n        }).eq(\"user_id\", user_id).execute()\n        _update_position(sb, user_id, req, price)\n\n    # Insert order with strategy metadata\n    order_row = {\n        \"user_id\": user_id,\n        \"symbol\": req.symbol.upper(),\n        \"expiry\": req.expiry,\n        \"strike\": req.strike,\n        \"option_type\": req.option_type.lower(),\n        \"action\": req.action.lower(),\n        \"quantity\": req.quantity,\n        \"price\": price,\n        \"status\": status,\n        \"alpaca_id\": alpaca_id,\n        \"strategy_key\": req.strategy_key,\n        \"strategy_name\": req.strategy_name,\n        \"profit_target_pct\": req.profit_target_pct,\n    }\n    result = sb.table(\"orders\").insert(order_row).execute()\n    row = result.data[0]\n    return Order(\n        id=row[\"id\"],\n        timestamp=row[\"created_at\"],\n        symbol=row[\"symbol\"],\n        expiry=row[\"expiry\"],\n        strike=row[\"strike\"],\n        option_type=row[\"option_type\"],\n        action=row[\"action\"],\n        quantity=row[\"quantity\"],\n        price=row[\"price\"],\n        status=row[\"status\"],\n        strategy_key=row.get(\"strategy_key\"),\n        strategy_name=row.get(\"strategy_name\"),\n        profit_target_pct=row.get(\"profit_target_pct\"),\n    )\n\n\ndef _update_position(sb, user_id: str, req: OrderRequest, price: float):\n    existing = sb.table(\"positions\").select(\"*\")\\\n        .eq(\"user_id\", user_id)\\\n        .eq(\"symbol\", req.symbol.upper())\\\n        .eq(\"expiry\", req.expiry)\\\n        .eq(\"strike\", req.strike)\\\n        .eq(\"option_type\", req.option_type.lower())\\\n        .execute()\n\n    if existing.data:\n        pos = existing.data[0]\n        qty = pos[\"quantity\"]\n        avg = float(pos[\"avg_cost\"])\n        if req.action.lower() == \"buy\":\n            new_qty = qty + req.quantity\n            new_avg = (avg * qty + price * req.quantity) / new_qty\n            sb.table(\"positions\").update({\n                \"quantity\": new_qty,\n                \"avg_cost\": new_avg,\n                \"updated_at\": datetime.now(timezone.utc).isoformat(),\n            }).eq(\"id\", pos[\"id\"]).execute()\n        else:\n            new_qty = qty - req.quantity\n            if new_qty == 0:\n                sb.table(\"positions\").delete().eq(\"id\", pos[\"id\"]).execute()\n            else:\n                sb.table(\"positions\").update({\n                    \"quantity\": new_qty,\n                    \"updated_at\": datetime.now(timezone.utc).isoformat(),\n                }).eq(\"id\", pos[\"id\"]).execute()\n    else:\n        qty = req.quantity if req.action.lower() == \"buy\" else -req.quantity\n        # Strategy metadata stored on first open — drives P&L monitoring\n        sb.table(\"positions\").insert({\n            \"user_id\": user_id,\n            \"symbol\": req.symbol.upper(),\n            \"expiry\": req.expiry,\n            \"strike\": req.strike,\n            \"option_type\": req.option_type.lower(),\n            \"quantity\": qty,\n            \"avg_cost\": price,\n            \"strategy_key\": req.strategy_key,\n            \"strategy_name\": req.strategy_name,\n            \"profit_target_pct\": req.profit_target_pct,\n            \"entry_action\": req.action.lower(),\n        }).execute()\n\n\ndef get_positions(user_id: str) -> list[Position]:\n    sb = get_supabase()\n    rows = sb.table(\"positions\").select(\"*\").eq(\"user_id\", user_id).execute().data\n    if not rows:\n        return []\n\n    # ── Batch fetches: one quote per unique symbol ────────────────────────────────────────\n    unique_symbols = list({r[\"symbol\"] for r in rows})\n    spot_cache: dict[str, float] = {}\n    iv_cache: dict[str, float] = {}   # symbol → current IV (for BS fallback)\n    for symbol in unique_symbols:\n        try:\n            spot_cache[symbol] = get_quote(symbol).get(\"price\", 0.0)\n        except Exception:\n            spot_cache[symbol] = 0.0\n        try:\n            from services.iv_analysis import get_iv_rank\n            iv_data = get_iv_rank(symbol)\n            iv_cache[symbol] = iv_data.get(\"current_iv\") or 0.30\n        except Exception:\n            iv_cache[symbol] = 0.30\n\n    # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price\n    # Key uses the ACTUAL expiry returned by yfinance (not the requested one),\n    # so we never store prices from a different expiry under the wrong key.\n    price_lookup: dict[tuple, float] = {}\n    unique_chains = list({(r[\"symbol\"], r[\"expiry\"]) for r in rows})\n    for symbol, expiry in unique_chains:\n        try:\n            chain = get_options_chain(symbol, expiry)\n            actual_expiry = chain.get(\"expiry\") or expiry\n            if actual_expiry != expiry:\n                continue  # yfinance returned a different expiry — don't pollute lookup\n            for otype, contracts in [(\"call\", chain.get(\"calls\", [])), (\"put\", chain.get(\"puts\", []))]:\n                for c in contracts:\n                    bid, ask, last = c.get(\"bid\", 0), c.get(\"ask\", 0), c.get(\"lastPrice\", 0)\n                    price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)\n                    if price > 0:\n                        strike_key = round(float(c[\"strike\"]), 2)\n                        price_lookup[(symbol, actual_expiry, strike_key, otype)] = price\n        except Exception:\n            pass  # will fall back to BS below\n\n    result = []\n    for pos in rows:\n        symbol = pos[\"symbol\"]\n        expiry = pos[\"expiry\"]\n        strike = float(pos[\"strike\"])\n        option_type = pos[\"option_type\"]\n        quantity = pos[\"quantity\"]\n        avg_cost = float(pos[\"avg_cost\"])\n\n        # 1) Live mid price from cached chain\n        current_price = price_lookup.get((symbol, expiry, round(strike, 2), option_type), 0.0)\n\n        # 2) Black-Scholes estimate when live price unavailable\n        if current_price <= 0:\n            S = spot_cache.get(symbol, 0.0)\n            if S > 0:\n                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0\n                sigma = iv_cache.get(symbol, 0.30)\n                current_price = _bs_price(S, strike, T, 0.05, sigma, option_type)\n\n        # 3) Last resort: avg_cost (P&L = 0, but avoids a misleading negative)\n        if current_price <= 0:\n            current_price = avg_cost\n\n        pnl = (current_price - avg_cost) * quantity * 100\n\n        S = spot_cache.get(symbol, 0.0)\n        greeks = {\"delta\": 0.0, \"gamma\": 0.0}\n        if S > 0:\n            try:\n                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0\n                greeks = calculate_greeks(S, strike, T, 0.05, iv_cache.get(symbol, 0.30), option_type)\n            except Exception:\n                pass\n\n        result.append(Position(\n            symbol=symbol,\n            expiry=expiry,\n            strike=strike,\n            option_type=option_type,\n            quantity=quantity,\n            avg_cost=round(avg_cost, 2),\n            current_price=round(current_price, 2),\n            pnl=round(pnl, 2),\n            delta=greeks.get(\"delta\", 0.0),\n            gamma=greeks.get(\"gamma\", 0.0),\n            strategy_key=pos.get(\"strategy_key\"),\n            strategy_name=pos.get(\"strategy_name\"),\n            profit_target_pct=pos.get(\"profit_target_pct\"),\n            entry_action=pos.get(\"entry_action\"),\n        ))\n    return result\n\n\ndef get_orders(user_id: str) -> list[Order]:\n    sb = get_supabase()\n    rows = sb.table(\"orders\").select(\"*\")\\\n        .eq(\"user_id\", user_id)\\\n        .order(\"created_at\", desc=True)\\\n        .limit(200)\\\n        .execute().data\n    return [\n        Order(\n            id=r[\"id\"],\n            timestamp=r[\"created_at\"],\n            symbol=r[\"symbol\"],\n            expiry=r[\"expiry\"],\n            strike=r[\"strike\"],\n            option_type=r[\"option_type\"],\n            action=r[\"action\"],\n            quantity=r[\"quantity\"],\n            price=r[\"price\"],\n            status=r[\"status\"],\n            strategy_key=r.get(\"strategy_key\"),\n            strategy_name=r.get(\"strategy_name\"),\n            profit_target_pct=r.get(\"profit_target_pct\"),\n        )\n        for r in rows\n    ]\n\n\ndef get_summary(user_id: str) -> PortfolioSummary:\n    sb = get_supabase()\n    portfolio = ensure_portfolio(user_id)\n    positions = get_positions(user_id)\n    positions_value = sum(p.current_price * p.quantity * 100 for p in positions)\n    total_pnl = sum(p.pnl for p in positions)\n    return PortfolioSummary(\n        cash=round(float(portfolio[\"cash\"]), 2),\n        positions_value=round(positions_value, 2),\n        total_value=round(float(portfolio[\"cash\"]) + positions_value, 2),\n        total_pnl=round(total_pnl, 2),\n    )\n\n\ndef take_pnl_snapshot(user_id: str):\n    \"\"\"Call once daily to record portfolio value. Upserts on date.\"\"\"\n    sb = get_supabase()\n    summary = get_summary(user_id)\n    sb.table(\"pnl_snapshots\").upsert({\n        \"user_id\": user_id,\n        \"snapshot_date\": date.today().isoformat(),\n        \"portfolio_value\": summary.total_value,\n        \"cash\": summary.cash,\n        \"positions_value\": summary.positions_value,\n        \"total_pnl\": summary.total_pnl,\n    }, on_conflict=\"user_id,snapshot_date\").execute()\n\n\ndef log_activity(user_id: str, email: str, ip: str = None):\n    \"\"\"Upsert today's activity log — overwrites on same date.\"\"\"\n    sb = get_supabase()\n    existing = sb.table(\"activity_log\").select(\"*\")\\\n        .eq(\"user_id\", user_id)\\\n        .eq(\"log_date\", date.today().isoformat())\\\n        .execute().data\n    if existing:\n        sb.table(\"activity_log\").update({\n            \"login_count\": existing[0][\"login_count\"] + 1,\n            \"last_login_at\": datetime.now(timezone.utc).isoformat(),\n            \"ip_address\": ip,\n        }).eq(\"id\", existing[0][\"id\"]).execute()\n    else:\n        sb.table(\"activity_log\").insert({\n            \"user_id\": user_id,\n            \"email\": email,\n            \"log_date\": date.today().isoformat(),\n            \"login_count\": 1,\n            \"ip_address\": ip,\n        }).execute()\n
+"""
+DB-backed portfolio operations. Each function takes user_id and operates
+on that user's data in Supabase. Replaces the in-memory Portfolio class
+for authenticated users.
+"""
+from datetime import datetime, timezone, date
+import math
+from scipy.stats import norm
+from services.db import get_supabase
+from services.market_data import get_options_chain, get_option_price, get_quote
+from services.greeks import calculate_greeks
+from models import Order, OrderRequest, Position, PortfolioSummary
+
+
+def _bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
+    """Black-Scholes theoretical option price."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    try:
+        sqrt_T = math.sqrt(T)
+        d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
+        d2 = d1 - sigma * sqrt_T
+        if option_type.lower() == "call":
+            return round(S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2), 2)
+        else:
+            return round(K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1), 2)
+    except Exception:
+        return 0.0
+
+
+def ensure_portfolio(user_id: str) -> dict:
+    """Create portfolio row if it doesn't exist. Return portfolio row."""
+    sb = get_supabase()
+    result = sb.table("portfolios").select("*").eq("user_id", user_id).execute()
+    if result.data:
+        return result.data[0]
+    sb.table("portfolios").insert({"user_id": user_id, "cash": 100000.0}).execute()
+    return {"user_id": user_id, "cash": 100000.0}
+
+
+def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:
+    sb = get_supabase()
+    portfolio = ensure_portfolio(user_id)
+    price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
+    if price <= 0:
+        price = 0.01
+    total_cost = price * req.quantity * 100
+    cash = float(portfolio["cash"])
+
+    status = "filled"
+    if req.action.lower() == "buy":
+        if cash < total_cost:
+            status = "rejected"
+        else:
+            cash -= total_cost
+    else:
+        cash += total_cost
+
+    # Update cash
+    if status == "filled":
+        sb.table("portfolios").update({
+            "cash": cash,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).execute()
+        _update_position(sb, user_id, req, price)
+
+    # Insert order with strategy metadata
+    order_row = {
+        "user_id": user_id,
+        "symbol": req.symbol.upper(),
+        "expiry": req.expiry,
+        "strike": req.strike,
+        "option_type": req.option_type.lower(),
+        "action": req.action.lower(),
+        "quantity": req.quantity,
+        "price": price,
+        "status": status,
+        "alpaca_id": alpaca_id,
+        "strategy_key": req.strategy_key,
+        "strategy_name": req.strategy_name,
+        "profit_target_pct": req.profit_target_pct,
+    }
+    result = sb.table("orders").insert(order_row).execute()
+    row = result.data[0]
+    return Order(
+        id=row["id"],
+        timestamp=row["created_at"],
+        symbol=row["symbol"],
+        expiry=row["expiry"],
+        strike=row["strike"],
+        option_type=row["option_type"],
+        action=row["action"],
+        quantity=row["quantity"],
+        price=row["price"],
+        status=row["status"],
+        strategy_key=row.get("strategy_key"),
+        strategy_name=row.get("strategy_name"),
+        profit_target_pct=row.get("profit_target_pct"),
+    )
+
+
+def _update_position(sb, user_id: str, req: OrderRequest, price: float):
+    existing = sb.table("positions").select("*")\
+        .eq("user_id", user_id)\
+        .eq("symbol", req.symbol.upper())\
+        .eq("expiry", req.expiry)\
+        .eq("strike", req.strike)\
+        .eq("option_type", req.option_type.lower())\
+        .execute()
+
+    if existing.data:
+        pos = existing.data[0]
+        qty = pos["quantity"]
+        avg = float(pos["avg_cost"])
+        if req.action.lower() == "buy":
+            new_qty = qty + req.quantity
+            new_avg = (avg * qty + price * req.quantity) / new_qty
+            sb.table("positions").update({
+                "quantity": new_qty,
+                "avg_cost": new_avg,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", pos["id"]).execute()
+        else:
+            new_qty = qty - req.quantity
+            if new_qty == 0:
+                sb.table("positions").delete().eq("id", pos["id"]).execute()
+            else:
+                sb.table("positions").update({
+                    "quantity": new_qty,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", pos["id"]).execute()
+    else:
+        qty = req.quantity if req.action.lower() == "buy" else -req.quantity
+        # Strategy metadata stored on first open — drives P&L monitoring
+        sb.table("positions").insert({
+            "user_id": user_id,
+            "symbol": req.symbol.upper(),
+            "expiry": req.expiry,
+            "strike": req.strike,
+            "option_type": req.option_type.lower(),
+            "quantity": qty,
+            "avg_cost": price,
+            "strategy_key": req.strategy_key,
+            "strategy_name": req.strategy_name,
+            "profit_target_pct": req.profit_target_pct,
+            "entry_action": req.action.lower(),
+        }).execute()
+
+
+def get_positions(user_id: str) -> list[Position]:
+    sb = get_supabase()
+    rows = sb.table("positions").select("*").eq("user_id", user_id).execute().data
+    if not rows:
+        return []
+
+    # ── Batch fetches: one quote per unique symbol ───────────────────────────
+    unique_symbols = list({r["symbol"] for r in rows})
+    spot_cache: dict[str, float] = {}
+    for symbol in unique_symbols:
+        try:
+            spot_cache[symbol] = get_quote(symbol).get("price", 0.0)
+        except Exception:
+            spot_cache[symbol] = 0.0
+
+    # IV for BS fallback: use a sensible per-symbol default rather than
+    # fetching get_iv_rank (which downloads 1y of history and is too slow here)
+    IV_DEFAULTS = {
+        "SPY": 0.15, "QQQ": 0.20, "IWM": 0.22, "GLD": 0.14, "TLT": 0.14,
+        "AAPL": 0.25, "MSFT": 0.25, "GOOGL": 0.28, "AMZN": 0.30,
+        "TSLA": 0.55, "NVDA": 0.50, "META": 0.35, "NFLX": 0.40,
+    }
+    iv_cache: dict[str, float] = {s: IV_DEFAULTS.get(s, 0.30) for s in unique_symbols}
+
+    # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price
+    # Key uses the ACTUAL expiry returned by yfinance (not the requested one),
+    # so we never store prices from a different expiry under the wrong key.
+    price_lookup: dict[tuple, float] = {}
+    unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
+    for symbol, expiry in unique_chains:
+        try:
+            chain = get_options_chain(symbol, expiry)
+            actual_expiry = chain.get("expiry") or expiry
+            if actual_expiry != expiry:
+                continue  # yfinance returned a different expiry — don't pollute lookup
+            for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
+                for c in contracts:
+                    bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
+                    price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)
+                    if price > 0:
+                        strike_key = round(float(c["strike"]), 2)
+                        price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
+        except Exception:
+            pass  # will fall back to BS below
+
+    result = []
+    for pos in rows:
+        symbol = pos["symbol"]
+        expiry = pos["expiry"]
+        strike = float(pos["strike"])
+        option_type = pos["option_type"]
+        quantity = pos["quantity"]
+        avg_cost = float(pos["avg_cost"])
+
+        # 1) Live mid price from cached chain
+        current_price = price_lookup.get((symbol, expiry, round(strike, 2), option_type), 0.0)
+
+        # 2) Black-Scholes estimate when live price unavailable
+        if current_price <= 0:
+            S = spot_cache.get(symbol, 0.0)
+            if S > 0:
+                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
+                sigma = iv_cache.get(symbol, 0.30)
+                current_price = _bs_price(S, strike, T, 0.05, sigma, option_type)
+
+        # 3) Last resort: avg_cost (P&L = 0, but avoids a misleading negative)
+        if current_price <= 0:
+            current_price = avg_cost
+
+        pnl = (current_price - avg_cost) * quantity * 100
+
+        S = spot_cache.get(symbol, 0.0)
+        greeks = {"delta": 0.0, "gamma": 0.0}
+        if S > 0:
+            try:
+                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
+                greeks = calculate_greeks(S, strike, T, 0.05, iv_cache.get(symbol, 0.30), option_type)
+            except Exception:
+                pass
+
+        result.append(Position(
+            symbol=symbol,
+            expiry=expiry,
+            strike=strike,
+            option_type=option_type,
+            quantity=quantity,
+            avg_cost=round(avg_cost, 2),
+            current_price=round(current_price, 2),
+            pnl=round(pnl, 2),
+            delta=greeks.get("delta", 0.0),
+            gamma=greeks.get("gamma", 0.0),
+            strategy_key=pos.get("strategy_key"),
+            strategy_name=pos.get("strategy_name"),
+            profit_target_pct=pos.get("profit_target_pct"),
+            entry_action=pos.get("entry_action"),
+        ))
+    return result
+
+
+def get_orders(user_id: str) -> list[Order]:
+    sb = get_supabase()
+    rows = sb.table("orders").select("*")\
+        .eq("user_id", user_id)\
+        .order("created_at", desc=True)\
+        .limit(200)\
+        .execute().data
+    return [
+        Order(
+            id=r["id"],
+            timestamp=r["created_at"],
+            symbol=r["symbol"],
+            expiry=r["expiry"],
+            strike=r["strike"],
+            option_type=r["option_type"],
+            action=r["action"],
+            quantity=r["quantity"],
+            price=r["price"],
+            status=r["status"],
+            strategy_key=r.get("strategy_key"),
+            strategy_name=r.get("strategy_name"),
+            profit_target_pct=r.get("profit_target_pct"),
+        )
+        for r in rows
+    ]
+
+
+def get_summary(user_id: str) -> PortfolioSummary:
+    sb = get_supabase()
+    portfolio = ensure_portfolio(user_id)
+    positions = get_positions(user_id)
+    positions_value = sum(p.current_price * p.quantity * 100 for p in positions)
+    total_pnl = sum(p.pnl for p in positions)
+    return PortfolioSummary(
+        cash=round(float(portfolio["cash"]), 2),
+        positions_value=round(positions_value, 2),
+        total_value=round(float(portfolio["cash"]) + positions_value, 2),
+        total_pnl=round(total_pnl, 2),
+    )
+
+
+def take_pnl_snapshot(user_id: str):
+    """Call once daily to record portfolio value. Upserts on date."""
+    sb = get_supabase()
+    summary = get_summary(user_id)
+    sb.table("pnl_snapshots").upsert({
+        "user_id": user_id,
+        "snapshot_date": date.today().isoformat(),
+        "portfolio_value": summary.total_value,
+        "cash": summary.cash,
+        "positions_value": summary.positions_value,
+        "total_pnl": summary.total_pnl,
+    }, on_conflict="user_id,snapshot_date").execute()
+
+
+def log_activity(user_id: str, email: str, ip: str = None):
+    """Upsert today's activity log — overwrites on same date."""
+    sb = get_supabase()
+    existing = sb.table("activity_log").select("*")\
+        .eq("user_id", user_id)\
+        .eq("log_date", date.today().isoformat())\
+        .execute().data
+    if existing:
+        sb.table("activity_log").update({
+            "login_count": existing[0]["login_count"] + 1,
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
+            "ip_address": ip,
+        }).eq("id", existing[0]["id"]).execute()
+    else:
+        sb.table("activity_log").insert({
+            "user_id": user_id,
+            "email": email,
+            "log_date": date.today().isoformat(),
+            "login_count": 1,
+            "ip_address": ip,
+        }).execute()
