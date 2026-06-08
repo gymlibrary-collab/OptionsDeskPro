@@ -153,27 +153,40 @@ def get_positions(user_id: str) -> list[Position]:
     if not rows:
         return []
 
-    # ── Batch fetches: one quote + one chain per unique symbol/expiry ──────────────
+    # ── Batch fetches: one quote per unique symbol ───────────────────────────
     unique_symbols = list({r["symbol"] for r in rows})
     spot_cache: dict[str, float] = {}
+    iv_cache: dict[str, float] = {}   # symbol → current IV (for BS fallback)
     for symbol in unique_symbols:
         try:
             spot_cache[symbol] = get_quote(symbol).get("price", 0.0)
         except Exception:
             spot_cache[symbol] = 0.0
+        try:
+            from services.iv_analysis import get_iv_rank
+            iv_data = get_iv_rank(symbol)
+            iv_cache[symbol] = iv_data.get("current_iv") or 0.30
+        except Exception:
+            iv_cache[symbol] = 0.30
 
     # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price
+    # Key uses the ACTUAL expiry returned by yfinance (not the requested one),
+    # so we never store prices from a different expiry under the wrong key.
     price_lookup: dict[tuple, float] = {}
     unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
     for symbol, expiry in unique_chains:
         try:
             chain = get_options_chain(symbol, expiry)
+            actual_expiry = chain.get("expiry") or expiry
+            if actual_expiry != expiry:
+                continue  # yfinance returned a different expiry — don't pollute lookup
             for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
                 for c in contracts:
                     bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
                     price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)
                     if price > 0:
-                        price_lookup[(symbol, expiry, float(c["strike"]), otype)] = price
+                        strike_key = round(float(c["strike"]), 2)
+                        price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
         except Exception:
             pass  # will fall back to BS below
 
@@ -187,14 +200,15 @@ def get_positions(user_id: str) -> list[Position]:
         avg_cost = float(pos["avg_cost"])
 
         # 1) Live mid price from cached chain
-        current_price = price_lookup.get((symbol, expiry, strike, option_type), 0.0)
+        current_price = price_lookup.get((symbol, expiry, round(strike, 2), option_type), 0.0)
 
         # 2) Black-Scholes estimate when live price unavailable
         if current_price <= 0:
             S = spot_cache.get(symbol, 0.0)
             if S > 0:
                 T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
-                current_price = _bs_price(S, strike, T, 0.05, 0.30, option_type)
+                sigma = iv_cache.get(symbol, 0.30)
+                current_price = _bs_price(S, strike, T, 0.05, sigma, option_type)
 
         # 3) Last resort: avg_cost (P&L = 0, but avoids a misleading negative)
         if current_price <= 0:
@@ -207,7 +221,7 @@ def get_positions(user_id: str) -> list[Position]:
         if S > 0:
             try:
                 T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
-                greeks = calculate_greeks(S, strike, T, 0.05, 0.30, option_type)
+                greeks = calculate_greeks(S, strike, T, 0.05, iv_cache.get(symbol, 0.30), option_type)
             except Exception:
                 pass
 
