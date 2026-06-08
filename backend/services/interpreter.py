@@ -432,9 +432,11 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
             )
             unusual_note = ""
             if unusual_calls:
-                unusual_note += f" Unusual call activity detected at strikes ${', $'.join(str(int(s)) for s in unusual_calls)} — volume exceeded open interest, signalling new bullish positioning."
+                unique_uc = sorted(set(int(s) for s in unusual_calls))
+                unusual_note += f" Unusual call activity detected at strikes ${', $'.join(str(s) for s in unique_uc)} — volume exceeded open interest, signalling new bullish positioning."
             if unusual_puts:
-                unusual_note += f" Unusual put activity at strikes ${', $'.join(str(int(s)) for s in unusual_puts)} — volume exceeded open interest, signalling new bearish or protective positioning."
+                unique_up = sorted(set(int(s) for s in unusual_puts))
+                unusual_note += f" Unusual put activity at strikes ${', $'.join(str(s) for s in unique_up)} — volume exceeded open interest, signalling new bearish or protective positioning."
             extra_confirmations.append(f"Options flow: {pcr_note}{unusual_note}")
 
         earnings = ctx.get("earnings") or {}
@@ -507,7 +509,22 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
                 f"The trade will experience an IV crush event around earnings — plan for it and consider whether to close before the announcement."
             )
 
-    for i, leg in enumerate(legs, 1):
+    # Consolidate duplicate option legs (same strike + action + type, e.g. butterfly body)
+    seen_keys: dict = {}
+    consolidated_legs = []
+    for leg in legs:
+        if leg.get("option_type") == "stock":
+            consolidated_legs.append({**leg, "_qty": 1})
+            continue
+        key = (leg.get("option_type"), leg.get("action"), leg.get("strike"))
+        if key in seen_keys:
+            seen_keys[key]["_qty"] += 1
+        else:
+            entry = {**leg, "_qty": 1}
+            seen_keys[key] = entry
+            consolidated_legs.append(entry)
+
+    for i, leg in enumerate(consolidated_legs, 1):
         action = leg.get("action", "buy")
         otype = leg.get("option_type", "call")
         strike = leg.get("strike", 0.0)
@@ -515,7 +532,9 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
         delta = leg.get("delta", 0.0)
         bid = leg.get("bid", 0.0)
         ask = leg.get("ask", 0.0)
-        cost_per = mid * 100
+        qty = leg.get("_qty", 1)
+        qty_label = f"{qty}×" if qty > 1 else "1×"
+        cost_per = mid * 100 * qty
 
         if otype == "stock":
             sections.append(
@@ -526,8 +545,8 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
 
         if action == "sell":
             sections.append(
-                f"Leg {i} — SELL 1× ${strike:.0f} {otype.upper()} expiring {expiry}. "
-                f"By selling this option, you collect ~${cost_per:.0f} per contract upfront (mid-price ${mid:.2f}; market is ${bid:.2f}×${ask:.2f}). "
+                f"Leg {i} — SELL {qty_label} ${strike:.0f} {otype.upper()} expiring {expiry}. "
+                f"By selling {'these options' if qty > 1 else 'this option'}, you collect ~${cost_per:.0f} per contract upfront (mid-price ${mid:.2f}; market is ${bid:.2f}×${ask:.2f}). "
                 f"This option has a delta of {abs(delta):.2f}, meaning the market is pricing in roughly a "
                 f"{abs(delta)*100:.0f}% chance it expires in-the-money. "
                 f"Time decay works in your favour — this option loses value every day that passes "
@@ -535,8 +554,8 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
             )
         else:
             sections.append(
-                f"Leg {i} — BUY 1× ${strike:.0f} {otype.upper()} expiring {expiry}. "
-                f"You pay ~${cost_per:.0f} per contract for this option (mid-price ${mid:.2f}; market is ${bid:.2f}×${ask:.2f}). "
+                f"Leg {i} — BUY {qty_label} ${strike:.0f} {otype.upper()} expiring {expiry}. "
+                f"You pay ~${cost_per:.0f} per contract for {'these options' if qty > 1 else 'this option'} (mid-price ${mid:.2f}; market is ${bid:.2f}×${ask:.2f}). "
                 f"This option has a delta of {abs(delta):.2f}, meaning it moves approximately ${abs(delta):.2f} "
                 f"for every $1 move in {symbol}. "
                 f"This leg defines and caps your maximum risk on the trade."
@@ -930,7 +949,19 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"is what the options are written against. Without the shares, the short call is 'naked' (higher margin required)."
         )
 
-    for i, leg in enumerate(option_legs, 1):
+    # Consolidate duplicate option legs (same strike + action + type, e.g. butterfly body)
+    seen_leg_keys: dict = {}
+    consolidated_option_legs = []
+    for leg in option_legs:
+        key = (leg.get("option_type"), leg.get("action"), leg.get("strike"))
+        if key in seen_leg_keys:
+            seen_leg_keys[key]["_qty"] += 1
+        else:
+            entry = {**leg, "_qty": 1}
+            seen_leg_keys[key] = entry
+            consolidated_option_legs.append(entry)
+
+    for i, leg in enumerate(consolidated_option_legs, 1):
         action = leg.get("action", "buy")
         otype  = leg.get("option_type", "call")
         strike = leg.get("strike", 0.0)
@@ -938,7 +969,9 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         bid    = leg.get("bid", 0.0)
         ask    = leg.get("ask", 0.0)
         delta  = leg.get("delta", 0.0)
-        cost_per = mid * 100
+        qty    = leg.get("_qty", 1)
+        qty_label = f"{qty}×" if qty > 1 else ""
+        cost_per = mid * 100 * qty
 
         side = "CALLS side (left half of the chain)" if otype == "call" else "PUTS side (right half of the chain)"
         verb = "SELL" if action == "sell" else "BUY"
@@ -946,7 +979,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
 
         if action == "sell":
             explanation = (
-                f"Selling means you are taking the other side of the contract: you collect cash now "
+                f"Selling {'these' if qty > 1 else 'this'} means you are taking the other side of the contract: you collect cash now "
                 f"and accept an obligation if {symbol} moves past ${strike:.0f} by {exp_fmt}. "
                 f"The delta of {abs(delta):.2f} means the market prices this at a {delta_pct:.0f}% chance "
                 f"of expiring in-the-money — so you have roughly a {100 - delta_pct:.0f}% chance "
@@ -956,10 +989,11 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
                 f"In the options chain, go to the {side}. "
                 f"Find the row where the Strike column shows ${strike:.0f}. "
                 f"Click the 'Ask' price (or right-click the row → 'Sell') to add a short {otype} to your order ticket."
+                + (f" You need to sell {qty} contracts at this strike." if qty > 1 else "")
             )
         else:
             explanation = (
-                f"Buying this option gives you the right (but not the obligation) to {'buy' if otype == 'call' else 'sell'} "
+                f"Buying {'these options give' if qty > 1 else 'this option gives'} you the right (but not the obligation) to {'buy' if otype == 'call' else 'sell'} "
                 f"100 shares of {symbol} at ${strike:.0f} before {exp_fmt}. "
                 f"The delta of {abs(delta):.2f} means for every $1 {symbol} moves in your favour, "
                 f"this option gains approximately ${abs(delta):.2f} per share (${abs(delta)*100:.0f} per contract)."
@@ -968,10 +1002,11 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
                 f"In the options chain, go to the {side}. "
                 f"Find the row where the Strike column shows ${strike:.0f}. "
                 f"Click the 'Bid' price (or right-click → 'Buy') to add a long {otype} to your order ticket."
+                + (f" You need to buy {qty} contracts at this strike." if qty > 1 else "")
             )
 
         steps.append(
-            f"LEG {i} — {verb} the ${strike:.0f} {otype.upper()} (expires {exp_fmt}): "
+            f"LEG {i} — {verb} {qty_label + ' ' if qty_label else ''}${strike:.0f} {otype.upper()} (expires {exp_fmt}): "
             f"{explanation} "
             f"{how_to} "
             f"Current market: ${bid:.2f} bid × ${ask:.2f} ask  |  Mid-price: ${mid:.2f}  |  "
@@ -980,11 +1015,11 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
 
     if len(option_legs) > 1:
         order_type = (
-            "Vertical" if len(option_legs) == 2 else
-            "Condor" if len(option_legs) == 4 and
-                        len({l.get("option_type") for l in option_legs}) == 2 else
-            "Straddle" if len(option_legs) == 2 and
-                          len({l.get("option_type") for l in option_legs}) == 2 else
+            "Vertical" if len(consolidated_option_legs) == 2 else
+            "Condor" if len(consolidated_option_legs) == 4 and
+                        len({l.get("option_type") for l in consolidated_option_legs}) == 2 else
+            "Straddle" if len(consolidated_option_legs) == 2 and
+                          len({l.get("option_type") for l in consolidated_option_legs}) == 2 else
             "Spread / Custom"
         )
         steps.append(
