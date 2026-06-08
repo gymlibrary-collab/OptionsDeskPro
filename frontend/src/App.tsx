@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import QuoteBar from './components/QuoteBar'
 import OptionsChain from './components/OptionsChain'
-import OrderEntry from './components/OrderEntry'
+import TradePanel from './components/TradePanel'
 import Positions from './components/Positions'
 import StrategyScanner from './components/StrategyScanner'
 import LoginPage from './components/LoginPage'
@@ -12,22 +12,11 @@ import UserGuide from './components/UserGuide'
 import TradingDesk from './components/TradingDesk'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
+import { TradeStructure } from './api/client'
 import api from './api/client'
 
 type Desk = 'options' | 'trading'
 type Tab = 'chain' | 'positions' | 'scanner' | 'admin' | 'guide'
-
-export interface OrderPrefill {
-  symbol: string
-  expiry: string
-  strike: number
-  option_type: 'call' | 'put'
-  bid: number
-  ask: number
-  strategy_key?: string
-  strategy_name?: string
-  profit_target_pct?: number
-}
 
 const C = {
   bg: '#0f1117',
@@ -46,9 +35,9 @@ function Dashboard() {
   const [symbol, setSymbol] = useState('SPY')
   const [inputSymbol, setInputSymbol] = useState('SPY')
   const [activeTab, setActiveTab] = useState<Tab>('chain')
-  const [orderPrefill, setOrderPrefill] = useState<OrderPrefill | null>(null)
-  const [orderRefresh, setOrderRefresh] = useState(0)
-  const [orderDrawerOpen, setOrderDrawerOpen] = useState(false)
+  const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
+  const [positionsRefresh, setPositionsRefresh] = useState(0)
+  const [tradePanelOpen, setTradePanelOpen] = useState(false)
 
   const handleSearch = useCallback(() => {
     const s = inputSymbol.trim().toUpperCase()
@@ -59,14 +48,14 @@ function Dashboard() {
     if (e.key === 'Enter') handleSearch()
   }
 
-  const handleRowClick = useCallback((prefill: OrderPrefill) => {
-    setOrderPrefill(prefill)
-    if (isMobile) setOrderDrawerOpen(true)
+  const handleSelectTrade = useCallback((sym: string, trade: TradeStructure) => {
+    setSelectedTrade({ symbol: sym, trade })
+    if (isMobile) setTradePanelOpen(true)
   }, [isMobile])
 
-  const handleOrderPlaced = useCallback(() => {
-    setOrderRefresh(n => n + 1)
-    setOrderDrawerOpen(false)
+  const handleTradeRecorded = useCallback(() => {
+    setPositionsRefresh(n => n + 1)
+    setTradePanelOpen(false)
   }, [])
 
   const handleTabChange = useCallback((tab: Tab) => {
@@ -91,7 +80,7 @@ function Dashboard() {
     .join('')
     .toUpperCase()
 
-  const showSidebar = !isMobile && activeDesk === 'options' && activeTab !== 'admin' && activeTab !== 'guide'
+  const showSidebar = !!selectedTrade && !isMobile && activeDesk === 'options' && activeTab !== 'admin' && activeTab !== 'guide'
 
   const deskBtn = (desk: Desk, label: string) => (
     <button
@@ -117,7 +106,7 @@ function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace", overflow: 'hidden' }}>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? '8px 12px' : '10px 20px', flexShrink: 0 }}>
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -183,12 +172,12 @@ function Dashboard() {
         )}
       </div>
 
-      {/* ── Trading Desk workspace ── always mounted to preserve state */}
+      {/* Trading Desk workspace */}
       <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px', display: activeDesk === 'trading' ? 'block' : 'none' }}>
         <TradingDesk />
       </div>
 
-      {/* ── Options Desk workspace ── always mounted to preserve state */}
+      {/* Options Desk workspace */}
       <div style={{ display: activeDesk === 'options' ? 'flex' : 'none', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
@@ -218,18 +207,18 @@ function Dashboard() {
               ))}
             </div>
 
-            {/* Tab content — all tabs stay mounted to preserve state; inactive ones are hidden */}
+            {/* Tab content */}
             <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
               <div style={{ display: activeTab === 'chain' ? 'block' : 'none' }}>
-                <OptionsChain symbol={symbol} onRowClick={handleRowClick} />
+                <OptionsChain symbol={symbol} />
               </div>
               <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>
-                <Positions key={orderRefresh} />
+                <Positions key={positionsRefresh} />
                 <PnLChart />
-                <RiskMonitor key={orderRefresh} />
+                <RiskMonitor key={positionsRefresh} />
               </div>
               <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
-                <StrategyScanner onAddToOrder={handleRowClick} />
+                <StrategyScanner onSelectTrade={handleSelectTrade} />
               </div>
               <div style={{ display: activeTab === 'guide' ? 'block' : 'none' }}>
                 <UserGuide isAdmin={isAdmin} />
@@ -243,19 +232,24 @@ function Dashboard() {
           </div>
 
           {/* Desktop sidebar */}
-          {showSidebar && (
-            <div style={{ width: '300px', flexShrink: 0, background: C.surface, borderLeft: `1px solid ${C.border}`, overflow: 'auto' }}>
-              <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
+          {showSidebar && selectedTrade && (
+            <div style={{ width: '360px', flexShrink: 0, background: C.surface, borderLeft: `1px solid ${C.border}`, overflow: 'auto' }}>
+              <TradePanel
+                symbol={selectedTrade.symbol}
+                trade={selectedTrade.trade}
+                onRecorded={handleTradeRecorded}
+                onClose={() => setSelectedTrade(null)}
+              />
             </div>
           )}
         </div>
 
-      {/* ── Mobile: floating Order button + bottom drawer (Options Desk only) ── */}
-      {isMobile && activeDesk === 'options' && activeTab !== 'admin' && (
+      {/* Mobile: floating button + bottom drawer when a trade is selected */}
+      {isMobile && activeDesk === 'options' && activeTab !== 'admin' && selectedTrade && (
         <>
-          {!orderDrawerOpen && (
+          {!tradePanelOpen && (
             <button
-              onClick={() => setOrderDrawerOpen(true)}
+              onClick={() => setTradePanelOpen(true)}
               style={{
                 position: 'fixed', bottom: '20px', right: '20px',
                 background: C.accent, border: 'none', borderRadius: '28px',
@@ -264,18 +258,19 @@ function Dashboard() {
                 zIndex: 100, display: 'flex', alignItems: 'center', gap: '8px',
               }}
             >
-              <span style={{ fontSize: '18px' }}>+</span> Place Order
+              <span style={{ fontSize: '18px' }}>+</span> Record Trade
             </button>
           )}
-          {orderDrawerOpen && (
+          {tradePanelOpen && (
             <>
-              <div onClick={() => setOrderDrawerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }} />
+              <div onClick={() => setTradePanelOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }} />
               <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `2px solid ${C.accent}`, borderRadius: '16px 16px 0 0', zIndex: 201, maxHeight: '85vh', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 0' }}>
-                  <span style={{ fontWeight: 700, color: C.text, fontSize: '15px' }}>Order Entry</span>
-                  <button onClick={() => setOrderDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: '20px', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
-                </div>
-                <OrderEntry prefill={orderPrefill} onOrderPlaced={handleOrderPlaced} />
+                <TradePanel
+                  symbol={selectedTrade.symbol}
+                  trade={selectedTrade.trade}
+                  onRecorded={handleTradeRecorded}
+                  onClose={() => setTradePanelOpen(false)}
+                />
               </div>
             </>
           )}
