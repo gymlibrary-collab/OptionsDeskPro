@@ -603,9 +603,11 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
     else:
         short_strikes = [l["strike"] for l in legs if l.get("action") == "sell" and l.get("option_type") != "stock"]
         if short_strikes:
+            unique_short_strikes = sorted(set(short_strikes))
+            strike_label = "short strike" if len(unique_short_strikes) == 1 else "short strikes"
             condition = (
-                f"This trade profits as long as {symbol} doesn't close beyond your short strikes "
-                f"at ${', $'.join(str(int(s)) for s in sorted(short_strikes))} by expiration."
+                f"This trade profits as long as {symbol} doesn't close beyond your {strike_label} "
+                f"at ${', $'.join(str(int(s)) for s in unique_short_strikes)} by expiration."
             )
         else:
             condition = f"This trade profits if {symbol} moves in the expected direction by expiration."
@@ -649,7 +651,7 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
     bh = trade.get("breakeven_high")
     net = trade.get("estimated_credit_or_debit", 0.0)
     legs = trade.get("legs", [])
-    short_strikes = [l["strike"] for l in legs if l.get("action") == "sell" and l.get("option_type") != "stock"]
+    short_strikes = sorted(set(l["strike"] for l in legs if l.get("action") == "sell" and l.get("option_type") != "stock"))
 
     if risk_type == "DEFINED" and max_loss is not None:
         max_loss_dollars = max_loss * 100
