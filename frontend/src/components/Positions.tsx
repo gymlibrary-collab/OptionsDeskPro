@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, Position, PortfolioSummary } from '../api/client'
+import React, { useEffect, useState, useCallback } from 'react'
+import { getPositions, getPortfolio, Position, PortfolioSummary, recordTrade } from '../api/client'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -85,6 +85,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
         const target = profitTarget(a.pos)
         const stop = stopLoss(a.pos)
         const stratLabel = a.pos.strategy_name ? `[${a.pos.strategy_name}] ` : ''
+
         let bg: string, border: string, icon: string, headline: string, detail: string
         if (a.kind === 'profit') {
           bg = '#0f2d1a'; border = C.green; icon = '✅'
@@ -99,6 +100,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
           headline = `21-DTE CLOSE — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
           detail = `${stratLabel}${dte(a.pos.expiry)} days to expiry. tastylive rule: close at 21 DTE regardless of P&L.`
         }
+
         return (
           <div key={i} style={{ background: bg, border: `1px solid ${border}66`, borderRadius: '10px', padding: '14px 16px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -109,10 +111,9 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
                 <div style={{ background: `${border}11`, border: `1px solid ${border}33`, borderRadius: '6px', padding: '10px 12px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 700, color: border, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
                   <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.8 }}>
-                    <li>Go to <strong>Order Entry</strong> (right sidebar). On mobile tap <strong>"+ Place Order"</strong>.</li>
-                    <li>Fill in: Symbol <strong>{a.pos.symbol}</strong> · Expiry <strong>{a.pos.expiry}</strong> · Strike <strong>${fmt(a.pos.strike)}</strong> · Type <strong>{a.pos.option_type.toUpperCase()}</strong></li>
-                    <li>Set Action to <strong>{a.pos.quantity > 0 ? 'SELL' : 'BUY'}</strong> (opposite of your entry) · Quantity <strong>{Math.abs(a.pos.quantity)}</strong></li>
-                    <li>Click the button and confirm. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
+                    <li>Find the row in the table and click the <strong>Close</strong> button on the right.</li>
+                    <li>Review the confirmation: symbol <strong>{a.pos.symbol}</strong> · strike <strong>${fmt(a.pos.strike)}</strong> · action <strong>{a.pos.quantity > 0 ? 'SELL' : 'BUY'}</strong> · qty <strong>{Math.abs(a.pos.quantity)}</strong>.</li>
+                    <li>Click <strong>Confirm Close</strong>. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
                   </ol>
                 </div>
               </div>
@@ -130,8 +131,10 @@ function TargetBar({ pos }: { pos: Position }) {
   const stop = stopLoss(pos)
   const hitProfit = pct >= target
   const hitStop = pct <= stop
+
   const progress = hitProfit ? 1 : Math.max(0, Math.min(pct / target, 1))
   const barColor = hitProfit ? C.green : hitStop ? C.red : pct > 0 ? C.accent : C.red
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', minWidth: '100px' }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: hitProfit ? C.green : hitStop ? C.red : C.muted }}>
@@ -150,6 +153,9 @@ export default function Positions() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [closingPos, setClosingPos] = useState<Position | null>(null)
+  const [closeLoading, setCloseLoading] = useState(false)
+  const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -160,10 +166,42 @@ export default function Positions() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
   useEffect(() => {
     const id = setInterval(load, 120_000)
     return () => clearInterval(id)
   }, [load])
+
+  const handleConfirmClose = useCallback(async () => {
+    if (!closingPos) return
+    setCloseLoading(true)
+    setCloseFeedback(null)
+    const closeAction = closingPos.quantity > 0 ? 'sell' : 'buy'
+    try {
+      await recordTrade({
+        symbol: closingPos.symbol,
+        strategy_key: closingPos.strategy_key || 'manual_close',
+        strategy_name: `Close: ${closingPos.strategy_name || 'Manual'}`,
+        expiry: closingPos.expiry,
+        profit_target_pct: 0,
+        legs: [{
+          role: 'close',
+          option_type: closingPos.option_type,
+          strike: closingPos.strike,
+          action: closeAction,
+          quantity: Math.abs(closingPos.quantity),
+          price: closingPos.current_price,
+        }],
+      })
+      setCloseFeedback({ success: true, msg: `Closed: ${closingPos.symbol} $${fmt(closingPos.strike)} ${closingPos.option_type.toUpperCase()}` })
+      setClosingPos(null)
+      load()
+    } catch (e: any) {
+      setCloseFeedback({ success: false, msg: e?.response?.data?.detail || e?.message || 'Close failed' })
+    } finally {
+      setCloseLoading(false)
+    }
+  }, [closingPos, load])
 
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
@@ -179,22 +217,113 @@ export default function Positions() {
 
   return (
     <div style={styles.wrap}>
+
+      {/* Close confirmation modal */}
+      {closingPos && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          onClick={() => !closeLoading && setClosingPos(null)}>
+          <div style={{ background: '#1a1d27', border: '1px solid #2d3148', borderRadius: '12px', padding: '24px', maxWidth: '440px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 24px 48px rgba(0,0,0,0.6)' }}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: C.text, borderBottom: `1px solid ${C.border}`, paddingBottom: '12px' }}>
+              Close Position
+            </div>
+            <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.7 }}>
+              You are about to close:{' '}
+              <strong style={{ color: C.accent }}>{closingPos.symbol}</strong>{' '}
+              <strong>${fmt(closingPos.strike)}</strong>{' '}
+              <strong style={{ color: closingPos.option_type === 'call' ? '#3b82f6' : '#a855f7' }}>{closingPos.option_type.toUpperCase()}</strong>{' '}
+              expiring <strong>{closingPos.expiry}</strong>.
+            </div>
+            <div style={{ background: '#252836', borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.muted }}>Closing action</span>
+                <strong style={{ color: closingPos.quantity > 0 ? C.red : C.green }}>
+                  {closingPos.quantity > 0 ? 'SELL' : 'BUY'} {Math.abs(closingPos.quantity)} contract{Math.abs(closingPos.quantity) > 1 ? 's' : ''}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.muted }}>Close price (current)</span>
+                <strong style={{ color: C.text }}>${fmt(closingPos.current_price)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.muted }}>Realized P&L</span>
+                <strong style={{ color: closingPos.pnl >= 0 ? C.green : C.red }}>
+                  {closingPos.pnl >= 0 ? '+' : ''}${fmt(closingPos.pnl)}
+                </strong>
+              </div>
+            </div>
+            {closeFeedback && !closeFeedback.success && (
+              <div style={{ padding: '10px', borderRadius: '6px', background: '#2d0f0f', border: `1px solid ${C.red}`, color: C.red, fontSize: '12px' }}>
+                {closeFeedback.msg}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setClosingPos(null)} disabled={closeLoading}
+                style={{ flex: 1, padding: '11px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.surface2, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={handleConfirmClose} disabled={closeLoading}
+                style={{ flex: 2, padding: '11px', borderRadius: '8px', border: 'none', background: C.red, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', opacity: closeLoading ? 0.6 : 1 }}>
+                {closeLoading ? 'Closing…' : 'Confirm Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close success feedback */}
+      {closeFeedback?.success && (
+        <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#0f2d1a', border: `1px solid ${C.green}66`, color: C.green, fontSize: '13px', fontWeight: 600 }}>
+          ✅ {closeFeedback.msg} — position removed.{' '}
+          <button onClick={() => setCloseFeedback(null)} style={{ background: 'none', border: 'none', color: C.green, cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>Dismiss</button>
+        </div>
+      )}
+
       <AlertBanner alerts={alerts} />
+
+      {/* Summary cards + refresh */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
         <div style={styles.summaryRow}>
-          <div style={styles.card}><span style={styles.cardLabel}>Cash Balance</span><span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span></div>
-          <div style={styles.card}><span style={styles.cardLabel}>Positions Value</span><span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span></div>
-          <div style={styles.card}><span style={styles.cardLabel}>Total Value</span><span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span></div>
-          <div style={styles.card}><span style={styles.cardLabel}>Unrealized P&L</span><span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>{totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}</span></div>
-          <div style={styles.card}><span style={styles.cardLabel}>Net Delta</span><span style={styles.cardValue}>{fmt(totalDelta, 1)}</span></div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Cash Balance</span>
+            <span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Positions Value</span>
+            <span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Total Value</span>
+            <span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Unrealized P&L</span>
+            <span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>
+              {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
+            </span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Net Delta</span>
+            <span style={styles.cardValue}>{fmt(totalDelta, 1)}</span>
+          </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', marginLeft: 'auto' }}>
-          <button onClick={load} disabled={loading} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>{loading ? 'Refreshing…' : '↻ Refresh'}</button>
+          <button
+            onClick={load}
+            disabled={loading}
+            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            {loading ? 'Refreshing…' : '↻ Refresh'}
+          </button>
           <span style={{ fontSize: '10px', color: C.muted }}>Auto-refreshes every 2 min · Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
       </div>
+
+      {/* Positions table */}
       {positions.length === 0 ? (
-        <div style={styles.empty}>{loading ? 'Loading positions…' : 'No open positions. Run a strategy scan and place a paper trade to start monitoring.'}</div>
+        <div style={styles.empty}>
+          {loading ? 'Loading positions…' : 'No open positions. Run a strategy scan and place a paper trade to start monitoring.'}
+        </div>
       ) : (
         <div style={styles.tableWrap}>
           <table style={styles.table}>
@@ -215,6 +344,7 @@ export default function Positions() {
                 <th style={styles.th}>P&L %</th>
                 <th style={styles.th}>Target / Progress</th>
                 <th style={styles.th}>Delta</th>
+                <th style={styles.th}></th>
               </tr>
             </thead>
             <tbody>
@@ -232,28 +362,58 @@ export default function Positions() {
                 return (
                   <tr key={i} style={rowBg ? { background: rowBg } : undefined}>
                     <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>{pos.symbol}</td>
-                    <td style={styles.tdLeft}>{pos.strategy_name ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span> : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>}</td>
-                    <td style={styles.td}><span style={styles.actionBadge(action)}>{action.toUpperCase()}</span></td>
-                    <td style={styles.td}><span style={styles.typeBadge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span></td>
+                    <td style={styles.tdLeft}>
+                      {pos.strategy_name
+                        ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span>
+                        : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>
+                      }
+                    </td>
+                    <td style={styles.td}>
+                      <span style={styles.actionBadge(action)}>{action.toUpperCase()}</span>
+                    </td>
+                    <td style={styles.td}>
+                      <span style={styles.typeBadge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span>
+                    </td>
                     <td style={styles.td}>{pos.expiry}</td>
                     <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
                     <td style={styles.td}>${fmt(pos.strike)}</td>
-                    <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>{pos.quantity > 0 ? '+' : ''}{pos.quantity}</td>
+                    <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
+                      {pos.quantity > 0 ? '+' : ''}{pos.quantity}
+                    </td>
                     <td style={styles.td}>${fmt(pos.avg_cost)}</td>
                     <td style={{ ...styles.td, color: C.muted }}>${fmt(totalCost, 0)}</td>
                     <td style={styles.td}>${fmt(pos.current_price)}</td>
-                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</td>
-                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 700 }}>{pct >= 0 ? '+' : ''}{fmt(pct)}%</td>
+                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>
+                      {pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}
+                    </td>
+                    <td style={{ ...styles.td, color: pnlColor, fontWeight: 700 }}>
+                      {pct >= 0 ? '+' : ''}{fmt(pct)}%
+                    </td>
                     <td style={styles.td}><TargetBar pos={pos} /></td>
                     <td style={styles.td}>{fmt(pos.delta, 3)}</td>
+                    <td style={{ ...styles.td, padding: '6px 8px' }}>
+                      <button
+                        onClick={() => { setCloseFeedback(null); setClosingPos(pos) }}
+                        style={{
+                          padding: '4px 10px', borderRadius: '5px', border: `1px solid ${C.red}66`,
+                          background: '#2d0f0f', color: C.red, fontSize: '11px', fontWeight: 700,
+                          cursor: 'pointer', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Close
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: '10px', fontSize: '11px', color: C.muted, textAlign: 'right' }}>Strategy-linked positions use the recommended profit target. Manual positions default to +50% (tastylive standard). DTE turns amber at 21 days, red at 7.</div>
+          <div style={{ marginTop: '10px', fontSize: '11px', color: C.muted, textAlign: 'right' }}>
+            Strategy-linked positions use the recommended profit target. Manual positions default to +50% (tastylive standard). DTE turns amber at 21 days, red at 7.
+          </div>
         </div>
       )}
+
       <HowToClose />
     </div>
   )
@@ -263,26 +423,35 @@ function HowToClose() {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+      >
         <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>📋 How to close a position — step by step</span>
         <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ background: '#0f1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div></div>
-            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div></div>
-            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}><div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div><div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div></div>
+            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div>
+              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div>
+            </div>
+            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div>
+              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div>
+            </div>
+            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div>
+              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div>
+            </div>
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Steps to close any position</div>
             <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 2 }}>
-              <li>Find the row in the table. Note: <strong>Symbol, Expiry, Strike, Type, Qty</strong>.</li>
-              <li>Open <strong>Order Entry</strong> (right sidebar on desktop · "+ Place Order" on mobile).</li>
-              <li>Enter the same Symbol, Expiry, Strike, and Type.</li>
-              <li>Set Action to the <strong>opposite</strong>: Qty is <strong style={{ color: C.green }}>positive (+)</strong> → <strong>Sell</strong> · Qty is <strong style={{ color: C.red }}>negative (−)</strong> → <strong>Buy</strong>.</li>
-              <li>Set Quantity to the number in the Qty column (use the positive value).</li>
-              <li>Click the button and confirm. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
+              <li>Find the row in the table and click the red <strong>Close</strong> button on the far right.</li>
+              <li>Review the confirmation dialog: symbol, strike, type, and the offsetting action (BUY or SELL).</li>
+              <li>Click <strong>Confirm Close</strong>. The position disappears immediately from the table.</li>
             </ol>
           </div>
         </div>
