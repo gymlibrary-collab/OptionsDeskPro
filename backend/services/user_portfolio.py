@@ -4,10 +4,28 @@ on that user's data in Supabase. Replaces the in-memory Portfolio class
 for authenticated users.
 """
 from datetime import datetime, timezone, date
+import math
+from scipy.stats import norm
 from services.db import get_supabase
-from services.market_data import get_option_price, get_quote
+from services.market_data import get_options_chain, get_option_price, get_quote
 from services.greeks import calculate_greeks
 from models import Order, OrderRequest, Position, PortfolioSummary
+
+
+def _bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
+    """Black-Scholes theoretical option price."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    try:
+        sqrt_T = math.sqrt(T)
+        d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
+        d2 = d1 - sigma * sqrt_T
+        if option_type.lower() == "call":
+            return round(S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2), 2)
+        else:
+            return round(K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1), 2)
+    except Exception:
+        return 0.0
 
 
 def ensure_portfolio(user_id: str) -> dict:
@@ -22,10 +40,31 @@ def ensure_portfolio(user_id: str) -> dict:
 
 def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:
     sb = get_supabase()
-    price = req.price if (req.price and req.price > 0) else get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
+    portfolio = ensure_portfolio(user_id)
+    price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
     if price <= 0:
         price = 0.01
-    _update_position(sb, user_id, req, price)
+    total_cost = price * req.quantity * 100
+    cash = float(portfolio["cash"])
+
+    status = "filled"
+    if req.action.lower() == "buy":
+        if cash < total_cost:
+            status = "rejected"
+        else:
+            cash -= total_cost
+    else:
+        cash += total_cost
+
+    # Update cash
+    if status == "filled":
+        sb.table("portfolios").update({
+            "cash": cash,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).execute()
+        _update_position(sb, user_id, req, price)
+
+    # Insert order with strategy metadata
     order_row = {
         "user_id": user_id,
         "symbol": req.symbol.upper(),
@@ -35,7 +74,8 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         "action": req.action.lower(),
         "quantity": req.quantity,
         "price": price,
-        "status": "filled",
+        "status": status,
+        "alpaca_id": alpaca_id,
         "strategy_key": req.strategy_key,
         "strategy_name": req.strategy_name,
         "profit_target_pct": req.profit_target_pct,
@@ -57,61 +97,6 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         strategy_name=row.get("strategy_name"),
         profit_target_pct=row.get("profit_target_pct"),
     )
-
-
-def record_trade(user_id: str, req) -> dict:
-    """Record a real multi-leg strategy trade for monitoring. Nets quantities per strike."""
-    sb = get_supabase()
-    leg_map: dict = {}
-    for leg in req.legs:
-        key = (req.expiry, round(leg.strike, 2), leg.option_type.lower())
-        qty_delta = leg.quantity if leg.action.lower() == "buy" else -leg.quantity
-        if key not in leg_map:
-            leg_map[key] = {"qty": 0, "price": leg.price, "action": leg.action}
-        leg_map[key]["qty"] += qty_delta
-
-    recorded = 0
-    for (expiry, strike, opt_type), info in leg_map.items():
-        if info["qty"] == 0:
-            continue
-        existing = sb.table("positions").select("*") \
-            .eq("user_id", user_id) \
-            .eq("symbol", req.symbol.upper()) \
-            .eq("expiry", expiry) \
-            .eq("strike", strike) \
-            .eq("option_type", opt_type) \
-            .execute().data
-        if existing:
-            pos = existing[0]
-            old_qty = pos["quantity"]
-            old_avg = float(pos["avg_cost"])
-            new_qty = old_qty + info["qty"]
-            if new_qty == 0:
-                sb.table("positions").delete().eq("id", pos["id"]).execute()
-            else:
-                new_avg = (old_avg * abs(old_qty) + info["price"] * abs(info["qty"])) / abs(new_qty) if new_qty != 0 else info["price"]
-                sb.table("positions").update({
-                    "quantity": new_qty,
-                    "avg_cost": round(new_avg, 4),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", pos["id"]).execute()
-        else:
-            sb.table("positions").insert({
-                "user_id": user_id,
-                "symbol": req.symbol.upper(),
-                "expiry": expiry,
-                "strike": strike,
-                "option_type": opt_type,
-                "quantity": info["qty"],
-                "avg_cost": info["price"],
-                "strategy_key": req.strategy_key,
-                "strategy_name": req.strategy_name,
-                "profit_target_pct": req.profit_target_pct,
-                "entry_action": "buy" if info["qty"] > 0 else "sell",
-            }).execute()
-        recorded += 1
-
-    return {"recorded": recorded, "strategy": req.strategy_name}
 
 
 def _update_position(sb, user_id: str, req: OrderRequest, price: float):
@@ -146,6 +131,7 @@ def _update_position(sb, user_id: str, req: OrderRequest, price: float):
                 }).eq("id", pos["id"]).execute()
     else:
         qty = req.quantity if req.action.lower() == "buy" else -req.quantity
+        # Strategy metadata stored on first open — drives P&L monitoring
         sb.table("positions").insert({
             "user_id": user_id,
             "symbol": req.symbol.upper(),
@@ -164,6 +150,33 @@ def _update_position(sb, user_id: str, req: OrderRequest, price: float):
 def get_positions(user_id: str) -> list[Position]:
     sb = get_supabase()
     rows = sb.table("positions").select("*").eq("user_id", user_id).execute().data
+    if not rows:
+        return []
+
+    # ── Batch fetches: one quote + one chain per unique symbol/expiry ──────────────
+    unique_symbols = list({r["symbol"] for r in rows})
+    spot_cache: dict[str, float] = {}
+    for symbol in unique_symbols:
+        try:
+            spot_cache[symbol] = get_quote(symbol).get("price", 0.0)
+        except Exception:
+            spot_cache[symbol] = 0.0
+
+    # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price
+    price_lookup: dict[tuple, float] = {}
+    unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
+    for symbol, expiry in unique_chains:
+        try:
+            chain = get_options_chain(symbol, expiry)
+            for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
+                for c in contracts:
+                    bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
+                    price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)
+                    if price > 0:
+                        price_lookup[(symbol, expiry, float(c["strike"]), otype)] = price
+        except Exception:
+            pass  # will fall back to BS below
+
     result = []
     for pos in rows:
         symbol = pos["symbol"]
@@ -172,18 +185,32 @@ def get_positions(user_id: str) -> list[Position]:
         option_type = pos["option_type"]
         quantity = pos["quantity"]
         avg_cost = float(pos["avg_cost"])
-        current_price = get_option_price(symbol, expiry, strike, option_type)
+
+        # 1) Live mid price from cached chain
+        current_price = price_lookup.get((symbol, expiry, strike, option_type), 0.0)
+
+        # 2) Black-Scholes estimate when live price unavailable
+        if current_price <= 0:
+            S = spot_cache.get(symbol, 0.0)
+            if S > 0:
+                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
+                current_price = _bs_price(S, strike, T, 0.05, 0.30, option_type)
+
+        # 3) Last resort: avg_cost (P&L = 0, but avoids a misleading negative)
         if current_price <= 0:
             current_price = avg_cost
+
         pnl = (current_price - avg_cost) * quantity * 100
-        try:
-            quote = get_quote(symbol)
-            S = quote["price"]
-            T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
-            sigma = 0.3
-            greeks = calculate_greeks(S, strike, T, 0.05, sigma, option_type)
-        except Exception:
-            greeks = {"delta": 0.0, "gamma": 0.0}
+
+        S = spot_cache.get(symbol, 0.0)
+        greeks = {"delta": 0.0, "gamma": 0.0}
+        if S > 0:
+            try:
+                T = max((date.fromisoformat(expiry) - date.today()).days, 0) / 365.0
+                greeks = calculate_greeks(S, strike, T, 0.05, 0.30, option_type)
+            except Exception:
+                pass
+
         result.append(Position(
             symbol=symbol,
             expiry=expiry,
@@ -231,13 +258,15 @@ def get_orders(user_id: str) -> list[Order]:
 
 
 def get_summary(user_id: str) -> PortfolioSummary:
+    sb = get_supabase()
+    portfolio = ensure_portfolio(user_id)
     positions = get_positions(user_id)
     positions_value = sum(p.current_price * p.quantity * 100 for p in positions)
     total_pnl = sum(p.pnl for p in positions)
     return PortfolioSummary(
-        cash=0.0,
+        cash=round(float(portfolio["cash"]), 2),
         positions_value=round(positions_value, 2),
-        total_value=round(positions_value, 2),
+        total_value=round(float(portfolio["cash"]) + positions_value, 2),
         total_pnl=round(total_pnl, 2),
     )
 
@@ -277,91 +306,3 @@ def log_activity(user_id: str, email: str, ip: str = None):
             "login_count": 1,
             "ip_address": ip,
         }).execute()
-
-
-def place_stock_order(user_id: str, req, alpaca_id: str = None, fill_price: float = None):
-    from models import StockOrderRequest, StockOrder
-    sb = get_supabase()
-    portfolio = ensure_portfolio(user_id)
-    cash = float(portfolio["cash"])
-
-    if fill_price and fill_price > 0:
-        price = fill_price
-    else:
-        try:
-            q = get_quote(req.symbol)
-            price = q["price"]
-        except Exception:
-            price = 0.0
-
-    total_value = price * req.quantity
-    status = "filled"
-
-    if req.action.lower() == "buy":
-        if cash < total_value:
-            status = "rejected"
-        else:
-            cash -= total_value
-    else:
-        cash += total_value
-
-    if status == "filled":
-        sb.table("portfolios").update({
-            "cash": cash,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("user_id", user_id).execute()
-
-    row_data = {
-        "user_id": user_id,
-        "symbol": req.symbol.upper(),
-        "action": req.action.lower(),
-        "quantity": req.quantity,
-        "order_type": req.order_type,
-        "limit_price": req.limit_price,
-        "fill_price": price,
-        "total_value": total_value,
-        "status": status,
-        "alpaca_id": alpaca_id,
-    }
-    result = sb.table("stock_orders").insert(row_data).execute()
-    row = result.data[0]
-    from models import StockOrder
-    return StockOrder(
-        id=row["id"],
-        timestamp=row["created_at"],
-        symbol=row["symbol"],
-        action=row["action"],
-        quantity=row["quantity"],
-        order_type=row["order_type"],
-        limit_price=row.get("limit_price"),
-        fill_price=row["fill_price"],
-        total_value=row["total_value"],
-        status=row["status"],
-        alpaca_id=row.get("alpaca_id"),
-    )
-
-
-def get_stock_orders(user_id: str, limit: int = 50):
-    from models import StockOrder
-    sb = get_supabase()
-    rows = sb.table("stock_orders").select("*")\
-        .eq("user_id", user_id)\
-        .order("created_at", desc=True)\
-        .limit(limit)\
-        .execute().data
-    return [
-        StockOrder(
-            id=r["id"],
-            timestamp=r["created_at"],
-            symbol=r["symbol"],
-            action=r["action"],
-            quantity=r["quantity"],
-            order_type=r["order_type"],
-            limit_price=r.get("limit_price"),
-            fill_price=r["fill_price"],
-            total_value=r["total_value"],
-            status=r["status"],
-            alpaca_id=r.get("alpaca_id"),
-        )
-        for r in rows
-    ]
