@@ -308,4 +308,27 @@ export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =
 export const getStockOrders = (): Promise<StockOrder[]> =>
   api.get<StockOrder[]>('/stock-orders').then(r => r.data)
 
+// ─── Trade Recording (real trades for monitoring) ───────────────────────────
+
+export interface TradeLegRecord {
+  role: string
+  option_type: string
+  strike: number
+  action: string
+  quantity: number
+  price: number
+}
+
+export interface TradeRecordRequest {
+  symbol: string
+  strategy_key: string
+  strategy_name: string
+  expiry: string
+  profit_target_pct: number
+  legs: TradeLegRecord[]
+}
+
+export const recordTrade = (req: TradeRecordRequest): Promise<{ recorded: number; strategy: string }> =>
+  api.post('/trades/record', req).then(r => r.data)
+
 export default api

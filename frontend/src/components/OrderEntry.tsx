@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { placeOrder, OrderRequest } from '../api/client'
-import { OrderPrefill } from '../App'
+
+interface OrderPrefill {
+  symbol: string
+  expiry: string
+  strike: number
+  option_type: string
+  bid?: number
+  ask?: number
+}
 
 interface Props {
   prefill: OrderPrefill | null
@@ -193,10 +201,10 @@ export default function OrderEntry({ prefill, onOrderPlaced }: Props) {
       setSymbol(prefill.symbol)
       setExpiry(prefill.expiry)
       setStrike(String(prefill.strike))
-      setOptionType(prefill.option_type)
-      setBidPrice(prefill.bid)
-      setAskPrice(prefill.ask)
-      const suggested = action === 'buy' ? prefill.ask : prefill.bid
+      setOptionType(prefill.option_type as 'call' | 'put')
+      setBidPrice(prefill.bid ?? 0)
+      setAskPrice(prefill.ask ?? 0)
+      const suggested = action === 'buy' ? (prefill.ask ?? 0) : (prefill.bid ?? 0)
       setFillPriceInput(suggested > 0 ? fmt(suggested) : '')
       setFeedback(null)
     }

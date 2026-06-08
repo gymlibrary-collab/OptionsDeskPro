@@ -6,12 +6,11 @@ import {
   TradeLeg,
   StrategyRecommendation,
 } from '../api/client'
-import { OrderPrefill } from '../App'
 import StrategyNarrative from './StrategyNarrative'
 
 interface Props {
   symbol: string
-  onAddToOrder?: (prefill: OrderPrefill) => void
+  onSelectTrade?: (symbol: string, trade: TradeStructure) => void
 }
 
 const C = {
@@ -123,12 +122,7 @@ function ComplexityDots({ level }: { level: number }) {
   )
 }
 
-function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
-  legs: TradeLeg[]
-  expiry: string
-  symbol: string
-  onAddToOrder?: (prefill: OrderPrefill) => void
-}) {
+function LegsTable({ legs }: { legs: TradeLeg[] }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
       <thead>
@@ -142,7 +136,6 @@ function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
               borderBottom: `1px solid ${C.border}`,
             }}>{h}</th>
           ))}
-          {onAddToOrder && <th style={{ color: C.muted, fontSize: '10px', borderBottom: `1px solid ${C.border}` }} />}
         </tr>
       </thead>
       <tbody>
@@ -168,7 +161,7 @@ function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
                 {isStock ? '—' : `$${fmt(leg.ask)}`}
               </td>
               <td style={{ padding: '5px 8px', fontVariantNumeric: 'tabular-nums', color: C.text, fontWeight: 600 }}>
-                {isStock ? `$${fmt(leg.mid)}` : `$${fmt(leg.mid)}`}
+                {`$${fmt(leg.mid)}`}
               </td>
               <td style={{ padding: '5px 8px' }}>
                 <span style={{
@@ -184,33 +177,6 @@ function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
                   {leg.action}
                 </span>
               </td>
-              {onAddToOrder && !isStock && (
-                <td style={{ padding: '5px 4px' }}>
-                  <button
-                    onClick={() => onAddToOrder({
-                      symbol,
-                      expiry,
-                      strike: leg.strike,
-                      option_type: leg.option_type as 'call' | 'put',
-                      bid: leg.bid,
-                      ask: leg.ask,
-                    })}
-                    style={{
-                      background: 'transparent',
-                      border: `1px solid ${C.accent}`,
-                      color: C.accent,
-                      borderRadius: '3px',
-                      padding: '2px 6px',
-                      fontSize: '10px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    + Order
-                  </button>
-                </td>
-              )}
             </tr>
           )
         })}
@@ -219,10 +185,9 @@ function LegsTable({ legs, expiry, symbol, onAddToOrder }: {
   )
 }
 
-function TradeInstructions({ trade, symbol, onAddToOrder }: {
+function TradeInstructions({ trade, symbol }: {
   trade: TradeStructure
   symbol: string
-  onAddToOrder?: (prefill: OrderPrefill) => void
 }) {
   const isCredit = trade.estimated_credit_or_debit >= 0
   const netDollars = Math.abs(trade.estimated_credit_or_debit) * 100
@@ -245,7 +210,6 @@ function TradeInstructions({ trade, symbol, onAddToOrder }: {
         📋 How to place this trade
       </div>
 
-      {/* Leg-by-leg instructions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
         {trade.legs.filter(l => l.option_type !== 'stock').map((leg, i) => {
           const isBuy = leg.action === 'buy'
@@ -262,10 +226,8 @@ function TradeInstructions({ trade, symbol, onAddToOrder }: {
               border: `1px solid ${isBuy ? C.green : C.red}22`,
               flexWrap: 'wrap',
             }}>
-              {/* Step number */}
               <span style={{ fontSize: '10px', color: C.muted, width: '16px', flexShrink: 0 }}>{i + 1}.</span>
 
-              {/* Action badge */}
               <span style={{
                 background: isBuy ? C.green : C.red,
                 color: '#000',
@@ -279,32 +241,26 @@ function TradeInstructions({ trade, symbol, onAddToOrder }: {
                 {leg.action.toUpperCase()}
               </span>
 
-              {/* Quantity + symbol */}
               <span style={{ fontWeight: 700, color: C.text, fontSize: '13px' }}>
                 1 {symbol}
               </span>
 
-              {/* Strike */}
               <span style={{ fontWeight: 700, color: C.text, fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
                 ${leg.strike}
               </span>
 
-              {/* Type */}
               <span style={{ fontWeight: 700, color: typeColor, fontSize: '13px', textTransform: 'uppercase' }}>
                 {leg.option_type}
               </span>
 
-              {/* Expiry */}
               <span style={{ color: C.muted, fontSize: '12px' }}>
                 · expires {formatExpiry(trade.expiry)}
               </span>
 
-              {/* Delta */}
               <span style={{ color: C.muted, fontSize: '11px' }}>
                 · Δ {fmt(leg.delta, 2)}
               </span>
 
-              {/* Credit/debit */}
               <span style={{
                 marginLeft: 'auto',
                 color: isBuy ? C.red : C.green,
@@ -316,38 +272,11 @@ function TradeInstructions({ trade, symbol, onAddToOrder }: {
                 {creditDebit}
               </span>
 
-              {/* Add to order button */}
-              {onAddToOrder && (
-                <button
-                  onClick={() => onAddToOrder({
-                    symbol,
-                    expiry: trade.expiry,
-                    strike: leg.strike,
-                    option_type: leg.option_type as 'call' | 'put',
-                    bid: leg.bid,
-                    ask: leg.ask,
-                  })}
-                  style={{
-                    background: C.accent,
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: '#fff',
-                    padding: '3px 8px',
-                    fontSize: '10px',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  + Order
-                </button>
-              )}
             </div>
           )
         })}
       </div>
 
-      {/* Net result summary */}
       <div style={{
         display: 'flex',
         gap: '16px',
@@ -390,11 +319,11 @@ function TradeInstructions({ trade, symbol, onAddToOrder }: {
 }
 
 function TradeCard({
-  tradeEntry, symbol, onAddToOrder,
+  tradeEntry, symbol, onSelectTrade,
 }: {
   tradeEntry: { strategy_key: string; strategy_name: string; trade: TradeStructure }
   symbol: string
-  onAddToOrder?: (prefill: OrderPrefill) => void
+  onSelectTrade?: (symbol: string, trade: TradeStructure) => void
 }) {
   const { trade } = tradeEntry
   const isCredit = trade.estimated_credit_or_debit >= 0
@@ -415,9 +344,9 @@ function TradeCard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <TradeInstructions trade={trade} symbol={symbol} onAddToOrder={onAddToOrder} />
+      <TradeInstructions trade={trade} symbol={symbol} />
       <div style={{ overflowX: 'auto' }}>
-        <LegsTable legs={trade.legs} expiry={trade.expiry} symbol={symbol} onAddToOrder={onAddToOrder} />
+        <LegsTable legs={trade.legs} />
       </div>
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '12px' }}>
@@ -478,18 +407,38 @@ function TradeCard({
         Risk: <RiskBadge type={trade.risk_type} />
       </div>
 
+      {onSelectTrade && (
+        <button
+          onClick={() => onSelectTrade(symbol, trade)}
+          style={{
+            padding: '9px 16px',
+            background: C.accent,
+            border: 'none',
+            borderRadius: '6px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            letterSpacing: '0.03em',
+            alignSelf: 'flex-start',
+          }}
+        >
+          Record Trade →
+        </button>
+      )}
+
       {trade.narrative && <StrategyNarrative narrative={trade.narrative} />}
     </div>
   )
 }
 
 function StrategyCard({
-  rec, tradeEntry, symbol, onAddToOrder,
+  rec, tradeEntry, symbol, onSelectTrade,
 }: {
   rec: StrategyRecommendation
   tradeEntry?: { strategy_key: string; strategy_name: string; trade: TradeStructure }
   symbol: string
-  onAddToOrder?: (prefill: OrderPrefill) => void
+  onSelectTrade?: (symbol: string, trade: TradeStructure) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -537,7 +486,7 @@ function StrategyCard({
           padding: '12px 16px',
           background: C.bg,
         }}>
-          <TradeCard tradeEntry={tradeEntry} symbol={symbol} onAddToOrder={onAddToOrder} />
+          <TradeCard tradeEntry={tradeEntry} symbol={symbol} onSelectTrade={onSelectTrade} />
         </div>
       )}
 
@@ -555,7 +504,7 @@ function StrategyCard({
   )
 }
 
-export default function StrategyDetail({ symbol, onAddToOrder }: Props) {
+export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
   const [data, setData] = useState<AnalyzeSymbolResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -667,7 +616,7 @@ export default function StrategyDetail({ symbol, onAddToOrder }: Props) {
               rec={rec}
               tradeEntry={tradeMap.get(rec.key)}
               symbol={data.symbol}
-              onAddToOrder={onAddToOrder}
+              onSelectTrade={onSelectTrade}
             />
           ))}
         </div>
