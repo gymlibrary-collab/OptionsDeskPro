@@ -1,12 +1,23 @@
 import yfinance as yf
 import time
 import os
+import math
 import requests as _requests
 from datetime import datetime
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_int(val, default: int = 0) -> int:
+    try:
+        if val is None:
+            return default
+        f = float(val)
+        return default if math.isnan(f) or math.isinf(f) else int(f)
+    except (ValueError, TypeError):
+        return default
 
 _cache: dict = {}
 _TTL_MARKETDATA = 300   # 5 min — conserve API credits
@@ -148,8 +159,8 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
                     "ask":               float(row.get("ask", 0)),
                     "change":            float(row.get("change", 0)),
                     "percentChange":     float(row.get("percentChange", 0)),
-                    "volume":            int(row.get("volume", 0) or 0),
-                    "openInterest":      int(row.get("openInterest", 0) or 0),
+                    "volume":            _safe_int(row.get("volume")),
+                    "openInterest":      _safe_int(row.get("openInterest")),
                     "impliedVolatility": float(row.get("impliedVolatility", 0)),
                     "inTheMoney":        bool(row.get("inTheMoney", False)),
                 })
