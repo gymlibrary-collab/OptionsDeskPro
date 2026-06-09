@@ -1,25 +1,172 @@
 import yfinance as yf
 import time
+import os
+import requests as _requests
+from datetime import datetime
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Simple in-memory cache to avoid rate limiting
 _cache: dict = {}
-_cache_ttl = 30  # seconds
+_TTL_MARKETDATA = 300   # 5 min — conserve API credits
+_TTL_YFINANCE   = 30    # 30 s
 
 
-def _cache_get(key: str):
+def _cache_get(key: str) -> Optional[dict]:
     entry = _cache.get(key)
-    if entry and (time.time() - entry["ts"]) < _cache_ttl:
+    if not entry:
+        return None
+    ttl = _TTL_MARKETDATA if entry["data"].get("_source") == "marketdata" else _TTL_YFINANCE
+    if (time.time() - entry["ts"]) < ttl:
         return entry["data"]
     return None
 
 
-def _cache_set(key: str, data):
+def _cache_set(key: str, data: dict):
     _cache[key] = {"data": data, "ts": time.time()}
 
+
+# ── Market Data App (primary) ────────────────────────────────────────────────
+
+def _marketdata_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
+    """Fetch options chain from api.marketdata.app. Returns None if unconfigured or on any error."""
+    token = os.environ.get("MARKETDATA_API_TOKEN", "").strip()
+    if not token:
+        return None
+
+    url = f"https://api.marketdata.app/v1/options/chain/{symbol}/"
+    headers = {"Authorization": f"Token {token}"}
+    params: dict = {}
+    if expiry:
+        params["expiration"] = expiry
+    else:
+        params["minDte"] = 0
+        params["maxDte"] = 180  # up to ~6 months of expirations
+
+    try:
+        resp = _requests.get(url, headers=headers, params=params, timeout=15)
+        if resp.status_code == 401:
+            logger.error("MarketData.app: invalid MARKETDATA_API_TOKEN")
+            return None
+        if resp.status_code != 200:
+            logger.warning("MarketData.app chain %s: HTTP %s", symbol, resp.status_code)
+            return None
+
+        data = resp.json()
+        if data.get("s") != "ok":
+            logger.info("MarketData.app chain %s: s=%s", symbol, data.get("s"))
+            return None
+
+        opt_symbols = data.get("optionSymbol", [])
+        n = len(opt_symbols)
+        if n == 0:
+            return None
+
+        def _val(field: str, i: int, default=0):
+            arr = data.get(field)
+            if not arr or i >= len(arr) or arr[i] is None:
+                return default
+            return arr[i]
+
+        def _exp_str(raw) -> str:
+            if isinstance(raw, (int, float)):
+                return datetime.utcfromtimestamp(raw).strftime("%Y-%m-%d")
+            if isinstance(raw, str):
+                return raw[:10]
+            return expiry or ""
+
+        contracts = []
+        for i in range(n):
+            contracts.append({
+                "contractSymbol":    opt_symbols[i],
+                "strike":            float(_val("strike", i, 0)),
+                "lastPrice":         float(_val("last",   i, 0)),
+                "bid":               float(_val("bid",    i, 0)),
+                "ask":               float(_val("ask",    i, 0)),
+                "change":            0.0,
+                "percentChange":     0.0,
+                "volume":            int(_val("volume",       i, 0)),
+                "openInterest":      int(_val("openInterest", i, 0)),
+                "impliedVolatility": float(_val("iv",    i, 0)),
+                "inTheMoney":        bool(_val("inTheMoney", i, False)),
+                "delta":             float(_val("delta", i, 0)),
+                "gamma":             float(_val("gamma", i, 0)),
+                "theta":             float(_val("theta", i, 0)),
+                "vega":              float(_val("vega",  i, 0)),
+                "_side": _val("side", i, "call"),
+                "_exp":  _exp_str(_val("expiration", i, expiry)),
+            })
+
+        all_expiries = sorted({c["_exp"] for c in contracts if c["_exp"]})
+        actual_expiry = expiry if expiry in all_expiries else (all_expiries[0] if all_expiries else expiry)
+
+        calls, puts = [], []
+        for c in contracts:
+            if c["_exp"] != actual_expiry:
+                continue
+            row = {k: v for k, v in c.items() if not k.startswith("_")}
+            if c["_side"] == "call":
+                calls.append(row)
+            else:
+                puts.append(row)
+
+        return {
+            "expirations": all_expiries,
+            "expiry":      actual_expiry,
+            "calls":       calls,
+            "puts":        puts,
+            "_source":     "marketdata",
+        }
+    except Exception as e:
+        logger.warning("MarketData.app chain failed for %s: %s", symbol, e)
+        return None
+
+
+# ── yfinance (fallback) ──────────────────────────────────────────────────────
+
+def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
+    try:
+        ticker = yf.Ticker(symbol)
+        expirations = ticker.options
+        if not expirations:
+            return None
+
+        if expiry is None or expiry not in expirations:
+            expiry = expirations[0]
+
+        chain = ticker.option_chain(expiry)
+
+        def df_to_list(df) -> list:
+            rows = []
+            for _, row in df.iterrows():
+                rows.append({
+                    "contractSymbol":    str(row.get("contractSymbol", "")),
+                    "strike":            float(row.get("strike", 0)),
+                    "lastPrice":         float(row.get("lastPrice", 0)),
+                    "bid":               float(row.get("bid", 0)),
+                    "ask":               float(row.get("ask", 0)),
+                    "change":            float(row.get("change", 0)),
+                    "percentChange":     float(row.get("percentChange", 0)),
+                    "volume":            int(row.get("volume", 0) or 0),
+                    "openInterest":      int(row.get("openInterest", 0) or 0),
+                    "impliedVolatility": float(row.get("impliedVolatility", 0)),
+                    "inTheMoney":        bool(row.get("inTheMoney", False)),
+                })
+            return rows
+
+        return {
+            "expirations": list(expirations),
+            "expiry":      expiry,
+            "calls":       df_to_list(chain.calls),
+            "puts":        df_to_list(chain.puts),
+        }
+    except Exception as e:
+        logger.warning("yfinance chain failed for %s: %s", symbol, e)
+        return None
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
 
 def get_quote(symbol: str) -> dict:
     cache_key = f"quote:{symbol}"
@@ -39,7 +186,6 @@ def get_quote(symbol: str) -> dict:
         prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
         change = last_close - prev_close
         change_pct = (change / prev_close * 100) if prev_close else 0.0
-
         volume = int(hist["Volume"].iloc[-1]) if "Volume" in hist.columns else 0
 
         try:
@@ -48,31 +194,24 @@ def get_quote(symbol: str) -> dict:
             market_cap = 0
 
         result = {
-            "symbol": symbol.upper(),
-            "price": round(last_close, 2),
+            "symbol":        symbol.upper(),
+            "price":         round(last_close, 2),
             "previousClose": round(prev_close, 2),
-            "change": round(change, 2),
+            "change":        round(change, 2),
             "changePercent": round(change_pct, 2),
-            "volume": volume,
-            "marketCap": market_cap,
+            "volume":        volume,
+            "marketCap":     market_cap,
         }
         _cache_set(cache_key, result)
         return result
     except Exception as e:
-        logger.warning(f"Failed to get quote for {symbol}: {e}")
+        logger.warning("Failed to get quote for %s: %s", symbol, e)
         return _empty_quote(symbol)
 
 
 def _empty_quote(symbol: str) -> dict:
-    return {
-        "symbol": symbol.upper(),
-        "price": 0.0,
-        "previousClose": 0.0,
-        "change": 0.0,
-        "changePercent": 0.0,
-        "volume": 0,
-        "marketCap": 0,
-    }
+    return {"symbol": symbol.upper(), "price": 0.0, "previousClose": 0.0,
+            "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
 
 def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
@@ -81,56 +220,36 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     if cached:
         return cached
 
-    try:
-        ticker = yf.Ticker(symbol)
-        expirations = ticker.options
+    result = _marketdata_chain(symbol, expiry) or _yfinance_chain(symbol, expiry)
 
-        if not expirations:
-            return {"expirations": [], "calls": [], "puts": [], "expiry": None}
-
-        if expiry is None or expiry not in expirations:
-            expiry = expirations[0]
-
-        chain = ticker.option_chain(expiry)
-        calls_df = chain.calls
-        puts_df = chain.puts
-
-        def df_to_list(df) -> list:
-            rows = []
-            for _, row in df.iterrows():
-                rows.append({
-                    "contractSymbol": str(row.get("contractSymbol", "")),
-                    "strike": float(row.get("strike", 0)),
-                    "lastPrice": float(row.get("lastPrice", 0)),
-                    "bid": float(row.get("bid", 0)),
-                    "ask": float(row.get("ask", 0)),
-                    "change": float(row.get("change", 0)),
-                    "percentChange": float(row.get("percentChange", 0)),
-                    "volume": int(row.get("volume", 0) or 0),
-                    "openInterest": int(row.get("openInterest", 0) or 0),
-                    "impliedVolatility": float(row.get("impliedVolatility", 0)),
-                    "inTheMoney": bool(row.get("inTheMoney", False)),
-                })
-            return rows
-
-        result = {
-            "expirations": list(expirations),
-            "expiry": expiry,
-            "calls": df_to_list(calls_df),
-            "puts": df_to_list(puts_df),
-        }
+    if result:
         _cache_set(cache_key, result)
         return result
+    return {"expirations": [], "calls": [], "puts": [], "expiry": None}
+
+
+def get_option_price(symbol: str, expiry: str, strike: float, option_type: str) -> float:
+    try:
+        chain = get_options_chain(symbol, expiry)
+        contracts = chain["calls"] if option_type.lower() == "call" else chain["puts"]
+        for c in contracts:
+            if abs(c["strike"] - strike) < 0.01:
+                bid, ask = c.get("bid", 0), c.get("ask", 0)
+                if bid > 0 and ask > 0:
+                    return round((bid + ask) / 2, 2)
+                last = c.get("lastPrice", 0)
+                if last > 0:
+                    return float(last)
+        return 0.0
     except Exception as e:
-        logger.warning(f"Failed to get options chain for {symbol}: {e}")
-        return {"expirations": [], "calls": [], "puts": [], "expiry": None}
+        logger.warning("Failed to get option price: %s", e)
+        return 0.0
 
 
 def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
     """
-    Build a Black-Scholes options chain when Yahoo Finance is blocked from this IP.
-    Uses the stock's historically-computed IV. Prices and strikes are realistic.
-    Flagged with _synthetic=True so narratives can add a disclaimer.
+    Black-Scholes synthetic chain — last resort when both Market Data App and yfinance fail.
+    Flagged with _synthetic=True so callers can add a disclaimer.
     """
     from datetime import date, timedelta
     from math import log, sqrt, exp
@@ -144,22 +263,20 @@ def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
     iv   = max(min(float(iv), 3.0), 0.05)
     r    = 0.05
 
-    if   spot < 20:   inc = 0.5
-    elif spot < 50:   inc = 1.0
-    elif spot < 200:  inc = 2.5
-    elif spot < 500:  inc = 5.0
-    else:             inc = 10.0
+    if   spot < 20:  inc = 0.5
+    elif spot < 50:  inc = 1.0
+    elif spot < 200: inc = 2.5
+    elif spot < 500: inc = 5.0
+    else:            inc = 10.0
 
     from calendar import monthcalendar, FRIDAY as _FRI
 
     def _third_friday(year: int, month: int) -> date:
-        """Standard monthly options expiry: 3rd Friday of the month."""
         weeks = monthcalendar(year, month)
         fridays = [w[_FRI] for w in weeks if w[_FRI] != 0]
         return date(year, month, fridays[2])
 
     today = date.today()
-    # Build the next 6 standard monthly expirations (3rd Friday of each month)
     expirations = []
     y, m = today.year, today.month
     for _ in range(7):
@@ -174,18 +291,16 @@ def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
     expirations = sorted(expirations)
 
     def _dte(s: str) -> int:
-        try: return max(0, (date.fromisoformat(s) - today).days)
-        except: return 0
+        try:
+            return max(0, (date.fromisoformat(s) - today).days)
+        except Exception:
+            return 0
 
     target_exp = min(expirations, key=lambda e: abs(_dte(e) - 45))
     T = max(_dte(target_exp), 1) / 365.0
 
     atm = round(spot / inc) * inc
-    strikes = sorted({
-        round(atm + inc * i, 2)
-        for i in range(-15, 16)
-        if atm + inc * i > 0
-    })
+    strikes = sorted({round(atm + inc * i, 2) for i in range(-15, 16) if atm + inc * i > 0})
 
     def _bs(S: float, K: float, otype: str) -> float:
         try:
@@ -201,20 +316,19 @@ def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
         price = float(max(0.01, _bs(spot, K, otype)))
         bid   = round(max(0.01, price * 0.95), 2)
         ask   = round(price * 1.05, 2)
-        itm   = (K < spot) if otype == "call" else (K > spot)
         tag   = "C" if otype == "call" else "P"
         return {
-            "contractSymbol":  f"{symbol}{target_exp.replace('-','')}{tag}{int(K*1000):08d}",
-            "strike":          float(K),
-            "lastPrice":       round((bid + ask) / 2, 2),
-            "bid":             float(bid),
-            "ask":             float(ask),
-            "change":          0.0,
-            "percentChange":   0.0,
-            "volume":          0,
-            "openInterest":    0,
+            "contractSymbol":    f"{symbol}{target_exp.replace('-','')}{tag}{int(K*1000):08d}",
+            "strike":            float(K),
+            "lastPrice":         round((bid + ask) / 2, 2),
+            "bid":               float(bid),
+            "ask":               float(ask),
+            "change":            0.0,
+            "percentChange":     0.0,
+            "volume":            0,
+            "openInterest":      0,
             "impliedVolatility": float(iv),
-            "inTheMoney":      itm,
+            "inTheMoney":        (K < spot) if otype == "call" else (K > spot),
         }
 
     return {
@@ -224,21 +338,3 @@ def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
         "puts":        [_make(K, "put")  for K in strikes],
         "_synthetic":  True,
     }
-
-
-def get_option_price(symbol: str, expiry: str, strike: float, option_type: str) -> float:
-    try:
-        chain = get_options_chain(symbol, expiry)
-        contracts = chain["calls"] if option_type.lower() == "call" else chain["puts"]
-        for c in contracts:
-            if abs(c["strike"] - strike) < 0.01:
-                bid = c["bid"]
-                ask = c["ask"]
-                if bid > 0 and ask > 0:
-                    return round((bid + ask) / 2, 2)
-                if c["lastPrice"] > 0:
-                    return float(c["lastPrice"])
-        return 0.0
-    except Exception as e:
-        logger.warning(f"Failed to get option price: {e}")
-        return 0.0

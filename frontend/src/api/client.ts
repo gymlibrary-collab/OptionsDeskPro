@@ -300,7 +300,6 @@ export interface StockOrder {
   fill_price: number
   total_value: number
   status: string
-  alpaca_id?: string
 }
 
 export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =>

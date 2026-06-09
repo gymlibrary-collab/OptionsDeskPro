@@ -92,7 +92,6 @@ class StockOrder(BaseModel):
     fill_price: float
     total_value: float
     status: str
-    alpaca_id: Optional[str] = None
 
 
 class TradeLegRecord(BaseModel):

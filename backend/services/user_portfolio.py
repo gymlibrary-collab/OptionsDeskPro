@@ -38,7 +38,7 @@ def ensure_portfolio(user_id: str) -> dict:
     return {"user_id": user_id, "cash": 100000.0}
 
 
-def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order:
+def place_order(user_id: str, req: OrderRequest) -> Order:
     sb = get_supabase()
     portfolio = ensure_portfolio(user_id)
     price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
@@ -75,7 +75,6 @@ def place_order(user_id: str, req: OrderRequest, alpaca_id: str = None) -> Order
         "quantity": req.quantity,
         "price": price,
         "status": status,
-        "alpaca_id": alpaca_id,
         "strategy_key": req.strategy_key,
         "strategy_name": req.strategy_name,
         "profit_target_pct": req.profit_target_pct,
@@ -172,8 +171,6 @@ def get_positions(user_id: str) -> list[Position]:
     iv_cache: dict[str, float] = {s: IV_DEFAULTS.get(s, 0.30) for s in unique_symbols}
 
     # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price
-    # Key uses the ACTUAL expiry returned by yfinance (not the requested one),
-    # so we never store prices from a different expiry under the wrong key.
     price_lookup: dict[tuple, float] = {}
     unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
     for symbol, expiry in unique_chains:
@@ -181,7 +178,7 @@ def get_positions(user_id: str) -> list[Position]:
             chain = get_options_chain(symbol, expiry)
             actual_expiry = chain.get("expiry") or expiry
             if actual_expiry != expiry:
-                continue  # yfinance returned a different expiry — don't pollute lookup
+                continue
             for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
                 for c in contracts:
                     bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
@@ -190,7 +187,7 @@ def get_positions(user_id: str) -> list[Position]:
                         strike_key = round(float(c["strike"]), 2)
                         price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
         except Exception:
-            pass  # will fall back to BS below
+            pass
 
     result = []
     for pos in rows:
@@ -201,10 +198,8 @@ def get_positions(user_id: str) -> list[Position]:
         quantity = pos["quantity"]
         avg_cost = float(pos["avg_cost"])
 
-        # 1) Live mid price from cached chain
         current_price = price_lookup.get((symbol, expiry, round(strike, 2), option_type), 0.0)
 
-        # 2) Black-Scholes estimate when live price unavailable
         if current_price <= 0:
             S = spot_cache.get(symbol, 0.0)
             if S > 0:
@@ -212,7 +207,6 @@ def get_positions(user_id: str) -> list[Position]:
                 sigma = iv_cache.get(symbol, 0.30)
                 current_price = _bs_price(S, strike, T, 0.05, sigma, option_type)
 
-        # 3) Last resort: avg_cost (P&L = 0, but avoids a misleading negative)
         if current_price <= 0:
             current_price = avg_cost
 
