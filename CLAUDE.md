@@ -16,26 +16,31 @@ options/
 │   ├── requirements.txt
 │   ├── routes/
 │   │   ├── options.py        /api/options/* — quotes, chain, greeks
-│   │   ├── orders.py         /api/orders — place/list paper trades
-│   │   ├── positions.py      /api/positions — open positions, snapshot
+│   │   ├── orders.py         /api/orders, /api/trades/record — place/list paper trades
+│   │   ├── positions.py      /api/positions, /api/portfolio, /api/positions/snapshot
 │   │   ├── strategies.py     /api/strategies — IV analysis, bias, scanner
+│   │   ├── watchlist.py      /api/watchlist — GET/PUT persisted watchlist + tier limits
+│   │   ├── trading_routes.py /api/trading/buzz/* — Reddit sentiment feeds
 │   │   ├── auth_routes.py    /api/auth — login, me, pnl-history
 │   │   └── admin_routes.py   /api/admin — user list, whitelist, stats
 │   ├── services/
 │   │   ├── auth_utils.py     JWT verify (via Supabase Auth API), admin check
 │   │   ├── db.py             Supabase client factory
-│   │   ├── market_data.py    yfinance wrappers for quotes + chains
+│   │   ├── market_data.py    Options chain: Market Data App (primary) → yfinance fallback → synthetic BS
 │   │   ├── iv_analysis.py    IV rank, HV, environment classification
 │   │   ├── greeks.py         Black-Scholes greeks
-│   │   ├── strategy_engine.py 19-strategy catalog, fit scoring, strike selection
+│   │   ├── strategy_engine.py 31-strategy catalog, fit scoring, strike selection
 │   │   ├── interpreter.py    Plain-English narrative generator (7 sections)
 │   │   ├── market_context.py Earnings, news, flow, IV term structure, MACD/ATR
 │   │   ├── portfolio.py      Portfolio value, P&L calc
 │   │   ├── user_portfolio.py Ensure portfolio exists, activity log upsert
-│   │   └── alpaca_broker.py  Optional Alpaca paper-broker integration (unused)
+│   │   ├── tier_limits.py    Subscription tier config (free/starter/pro/enterprise)
+│   │   └── reddit.py         Reddit PRAW client for buzz feeds
 │   └── migrations/
-│       ├── 001_initial_schema.sql   Full DB schema (run first)
-│       └── 002_whitelist_role.sql   Adds role column to user_whitelist
+│       ├── 001_initial_schema.sql        Full DB schema (run first)
+│       ├── 002_whitelist_role.sql        Adds role column to user_whitelist
+│       ├── 003_position_strategy_link.sql Adds strategy columns to positions/orders
+│       └── 003_watchlist_subscriptions.sql Adds subscription_tier, user_watchlists, scan_usage
 ├── frontend/                 React + TypeScript + Vite
 │   └── src/
 │       ├── App.tsx           Root layout, tab routing, mobile drawer
@@ -50,9 +55,12 @@ options/
 │           ├── StrategyScanner.tsx  Watchlist scanner, deep-analysis flow
 │           ├── StrategyDetail.tsx   Per-strategy card (legs, metrics)
 │           ├── StrategyNarrative.tsx  7-section narrative accordion
+│           ├── TradePanel.tsx       Trade structure display + order entry
+│           ├── TradingDesk.tsx      Reddit buzz feeds + trading intelligence
 │           ├── OrderEntry.tsx       Paper trade form (sidebar/drawer)
 │           ├── Orders.tsx           Order history table
 │           ├── Positions.tsx        Open positions + portfolio summary
+│           ├── RiskMonitor.tsx      Per-position risk signals and alerts
 │           ├── PnLChart.tsx         90-day portfolio value chart
 │           ├── AdminPanel.tsx       User mgmt, whitelist, stats, leaderboard
 │           └── UserGuide.tsx        In-app help (role-aware sections)
@@ -73,6 +81,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 Required env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+Optional env var: `MARKETDATA_API_TOKEN` (from api.marketdata.app — omit to use yfinance only)
 
 ### Frontend
 ```bash
@@ -108,13 +117,24 @@ CORS origins are hardcoded in `backend/main.py`. Add new frontend domains there.
 - `user_metadata.role == 'admin'` or `app_metadata.role == 'admin'`
 - `user_profiles.role == 'admin'` in DB
 
+## Market data
+
+`market_data.py` uses a 3-tier fallback:
+
+1. **Market Data App** (`MARKETDATA_API_TOKEN` set) — full greeks, real OPRA data, 5-min cache
+2. **yfinance** — free fallback, 30-sec cache; volume/openInterest NaN-safe via `_safe_int()`
+3. **Synthetic Black-Scholes chain** — last resort when both above fail; flagged `_synthetic=True`
+
+The `MARKETDATA_API_TOKEN` is a backend-only variable — never expose it to the frontend.
+Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
+
 ## Key invariants
 
 - `SUPABASE_JWT_SECRET` is **not** needed — do not add it back; it caused alg errors
-- Strategy engine uses **yfinance** for all market data (no paid data feed)
+- Alpaca integration was removed — do not re-add `alpaca-py` or `alpaca_broker.py`
 - Paper trades are stored in Supabase; they do **not** hit a real broker
-- `alpaca_broker.py` exists but the Alpaca integration is not wired to order flow
 - IV rank is computed from 52-week high/low historical volatility (no external feed)
+- `MARKETDATA_API_TOKEN` is backend-only; a 429 on the first request usually means the token is wrong or the free-plan daily quota (100 credits) is exhausted
 
 ## Common mistakes to avoid
 
@@ -122,3 +142,4 @@ CORS origins are hardcoded in `backend/main.py`. Add new frontend domains there.
 - Do not call `get_supabase()` at module level — always inside a function (avoids import-time env var issues)
 - `user_whitelist` must have a `role` column (see migration 002); the initial schema omits it
 - After pushing files via GitHub MCP API, always sync local: `git fetch origin main && git reset --hard origin/main`
+- Do not cast yfinance volume/openInterest directly to `int()` — yfinance returns NaN for some contracts; use `_safe_int()` from `market_data.py`

@@ -11,6 +11,7 @@ This document covers everything needed to rebuild and deploy OptionsDesk from sc
 - A Supabase account (free tier works)
 - A Google Cloud project (for OAuth)
 - A Railway account (for hosting) — or any platform that can run Python + Node
+- (Optional) A [Market Data App](https://www.marketdata.app/) account for real options data
 
 ---
 
@@ -22,13 +23,17 @@ This document covers everything needed to rebuild and deploy OptionsDesk from sc
    - `service_role` key → `SUPABASE_SERVICE_KEY` (keep secret — backend only)
    - `anon` / `public` key → `VITE_SUPABASE_ANON_KEY` (frontend)
 
-### 1a. Run the database migration
+### 1a. Run the database migrations
 
 1. Open **SQL Editor → New query** in your Supabase dashboard
-2. Paste the contents of `backend/migrations/001_initial_schema.sql` and run it
-3. Then paste and run `backend/migrations/002_whitelist_role.sql`
+2. Paste and run each migration in order:
+   1. `backend/migrations/001_initial_schema.sql`
+   2. `backend/migrations/002_whitelist_role.sql`
+   3. `backend/migrations/003_position_strategy_link.sql`
+   4. `backend/migrations/003_watchlist_subscriptions.sql`
 
-> If you're starting fresh, the combined schema at the bottom of this file works too.
+> If you're starting fresh, the combined schema at the bottom of this file works too,
+> but you'll still need to run the individual migration files for any incremental updates.
 
 ---
 
@@ -57,7 +62,14 @@ This document covers everything needed to rebuild and deploy OptionsDesk from sc
    ```
    > **Do NOT add `SUPABASE_JWT_SECRET`** — JWT verification is done via the Supabase Auth API, not python-jose.
 
-4. Note the backend URL Railway assigns (e.g. `https://options-backend-production-xxxx.up.railway.app`)
+4. (Optional) Add the Market Data App token for real options data:
+   ```
+   MARKETDATA_API_TOKEN=<your token from marketdata.app dashboard>
+   ```
+   Without this, the app falls back to yfinance automatically. If you see HTTP 429 from the first
+   request, check that the token is correct and that your daily quota hasn't been exhausted.
+
+5. Note the backend URL Railway assigns (e.g. `https://options-backend-production-xxxx.up.railway.app`)
 
 ---
 
@@ -111,6 +123,7 @@ pip install -r requirements.txt
 # Create a .env file (never commit this):
 echo "SUPABASE_URL=https://..." > .env
 echo "SUPABASE_SERVICE_KEY=..." >> .env
+echo "MARKETDATA_API_TOKEN=..." >> .env   # optional
 
 uvicorn main:app --reload --port 8000
 ```
@@ -145,6 +158,8 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   full_name text,
   avatar_url text,
   role text NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  subscription_tier text NOT NULL DEFAULT 'free'
+    CHECK (subscription_tier IN ('free', 'starter', 'pro', 'enterprise')),
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   last_seen_at timestamptz
@@ -186,7 +201,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
   quantity integer NOT NULL,
   price numeric(10,4) NOT NULL,
   status text NOT NULL DEFAULT 'filled',
-  alpaca_id text,
+  strategy_key text,
+  strategy_name text,
+  profit_target_pct numeric(6,2),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
@@ -203,6 +220,10 @@ CREATE TABLE IF NOT EXISTS public.positions (
   option_type text NOT NULL CHECK (option_type IN ('call','put')),
   quantity integer NOT NULL,
   avg_cost numeric(10,4) NOT NULL,
+  strategy_key text,
+  strategy_name text,
+  profit_target_pct numeric(6,2),
+  entry_action text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(user_id, symbol, expiry, strike, option_type)
@@ -238,6 +259,27 @@ CREATE TABLE IF NOT EXISTS public.activity_log (
 );
 ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
 
+-- 8. User watchlists — persisted watchlist per user
+CREATE TABLE IF NOT EXISTS public.user_watchlists (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  symbols text[] NOT NULL DEFAULT '{}',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.user_watchlists ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_watchlist" ON public.user_watchlists FOR ALL USING (auth.uid() = user_id);
+
+-- 9. Scan usage — monthly scan counter
+CREATE TABLE IF NOT EXISTS public.scan_usage (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  month text NOT NULL,  -- YYYY-MM
+  scan_count integer NOT NULL DEFAULT 0,
+  UNIQUE(user_id, month)
+);
+ALTER TABLE public.scan_usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_scan_usage" ON public.scan_usage FOR ALL USING (auth.uid() = user_id);
+
 -- Seed admin into whitelist (replace email with your own)
 INSERT INTO public.user_whitelist (email, role, note)
 VALUES ('leonard.simgt@gmail.com', 'admin', 'Admin account')
@@ -253,6 +295,7 @@ ON CONFLICT (email) DO NOTHING;
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | `https://<ref>.supabase.co` |
 | `SUPABASE_SERVICE_KEY` | Yes | Service role key (bypasses RLS) |
+| `MARKETDATA_API_TOKEN` | No | From marketdata.app dashboard; omit to use yfinance only |
 
 ### Frontend (Railway / build)
 | Variable | Required | Description |

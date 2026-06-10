@@ -17,7 +17,10 @@ FastAPI Backend (Railway)                                │
       │                                         Supabase Postgres
       │  All reads/writes via supabase-py               (RLS on all tables)
       ▼
- yfinance (PyPI)  ←  real-time market data, options chains, news, earnings
+Market Data (3-tier fallback)
+  1. api.marketdata.app  ← primary (OPRA data, full greeks, 5-min cache)
+  2. yfinance (PyPI)     ← free fallback (30-sec cache)
+  3. Synthetic BS chain  ← last resort (Black-Scholes, flagged _synthetic=True)
 ```
 
 ## Backend routes
@@ -29,11 +32,19 @@ FastAPI Backend (Railway)                                │
 | GET | `/api/options/chain/{symbol}` | JWT | Options chain with greeks |
 | POST | `/api/orders` | JWT | Place paper trade |
 | GET | `/api/orders` | JWT | Order history |
+| POST | `/api/trades/record` | JWT | Record a real trade for monitoring |
 | GET | `/api/positions` | JWT | Open positions with live P&L |
 | GET | `/api/portfolio` | JWT | Cash + positions value |
 | POST | `/api/positions/snapshot` | JWT | Save daily P&L snapshot |
+| GET | `/api/watchlist` | JWT | Get saved watchlist + tier info |
+| PUT | `/api/watchlist` | JWT | Save watchlist (enforces tier symbol limit) |
 | GET | `/api/strategies/analyze/{symbol}` | JWT | Full AI analysis |
 | GET | `/api/strategies/scan` | JWT | Multi-symbol scanner |
+| GET | `/api/trading/buzz/earnings` | JWT | Reddit earnings buzz |
+| GET | `/api/trading/buzz/stocks` | JWT | Reddit stocks buzz |
+| GET | `/api/trading/buzz/crypto` | JWT | Reddit crypto buzz |
+| GET | `/api/trading/buzz/tokens` | JWT | Reddit tokens buzz |
+| GET | `/api/trading/buzz/selected` | JWT | Reddit buzz for specific symbols |
 | POST | `/api/auth/login` | JWT | Whitelist check + profile upsert |
 | GET | `/api/auth/me` | JWT | Current user profile |
 | GET | `/api/auth/pnl-history` | JWT | 90-day P&L chart data |
@@ -52,7 +63,7 @@ FastAPI Backend (Railway)                                │
 ```
 GET /api/strategies/analyze/{symbol}
           │
-          ├─ 1. Fetch options chain (yfinance)
+          ├─ 1. Fetch options chain (Market Data App → yfinance → synthetic BS)
           │
           ├─ 2. IV Analysis (iv_analysis.py)
           │      current_iv (median ATM IV)
@@ -72,9 +83,10 @@ GET /api/strategies/analyze/{symbol}
           │      flow: put/call ratio, unusual volume strikes, flow_bias
           │
           ├─ 5. Strategy Scoring (strategy_engine.py)
-          │      19-strategy catalog, each with direction + IV environment tags
+          │      31-strategy catalog grouped by direction category:
+          │        Bullish, Bearish, Neutral/Income, Omnidirectional
           │      Fit score: IV match (40%) + direction match (40%) + DTE bonus (20%)
-          │      Top 3 strategies selected
+          │      Top 3 per direction category returned
           │
           ├─ 6. Strike Selection (strategy_engine.py)
           │      Matches target deltas to live chain contracts
@@ -89,22 +101,38 @@ GET /api/strategies/analyze/{symbol}
                  All sections receive market_context for richer paragraphs.
 ```
 
+## Subscription tiers (tier_limits.py)
+
+| Tier | Max watchlist symbols | Max scans/month |
+|------|----------------------|-----------------|
+| free | 5 | 10 |
+| starter | 15 | 100 |
+| pro | 50 | unlimited |
+| enterprise | unlimited | unlimited |
+
+Tier is stored in `user_profiles.subscription_tier`. The admin is always enterprise.
+`GET /api/watchlist` returns current tier limits alongside the saved symbol list.
+`PUT /api/watchlist` rejects if the new symbol count exceeds the tier maximum.
+
 ## Frontend tab layout
 
 ```
 Header: OptionsDesk logo | Symbol search | QuoteBar | User avatar | Sign Out
 ──────────────────────────────────────────────────────────────────────────────
-Tabs:  Chain | P&L | Orders | Scanner | Guide | Admin (admin only)
+Tabs:  Chain | P&L | Risk | Orders | Scanner | Desk | Guide | Admin (admin only)
 ──────────────────────────────────────────────────────────────────────────────
 Main content area                          │  Sidebar (desktop only)
                                            │  OrderEntry panel
   Chain tab:   OptionsChain component      │  (hidden on admin/guide tabs)
   P&L tab:     Positions + PnLChart        │
+  Risk tab:    RiskMonitor component       │
   Orders tab:  Orders table                │
   Scanner tab: StrategyScanner             │
                → deep analysis opens       │
                  StrategyDetail +          │
                  StrategyNarrative         │
+                 TradePanel                │
+  Desk tab:    TradingDesk (Reddit buzz)   │
   Guide tab:   UserGuide                   │
   Admin tab:   AdminPanel                  │
 ──────────────────────────────────────────────────────────────────────────────
@@ -114,6 +142,7 @@ Mobile: FAB "Place Order" button → bottom drawer (OrderEntry)
 ## Database schema (Supabase Postgres)
 
 See `backend/migrations/001_initial_schema.sql` for full DDL.
+Run migrations in order: 001 → 002 → 003_position_strategy_link → 003_watchlist_subscriptions.
 
 ### Tables
 
@@ -121,6 +150,7 @@ See `backend/migrations/001_initial_schema.sql` for full DDL.
 - `id` uuid PK → auth.users
 - `email`, `full_name`, `avatar_url`
 - `role` text ('user' | 'admin'), default 'user'
+- `subscription_tier` text ('free' | 'starter' | 'pro' | 'enterprise'), default 'free'
 - `is_active` bool, `created_at`, `last_seen_at`
 
 **`user_whitelist`** — controls who can log in
@@ -135,12 +165,14 @@ See `backend/migrations/001_initial_schema.sql` for full DDL.
 
 **`orders`** — paper trade history
 - `user_id`, `symbol`, `expiry` date, `strike`, `option_type`, `action`
-- `quantity` int, `price` numeric, `status` ('filled'), `alpaca_id`
+- `quantity` int, `price` numeric, `status` ('filled')
+- `strategy_key`, `strategy_name`, `profit_target_pct` — strategy metadata
 
 **`positions`** — current open positions
 - Unique on `(user_id, symbol, expiry, strike, option_type)`
 - `quantity` can be negative (short positions)
 - `avg_cost` tracked for P&L
+- `strategy_key`, `strategy_name`, `profit_target_pct`, `entry_action` — strategy metadata
 
 **`pnl_snapshots`** — daily portfolio value
 - Unique on `(user_id, snapshot_date)`
@@ -150,6 +182,16 @@ See `backend/migrations/001_initial_schema.sql` for full DDL.
 **`activity_log`** — one row per user per calendar day
 - Unique on `(user_id, log_date)`
 - Upserted on login; tracks `login_count` and `last_login_at`
+
+**`user_watchlists`** — persisted watchlist per user
+- `user_id` uuid unique
+- `symbols` text[] — ordered list of ticker symbols
+- `updated_at` timestamptz
+
+**`scan_usage`** — monthly scan counter per user
+- `user_id`, `month` (YYYY-MM), `scan_count`
+- Unique on `(user_id, month)`
+- Incremented on each `/api/strategies/scan` call
 
 ### RLS policies
 
