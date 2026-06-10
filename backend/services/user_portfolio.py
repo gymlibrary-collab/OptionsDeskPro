@@ -98,7 +98,7 @@ def place_order(user_id: str, req: OrderRequest) -> Order:
     )
 
 
-def _update_position(sb, user_id: str, req: OrderRequest, price: float):
+def _update_position(sb, user_id: str, req, price: float):
     existing = sb.table("positions").select("*")\
         .eq("user_id", user_id)\
         .eq("symbol", req.symbol.upper())\
@@ -152,7 +152,7 @@ def get_positions(user_id: str) -> list[Position]:
     if not rows:
         return []
 
-    # ── Batch fetches: one quote per unique symbol ───────────────────────────
+    # ── Batch fetches: one quote per unique symbol ────────────────────────────────────
     unique_symbols = list({r["symbol"] for r in rows})
     spot_cache: dict[str, float] = {}
     for symbol in unique_symbols:
@@ -293,6 +293,56 @@ def take_pnl_snapshot(user_id: str):
         "positions_value": summary.positions_value,
         "total_pnl": summary.total_pnl,
     }, on_conflict="user_id,snapshot_date").execute()
+
+
+def record_trade(user_id: str, req) -> dict:
+    """Record each leg of a multi-leg strategy trade as individual orders and update positions."""
+    sb = get_supabase()
+    ensure_portfolio(user_id)
+    recorded = 0
+    for leg in req.legs:
+        price = float(leg.price) if leg.price > 0 else 0.01
+        total_cost = price * leg.quantity * 100
+        cash_result = sb.table("portfolios").select("cash").eq("user_id", user_id).single().execute()
+        cash = float(cash_result.data["cash"])
+        if leg.action.lower() == "buy":
+            cash -= total_cost
+        else:
+            cash += total_cost
+        sb.table("portfolios").update({
+            "cash": cash,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).execute()
+
+        order_req = type("R", (), {
+            "symbol": req.symbol.upper(),
+            "expiry": req.expiry,
+            "strike": leg.strike,
+            "option_type": leg.option_type.lower(),
+            "action": leg.action.lower(),
+            "quantity": leg.quantity,
+            "strategy_key": req.strategy_key,
+            "strategy_name": req.strategy_name,
+            "profit_target_pct": req.profit_target_pct,
+        })()
+        _update_position(sb, user_id, order_req, price)
+
+        sb.table("orders").insert({
+            "user_id": user_id,
+            "symbol": req.symbol.upper(),
+            "expiry": req.expiry,
+            "strike": leg.strike,
+            "option_type": leg.option_type.lower(),
+            "action": leg.action.lower(),
+            "quantity": leg.quantity,
+            "price": price,
+            "status": "filled",
+            "strategy_key": req.strategy_key,
+            "strategy_name": req.strategy_name,
+            "profit_target_pct": req.profit_target_pct,
+        }).execute()
+        recorded += 1
+    return {"recorded": recorded, "strategy": req.strategy_name}
 
 
 def log_activity(user_id: str, email: str, ip: str = None):
