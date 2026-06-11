@@ -347,4 +347,35 @@ export const getWatchlist = (): Promise<WatchlistState> =>
 export const saveWatchlist = (symbols: string[]): Promise<{ saved: number; tier: string }> =>
   api.put('/watchlist', { symbols }).then(r => r.data)
 
+// ─── AI Features ─────────────────────────────────────────────────────────────
+
+export interface AISettings {
+  narrative_enabled: boolean
+  chat_enabled: boolean
+  risk_summary_enabled: boolean
+  strategy_reasoning_enabled: boolean
+}
+
+export const getAISettings = (): Promise<AISettings> =>
+  api.get('/ai/settings').then(r => r.data)
+
+export const updateAISettings = (settings: AISettings): Promise<{ saved: boolean }> =>
+  api.put('/ai/settings', settings).then(r => r.data)
+
+export const aiChat = (question: string): Promise<{ answer: string }> =>
+  api.post('/ai/chat', { question }, { timeout: 30000 }).then(r => r.data)
+
+export const aiRiskSummary = (positions_risk: unknown[]): Promise<{ summary: string | null }> =>
+  api.post('/ai/risk-summary', { positions_risk }, { timeout: 30000 }).then(r => r.data)
+
+export const aiStrategyReasoning = (payload: {
+  symbol: string; iv_analysis: object; bias_analysis: object; strategy: object; trade: object
+}): Promise<{ reasoning: string | null }> =>
+  api.post('/ai/strategy-reasoning', payload, { timeout: 30000 }).then(r => r.data)
+
+export const aiEnhanceNarrative = (payload: {
+  symbol: string; iv_analysis: object; bias_analysis: object; strategy: object; trade: object
+}): Promise<{ insight: string | null }> =>
+  api.post('/ai/enhance-narrative', payload, { timeout: 30000 }).then(r => r.data)
+
 export default api

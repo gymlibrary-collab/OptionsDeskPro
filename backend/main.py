@@ -10,6 +10,7 @@ from routes.auth_routes import router as auth_router
 from routes.admin_routes import router as admin_router
 from routes.trading_routes import router as trading_router
 from routes.watchlist import router as watchlist_router
+from routes.ai_routes import router as ai_router
 
 app = FastAPI(title="Options Trading Dashboard", version="1.0.0")
 
@@ -33,6 +34,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(trading_router, prefix="/api")
 app.include_router(watchlist_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
 
 
 @app.get("/api/health")
