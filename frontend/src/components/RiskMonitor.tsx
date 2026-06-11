@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getPositionsRisk, PositionRisk, RiskSignal } from '../api/client'
+import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary } from '../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -39,7 +39,7 @@ function riskLabel(level: string) {
 }
 
 function signalIcon(type: string) {
-  const icons: Record<string, string> = { dte: '⏰', pnl: '💰', iv: '📊', bias: '🧭', healthy: '✅' }
+  const icons: Record<string, string> = { dte: '⏰', pnl: '💰', iv: '📊', bias: '🦭', healthy: '✅' }
   return icons[type] || '•'
 }
 
@@ -176,6 +176,10 @@ export default function RiskMonitor() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [error, setError] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(false)
+  const [aiSummary, setAiSummary] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
@@ -198,6 +202,23 @@ export default function RiskMonitor() {
     const interval = setInterval(() => load(true), REFRESH_MS)
     return () => clearInterval(interval)
   }, [load])
+  useEffect(() => {
+    getAISettings().then(s => setAiEnabled(s.risk_summary_enabled)).catch(() => {})
+  }, [])
+
+  const fetchAISummary = async () => {
+    setAiLoading(true)
+    setAiError('')
+    setAiSummary(null)
+    try {
+      const result = await aiRiskSummary(data)
+      setAiSummary(result.summary || 'No summary available.')
+    } catch (e: any) {
+      setAiError(e?.response?.data?.detail || 'AI summary failed — please try again.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const redCount = data.filter(p => p.risk_level === 'red').length
   const yellowCount = data.filter(p => p.risk_level === 'yellow').length
@@ -222,6 +243,35 @@ export default function RiskMonitor() {
           [...data]
             .sort((a, b) => { const rank: Record<string, number> = { red: 0, yellow: 1, green: 2 }; return rank[a.risk_level] - rank[b.risk_level] })
             .map((pos, i) => <PositionCard key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`} pos={pos} />)
+        )}
+        {!loading && data.length > 0 && aiEnabled && (
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={fetchAISummary}
+              disabled={aiLoading}
+              style={{
+                background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
+                color: C.accent, padding: '8px 16px', fontSize: '12px', fontWeight: 700,
+                cursor: aiLoading ? 'default' : 'pointer', opacity: aiLoading ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start',
+              }}
+            >
+              <span style={{ fontSize: '14px' }}>✦</span>
+              {aiLoading ? 'Analysing portfolio…' : aiSummary ? 'Refresh AI Overview' : 'Get AI Risk Overview'}
+            </button>
+            {aiError && <div style={{ fontSize: '12px', color: C.red }}>{aiError}</div>}
+            {aiSummary && (
+              <div style={{
+                background: '#1a1440', border: `1px solid ${C.accent}44`, borderRadius: '8px',
+                padding: '12px 14px', fontSize: '13px', color: C.text, lineHeight: 1.7,
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+                  ✦ AI Risk Overview
+                </div>
+                {aiSummary}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

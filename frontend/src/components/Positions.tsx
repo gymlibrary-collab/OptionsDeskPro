@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, Position, PortfolioSummary, recordTrade } from '../api/client'
+import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote } from '../api/client'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -156,12 +156,22 @@ export default function Positions() {
   const [closingPos, setClosingPos] = useState<Position | null>(null)
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
+  const [stockPrices, setStockPrices] = useState<Record<string, Quote>>({})
 
   const load = useCallback(() => {
     setLoading(true)
     Promise.allSettled([getPositions(), getPortfolio()])
       .then(([posResult, sumResult]) => {
-        if (posResult.status === 'fulfilled') setPositions(posResult.value)
+        if (posResult.status === 'fulfilled') {
+          setPositions(posResult.value)
+          const symbols = [...new Set(posResult.value.map((p: Position) => p.symbol))]
+          Promise.all(symbols.map((s: string) => getQuote(s).then(q => ({ s, q })).catch(() => null)))
+            .then(results => {
+              const map: Record<string, Quote> = {}
+              results.forEach(r => { if (r) map[r.s] = r.q })
+              setStockPrices(map)
+            })
+        }
         if (sumResult.status === 'fulfilled') setSummary(sumResult.value)
         setLastRefresh(new Date())
       })
@@ -364,7 +374,17 @@ export default function Positions() {
                 const totalCost = pos.avg_cost * Math.abs(pos.quantity) * 100
                 return (
                   <tr key={i} style={rowBg ? { background: rowBg } : undefined}>
-                    <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>{pos.symbol}</td>
+                    <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>
+                      {pos.symbol}
+                      {stockPrices[pos.symbol] && (
+                        <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, color: stockPrices[pos.symbol].change >= 0 ? C.green : C.red }}>
+                          ${fmt(stockPrices[pos.symbol].price)}{' '}
+                          <span style={{ opacity: 0.8 }}>
+                            {stockPrices[pos.symbol].changePercent >= 0 ? '+' : ''}{fmt(stockPrices[pos.symbol].changePercent, 2)}%
+                          </span>
+                        </span>
+                      )}
+                    </td>
                     <td style={styles.tdLeft}>
                       {pos.strategy_name
                         ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span>

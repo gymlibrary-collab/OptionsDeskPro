@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import { TradeStructure, TradeLeg, recordTrade } from '../api/client'
+import { useState, useEffect } from 'react'
+import {
+  TradeStructure, TradeLeg, recordTrade,
+  getAISettings, analyzeSymbol, aiStrategyReasoning, aiEnhanceNarrative,
+} from '../api/client'
 
 interface Props {
   symbol: string
@@ -75,6 +78,55 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
   const [multiplier, setMultiplier] = useState(1)
   const [recording, setRecording] = useState(false)
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [aiNarrativeEnabled, setAiNarrativeEnabled] = useState(false)
+  const [aiReasoningEnabled, setAiReasoningEnabled] = useState(false)
+  const [aiInsight, setAiInsight] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+
+  useEffect(() => {
+    getAISettings().then(s => {
+      setAiNarrativeEnabled(s.narrative_enabled)
+      setAiReasoningEnabled(s.strategy_reasoning_enabled)
+    }).catch(() => {})
+  }, [])
+
+  const fetchAIInsight = async () => {
+    setAiLoading(true)
+    setAiError('')
+    setAiInsight(null)
+    try {
+      const analysis = await analyzeSymbol(symbol)
+      const payload = {
+        symbol,
+        iv_analysis: analysis.iv_analysis,
+        bias_analysis: analysis.bias_analysis,
+        strategy: {
+          name: trade.strategy,
+          strategy_key: trade.strategy_key,
+          fit_score: 0,
+          pop_range: [trade.pop_estimate ?? 50, trade.pop_estimate ?? 70],
+        },
+        trade: {
+          estimated_credit_or_debit: trade.estimated_credit_or_debit,
+          expiry: trade.expiry,
+          max_profit: trade.max_profit,
+          max_loss: trade.max_loss,
+        },
+      }
+      if (aiReasoningEnabled) {
+        const res = await aiStrategyReasoning(payload)
+        setAiInsight(res.reasoning || 'No insight available.')
+      } else {
+        const res = await aiEnhanceNarrative(payload)
+        setAiInsight(res.insight || 'No insight available.')
+      }
+    } catch (e: any) {
+      setAiError(e?.response?.data?.detail || 'AI insight failed — please try again.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const isCredit = trade.estimated_credit_or_debit >= 0
   const netPerSpread = Math.abs(trade.estimated_credit_or_debit)
@@ -268,6 +320,36 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
             color: feedback.ok ? C.green : C.red,
           }}>
             {feedback.msg}
+          </div>
+        )}
+
+        {(aiNarrativeEnabled || aiReasoningEnabled) && (
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={fetchAIInsight}
+              disabled={aiLoading}
+              style={{
+                background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
+                color: C.accent, padding: '8px 14px', fontSize: '12px', fontWeight: 700,
+                cursor: aiLoading ? 'default' : 'pointer', opacity: aiLoading ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <span>✦</span>
+              {aiLoading ? 'Analysing setup…' : aiInsight ? 'Refresh AI Insight' : 'Get AI Insight'}
+            </button>
+            {aiError && <div style={{ fontSize: '12px', color: C.red }}>{aiError}</div>}
+            {aiInsight && (
+              <div style={{
+                background: '#1a1440', border: `1px solid ${C.accent}44`, borderRadius: '8px',
+                padding: '12px 14px', fontSize: '12px', color: C.text, lineHeight: 1.7,
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+                  ✦ {aiReasoningEnabled ? 'Strategy Reasoning' : 'AI Coach Insight'}
+                </div>
+                {aiInsight}
+              </div>
+            )}
           </div>
         )}
       </div>
