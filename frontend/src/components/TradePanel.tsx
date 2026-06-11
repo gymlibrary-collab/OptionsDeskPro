@@ -84,17 +84,11 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  useEffect(() => {
-    getAISettings().then(s => {
-      setAiNarrativeEnabled(s.narrative_enabled)
-      setAiReasoningEnabled(s.strategy_reasoning_enabled)
-    }).catch(() => {})
-  }, [])
-
-  const fetchAIInsight = async () => {
+  const fetchAIInsight = async (useReasoning?: boolean) => {
     setAiLoading(true)
     setAiError('')
     setAiInsight(null)
+    const reasoning = useReasoning ?? aiReasoningEnabled
     try {
       const analysis = await analyzeSymbol(symbol)
       const payload = {
@@ -114,7 +108,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
           max_loss: trade.max_loss,
         },
       }
-      if (aiReasoningEnabled) {
+      if (reasoning) {
         const res = await aiStrategyReasoning(payload.symbol, payload.iv_analysis, payload.bias_analysis, payload.strategy, payload.trade)
         setAiInsight(res.reasoning || 'No insight available.')
       } else {
@@ -127,6 +121,16 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
       setAiLoading(false)
     }
   }
+
+  useEffect(() => {
+    getAISettings().then(s => {
+      setAiNarrativeEnabled(s.narrative_enabled)
+      setAiReasoningEnabled(s.strategy_reasoning_enabled)
+      if (s.narrative_enabled || s.strategy_reasoning_enabled) {
+        fetchAIInsight(s.strategy_reasoning_enabled)
+      }
+    }).catch(() => {})
+  }, [symbol, trade.strategy_key])
 
   const isCredit = trade.estimated_credit_or_debit >= 0
   const netPerSpread = Math.abs(trade.estimated_credit_or_debit)
