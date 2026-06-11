@@ -1,7 +1,9 @@
 import time
 import logging
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials
 
 from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
@@ -10,7 +12,7 @@ from services.market_data import get_options_chain, get_quote, synthetic_options
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
-from services.auth_utils import verify_token
+from services.auth_utils import verify_token, security as bearer_security
 from services.db import get_supabase
 from services.tier_limits import get_user_tier, get_limits
 
@@ -79,7 +81,10 @@ def _get_enriched_chain_for_symbol(symbol: str, expiry: str | None = None) -> tu
 
 
 @router.get("/strategies/analyze/{symbol}")
-async def analyze_symbol(symbol: str):
+async def analyze_symbol(
+    symbol: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
+):
     """
     Full analysis: IV rank, directional bias, and top 3 strategy recommendations
     per direction category (Bullish, Bearish, Neutral, Neutral-Bullish,
@@ -141,6 +146,21 @@ async def analyze_symbol(symbol: str):
         logger.warning(f"market_context failed for {symbol}: {e}")
         market_ctx = {}
 
+    # Check earnings awareness setting for authenticated users
+    earnings_data: dict | None = None
+    if credentials:
+        try:
+            from services.db import get_supabase
+            sb = get_supabase()
+            result = sb.auth.get_user(credentials.credentials)
+            if result.user:
+                user_id = result.user.id
+                s = sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", user_id).execute()
+                if s.data and s.data[0].get("earnings_awareness_enabled"):
+                    earnings_data = (market_ctx or {}).get("earnings") or {}
+        except Exception:
+            pass
+
     # Build trades for all unique strategy keys across categories
     unique_keys = {
         rec["key"]
@@ -150,7 +170,7 @@ async def analyze_symbol(symbol: str):
     trades_by_key: dict = {}
     for strategy_key in unique_keys:
         try:
-            trade = build_trade(symbol, strategy_key, enriched_chain, spot)
+            trade = build_trade(symbol, strategy_key, enriched_chain, spot, earnings_data=earnings_data)
             if enriched_chain.get("_synthetic"):
                 trade["_synthetic"] = True
         except Exception as e:

@@ -17,6 +17,7 @@ class AISettingsBody(BaseModel):
     chat_enabled: bool = False
     risk_summary_enabled: bool = False
     strategy_reasoning_enabled: bool = False
+    earnings_awareness_enabled: bool = False
 
 
 class ChatRequest(BaseModel):
@@ -67,6 +68,7 @@ def _settings_response(row: dict) -> dict:
         "chat_enabled": bool(row.get("chat_enabled", False)),
         "risk_summary_enabled": bool(row.get("risk_summary_enabled", False)),
         "strategy_reasoning_enabled": bool(row.get("strategy_reasoning_enabled", False)),
+        "earnings_awareness_enabled": bool(row.get("earnings_awareness_enabled", False)),
     }
 
 
@@ -89,6 +91,7 @@ def update_ai_settings(body: AISettingsBody, payload: dict = Depends(verify_toke
             "chat_enabled": body.chat_enabled,
             "risk_summary_enabled": body.risk_summary_enabled,
             "strategy_reasoning_enabled": body.strategy_reasoning_enabled,
+            "earnings_awareness_enabled": body.earnings_awareness_enabled,
         },
         on_conflict="user_id",
     ).execute()

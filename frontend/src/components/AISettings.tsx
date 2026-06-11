@@ -53,6 +53,16 @@ const FEATURES: {
       'Why is this the top-ranked strategy for this ticker right now? 3–4 sentences on the IV+bias combination, concrete edge, and what could go wrong.',
     tier: 'Beta · All users',
   },
+  {
+    key: 'earnings_awareness_enabled',
+    label: 'Earnings Awareness',
+    description:
+      'Adjusts the recommended expiry cycle to account for upcoming earnings. ' +
+      'Premium sellers are routed to a pre-earnings expiry (avoiding IV crush). ' +
+      'Premium buyers are routed to a post-earnings expiry (capturing the move). ' +
+      'The trade narrative explains the adjustment.',
+    tier: 'Beta · All users',
+  },
 ]
 
 function Toggle({ enabled, onChange, disabled }: { enabled: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {

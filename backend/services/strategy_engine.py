@@ -422,6 +422,14 @@ STRATEGIES = {
     },
 }
 
+# Premium-selling strategies — these should avoid earnings within the expiry window
+SELLER_STRATEGIES = {
+    "covered_call", "short_naked_put", "short_put_vertical", "jade_lizard",
+    "short_naked_call", "short_call_vertical", "reverse_jade_lizard",
+    "short_strangle", "short_straddle", "iron_condor", "iron_fly",
+    "put_calendar", "call_calendar",
+}
+
 # Bias compatibility mapping: a given bias can also match broader categories
 BIAS_COMPATIBILITY = {
     "BULLISH": ["BULLISH"],
@@ -554,6 +562,70 @@ def _find_nearest_expiry(expirations: list, dte_target: int = 45) -> str | None:
     return best
 
 
+def _find_earnings_adjusted_expiry(
+    expirations: list, dte_target: int, earnings_date_str: str, is_seller: bool
+) -> tuple[str | None, str | None]:
+    """
+    Returns (expiry, note) adjusted for an upcoming earnings event.
+    Sellers: prefer last expiry BEFORE earnings (avoid IV crush).
+    Buyers:  prefer first expiry AFTER earnings (capture the move).
+    Returns (None, None) when no adjustment is possible or needed.
+    """
+    try:
+        from datetime import date as _d, timedelta as _td
+        today = _d.today()
+        earnings_date = _d.fromisoformat(earnings_date_str)
+        days_to_earn = (earnings_date - today).days
+        if days_to_earn < 0 or days_to_earn > 90:
+            return None, None
+
+        parsed = sorted(
+            (_d.fromisoformat(e), e) for e in expirations
+            if _d.fromisoformat(e) >= today
+        )
+
+        if is_seller:
+            # Last expiry that is strictly before earnings AND at least 7 DTE
+            pre = [(d, s) for d, s in parsed if d < earnings_date and (d - today).days >= 7]
+            if pre:
+                best_d, best_exp = pre[-1]
+                dte = (best_d - today).days
+                note = (
+                    f"Expiry shifted to {best_exp} ({dte}d) — closes {(earnings_date - best_d).days} days "
+                    f"before earnings ({earnings_date_str}). Selling premium into earnings risks an IV crush "
+                    f"the morning after the announcement; this expiry captures time decay while avoiding that event."
+                )
+                return best_exp, note
+            # No pre-earnings slot — use first post-earnings instead
+            post = [(d, s) for d, s in parsed if d > earnings_date]
+            if post:
+                best_d, best_exp = post[0]
+                dte = (best_d - today).days
+                note = (
+                    f"Expiry shifted to {best_exp} ({dte}d) — first cycle after earnings ({earnings_date_str}). "
+                    f"No pre-earnings expiry was available. Post-earnings IV will have already compressed, "
+                    f"so premium is collected after the event risk has passed."
+                )
+                return best_exp, note
+        else:
+            # Buyers: first expiry after earnings closest to dte_target
+            post = [(d, s) for d, s in parsed if d > earnings_date]
+            if post:
+                target_dt = today + __import__('datetime').timedelta(days=dte_target)
+                best = min(post, key=lambda x: abs((x[0] - target_dt).days))
+                best_d, best_exp = best
+                dte = (best_d - today).days
+                note = (
+                    f"Expiry set to {best_exp} ({dte}d) — spans the earnings event on {earnings_date_str}. "
+                    f"As a premium buyer, the IV expansion into earnings lifts your position, and any "
+                    f"directional gap on the day accelerates your profit."
+                )
+                return best_exp, note
+    except Exception:
+        pass
+    return None, None
+
+
 def _find_by_delta(contracts: list, target_delta: float) -> dict | None:
     """Find the contract whose delta is closest to target_delta."""
     if not contracts:
@@ -577,7 +649,7 @@ def _mid(contract: dict) -> float:
     return round(contract.get("lastPrice", 0.0), 2)
 
 
-def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price: float) -> dict:
+def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price: float, earnings_data: dict | None = None) -> dict:
     """
     Given a strategy key and live options chain (already enriched with greeks),
     find the nearest 45 DTE expiry and select strikes closest to the delta targets.
@@ -593,13 +665,26 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     if not expiry:
         return {"error": "No expirations available"}
 
-    # We need to get chain data for the target expiry if different from current
+    earnings_note: str | None = None
+    earnings_adjusted = False
+    if earnings_data and earnings_data.get("next_earnings"):
+        is_seller = strategy_key in SELLER_STRATEGIES
+        adj_expiry, adj_note = _find_earnings_adjusted_expiry(
+            expirations, strat["dte_target"], earnings_data["next_earnings"], is_seller
+        )
+        if adj_expiry:
+            expiry = adj_expiry
+            earnings_note = adj_note
+            earnings_adjusted = True
+
+    # If the target expiry differs from the loaded chain's expiry, fall back to chain expiry
     chain_expiry = options_chain.get("expiry")
     if expiry != chain_expiry:
-        # The caller should pass the correct expiry chain; fall back to whatever is available
         expiry = chain_expiry or (expirations[0] if expirations else None)
         if not expiry:
             return {"error": "Cannot resolve expiry"}
+        earnings_adjusted = False
+        earnings_note = None
 
     calls = options_chain.get("calls", [])
     puts = options_chain.get("puts", [])
@@ -998,4 +1083,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         "tastylive_profit_target": tastylive_profit_target,
         "risk_type": strat["risk_type"],
         "profit_target_pct": strat["profit_target_pct"],
+        "earnings_adjusted": earnings_adjusted,
+        "earnings_note": earnings_note,
     }

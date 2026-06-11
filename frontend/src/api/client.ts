@@ -354,6 +354,7 @@ export interface AISettings {
   chat_enabled: boolean
   risk_summary_enabled: boolean
   strategy_reasoning_enabled: boolean
+  earnings_awareness_enabled: boolean
 }
 
 export const getAISettings = (): Promise<AISettings> =>

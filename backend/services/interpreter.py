@@ -1190,11 +1190,19 @@ def generate_narrative(
     if trade.get("error"):
         strat_key_err = strategy.get("key", "")
         strat_name_err = strategy.get("name", "this strategy")
+        why_strat_err = _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context)
+        if trade.get("earnings_note"):
+            why_strat_err = (
+                f"EARNINGS ADJUSTMENT\n"
+                f"{trade['earnings_note']}\n\n"
+                f"─────────────────────────────────\n\n"
+                f"{why_strat_err}"
+            )
         return {
             "headline": f"{symbol} — {strat_name_err}: market data ready, trade structure unavailable.",
             "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
             "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
-            "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
+            "why_this_strategy": why_strat_err,
             "trade_plain_english": f"The specific strike/expiry data needed to build this trade could not be retrieved right now ({trade['error']}). The analysis above still applies — when data is available, this strategy remains the recommendation given current IV and bias conditions.",
             "profit_scenario": "",
             "loss_scenario": "",
@@ -1238,11 +1246,20 @@ def generate_narrative(
             f"with IVR {ivr:.0f} ({iv_word}) and a {bias_clean} market."
         )
 
+    why_strat = _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context)
+    if trade.get("earnings_note"):
+        why_strat = (
+            f"EARNINGS ADJUSTMENT\n"
+            f"{trade['earnings_note']}\n\n"
+            f"─────────────────────────────────\n\n"
+            f"{why_strat}"
+        )
+
     return {
         "headline": headline,
         "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
         "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
-        "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
+        "why_this_strategy": why_strat,
         "trade_plain_english": _trade_plain_english(symbol, trade, ctx=market_context),
         "profit_scenario": _profit_scenario(symbol, trade, strategy),
         "loss_scenario": _loss_scenario(symbol, trade, strategy),
