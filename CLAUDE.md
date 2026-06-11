@@ -143,3 +143,74 @@ Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
 - `user_whitelist` must have a `role` column (see migration 002); the initial schema omits it
 - After pushing files via GitHub MCP API, always sync local: `git fetch origin main && git reset --hard origin/main`
 - Do not cast yfinance volume/openInterest directly to `int()` — yfinance returns NaN for some contracts; use `_safe_int()` from `market_data.py`
+
+---
+
+## SDLC — Gated Feature Workflow
+
+All new features follow a six-gate sequence. Every gate requires explicit approval before the next agent runs. Say **approve** to advance, or give feedback to request changes.
+
+### Gate sequence
+
+```
+Gate 1  BA Spec         business-analyst    →  docs/FeatureRequests/<feature>-<ddMMMyyyy>/01-spec.md
+Gate 2  Architecture    solution-architect  →  docs/FeatureRequests/<feature>-<ddMMMyyyy>/02-design.md
+Gate 3  Implementation  frontend-developer
+                        backend-developer   →  code diff (branch/PR)
+Gate 4  Test            qa-engineer         →  docs/FeatureRequests/<feature>-<ddMMMyyyy>/04-test-report.md
+                        tester
+Gate 5  Security        security-reviewer   →  docs/FeatureRequests/<feature>-<ddMMMyyyy>/05-security-review.md
+Gate 6  Release         operator            →  docs/FeatureRequests/<feature>-<ddMMMyyyy>/06-release-note.md
+                        technical-writer
+                        devops-engineer
+```
+
+All approvals are recorded in `docs/FeatureRequests/<feature>-<ddMMMyyyy>/03-approvals.md`.
+
+### How to start a feature
+
+Describe the feature in plain English. The `business-analyst` agent will run automatically, explore the codebase, and write the spec. You only need to approve or give feedback at each gate — you do not need to know which agent runs next.
+
+### Agent roster
+
+| Agent | Model | Tools | Role |
+|-------|-------|-------|------|
+| `business-analyst` | sonnet | full | Requirements, user stories, acceptance criteria |
+| `product-owner` | sonnet | full | Prioritisation, MVP boundary, tier gate validation |
+| `solution-architect` | sonnet | full | Technical design, API contracts, migrations, ADRs |
+| `frontend-developer` | sonnet | full | React components, TypeScript, API client |
+| `backend-developer` | sonnet | full | FastAPI routes, services, migrations |
+| `qa-engineer` | sonnet | full | Playwright automated tests |
+| `tester` | sonnet | read-only | Manual / exploratory test plan |
+| `security-reviewer` | sonnet | read-only | Security audit, invariant checklist |
+| `devops-engineer` | sonnet | full | CI/CD, Railway deployment, GitHub Actions |
+| `operator` | sonnet | read-only | Production health, incident diagnosis |
+| `technical-writer` | haiku | full | Release notes, User Guide updates |
+| `e2e-test-engineer` | sonnet | full | Playwright suite maintenance |
+
+### Playwright E2E tests
+
+- Test files: `frontend/e2e/pages/`
+- Auth bypass fixture: `frontend/e2e/fixtures/auth.ts` — never uses real Google OAuth
+- Mock data: `frontend/e2e/mock-data.ts`
+- Config: `frontend/playwright.config.ts`
+- Run locally: `cd frontend && npx playwright test`
+- Nightly CI: `.github/workflows/e2e-nightly.yml` — 1am UTC; also has `workflow_dispatch` for manual runs
+- HTML report uploaded as a CI artifact on every run
+
+### Feature request documents
+
+All feature documentation lives in `docs/FeatureRequests/<feature-slug>-<ddMMMyyyy>/`:
+
+```
+01-spec.md            Requirements, user stories, acceptance criteria
+02-design.md          Technical design, API contracts, schema, caching
+03-approvals.md       Gate-by-gate approval log
+04-test-report.md     Automated + manual test results
+05-security-review.md Security findings and gate decision
+06-release-note.md    Release notes, deployment steps, rollback procedure
+```
+
+Templates are in `docs/FeatureRequests/_template/`.
+Architecture Decision Records go in `docs/adr/NNNN-<title>.md`.
+Operational incident reports go in `docs/ops/YYYY-MM-DD-<title>.md`.
