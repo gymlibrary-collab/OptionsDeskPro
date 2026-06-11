@@ -1,5 +1,6 @@
-import time
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -215,12 +216,9 @@ async def scan_watchlist(
             on_conflict="user_id,month",
         ).execute()
 
-    results = []
-
-    for symbol in symbol_list:
+    def _scan_one(symbol: str) -> dict:
         try:
             iv_data = get_iv_rank(symbol)
-            time.sleep(0.5)  # Avoid yfinance rate limiting
             bias_data = get_directional_bias(symbol)
 
             iv_env = iv_data.get("iv_environment", "MEDIUM")
@@ -228,7 +226,6 @@ async def scan_watchlist(
             recs = recommend_strategies(iv_env, bias)
             top_rec = recs[0] if recs else None
 
-            # Add brief narrative (headline + confirmation_summary) for scan table
             scan_narrative = None
             if top_rec:
                 try:
@@ -239,7 +236,7 @@ async def scan_watchlist(
                 except Exception as e:
                     logger.debug(f"Scan narrative failed for {symbol}: {e}")
 
-            results.append({
+            return {
                 "symbol": symbol,
                 "price": bias_data.get("price", 0.0),
                 "iv_rank": iv_data.get("iv_rank", 0.0),
@@ -252,11 +249,10 @@ async def scan_watchlist(
                 "top_strategy": top_rec,
                 "scan_narrative": scan_narrative,
                 "error": iv_data.get("error") or bias_data.get("error"),
-            })
-
+            }
         except Exception as e:
             logger.error(f"Scan error for {symbol}: {e}")
-            results.append({
+            return {
                 "symbol": symbol,
                 "price": 0.0,
                 "iv_rank": 0.0,
@@ -267,8 +263,14 @@ async def scan_watchlist(
                 "bias_strength": "MODERATE",
                 "rsi14": 50.0,
                 "top_strategy": None,
+                "scan_narrative": None,
                 "error": str(e),
-            })
+            }
+
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=min(len(symbol_list), 8)) as pool:
+        tasks = [loop.run_in_executor(pool, _scan_one, sym) for sym in symbol_list]
+        results = list(await asyncio.gather(*tasks))
 
     # Sort by IVR descending — highest opportunity first
     results.sort(key=lambda x: x.get("iv_rank", 0.0), reverse=True)

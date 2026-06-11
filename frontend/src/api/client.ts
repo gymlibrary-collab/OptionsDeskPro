@@ -142,7 +142,7 @@ export const getPortfolio = () =>
 export const getPositionsRisk = (): Promise<PositionRisk[]> =>
   api.get<PositionRisk[]>('/positions/risk').then(r => r.data)
 
-// ─── Strategy Intelligence ─────────────────────────────────────────────
+// ─── Strategy Intelligence ───────────────────────────────────────────────────────
 
 export interface StrategyRecommendation {
   key: string
@@ -168,6 +168,7 @@ export interface TradeLeg {
   ask: number
   mid: number
   action: string
+  expiry?: string
 }
 
 export interface Narrative {
@@ -252,7 +253,7 @@ export const analyzeSymbol = (symbol: string): Promise<AnalyzeSymbolResponse> =>
   api.get(`/strategies/analyze/${symbol}`).then(r => r.data)
 
 export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
-  api.get(`/strategies/scan`, { params: { symbols } }).then(r => r.data)
+  api.get(`/strategies/scan`, { params: { symbols }, timeout: 60000 }).then(r => r.data)
 
 export const getBrokerAccount = () =>
   api.get('/broker/account').then(r => r.data)
@@ -260,7 +261,7 @@ export const getBrokerAccount = () =>
 export const getPnLHistory = () =>
   api.get('/auth/pnl-history').then(r => r.data)
 
-// ─── Trading Desk — Reddit buzz ───────────────────────────────────────────
+// ─── Trading Desk — Reddit buzz ─────────────────────────────────────────────────────
 
 export interface RedditPost {
   title: string
@@ -279,7 +280,7 @@ export const getTokensBuzz     = (): Promise<RedditPost[]> => api.get('/trading/
 export const getSelectedBuzz   = (symbols: string): Promise<RedditPost[]> =>
   api.get(`/trading/buzz/selected?symbols=${encodeURIComponent(symbols)}`).then(r => r.data)
 
-// ─── Stock Orders ────────────────────────────────────────────────────────────
+// ─── Stock Orders ──────────────────────────────────────────────────────────────────
 
 export interface StockOrderRequest {
   symbol: string
@@ -308,7 +309,7 @@ export const placeStockOrder = (order: StockOrderRequest): Promise<StockOrder> =
 export const getStockOrders = (): Promise<StockOrder[]> =>
   api.get<StockOrder[]>('/stock-orders').then(r => r.data)
 
-// ─── Trade Recording (real trades for monitoring) ───────────────────────────
+// ─── Trade Recording (real trades for monitoring) ────────────────────────────────────────
 
 export interface TradeLegRecord {
   role: string
@@ -331,7 +332,7 @@ export interface TradeRecordRequest {
 export const recordTrade = (req: TradeRecordRequest): Promise<{ recorded: number; strategy: string }> =>
   api.post('/trades/record', req).then(r => r.data)
 
-// ─── Watchlist ────────────────────────────────────────────────────────────────
+// ─── Watchlist ───────────────────────────────────────────────────────────────────────────
 
 export interface WatchlistState {
   symbols: string[]
