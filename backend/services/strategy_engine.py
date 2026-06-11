@@ -422,6 +422,13 @@ STRATEGIES = {
     },
 }
 
+SELLER_STRATEGIES = {
+    "covered_call", "short_naked_put", "short_put_vertical", "jade_lizard",
+    "short_naked_call", "short_call_vertical", "reverse_jade_lizard",
+    "short_strangle", "short_straddle", "iron_condor", "iron_fly",
+    "put_calendar", "call_calendar",
+}
+
 # Bias compatibility mapping: a given bias can also match broader categories
 BIAS_COMPATIBILITY = {
     "BULLISH": ["BULLISH"],
@@ -535,6 +542,58 @@ def recommend_by_category(iv_env: str) -> dict:
     return result
 
 
+def _find_earnings_adjusted_expiry(expirations: list, dte_target: int, earnings_date_str: str, is_seller: bool):
+    """
+    Returns (expiry, note) adjusted around an upcoming earnings date.
+    Sellers: use last expiry BEFORE earnings (min 7 DTE); fall back to first post-earnings.
+    Buyers: use first expiry AFTER earnings closest to dte_target.
+    """
+    try:
+        earn_date = date.fromisoformat(earnings_date_str)
+    except Exception:
+        return None, None
+
+    today = date.today()
+    sorted_exps = sorted(expirations)
+
+    if is_seller:
+        pre = [e for e in sorted_exps if date.fromisoformat(e) < earn_date and (date.fromisoformat(e) - today).days >= 7]
+        if pre:
+            expiry = pre[-1]
+            dte = (date.fromisoformat(expiry) - today).days
+            note = (
+                f"Earnings awareness active: {earnings_date_str} earnings detected. "
+                f"As a premium seller, this trade uses the {expiry} expiry ({dte} DTE) — "
+                f"expiring BEFORE earnings to avoid the post-announcement IV crush risk."
+            )
+            return expiry, note
+        post = [e for e in sorted_exps if date.fromisoformat(e) > earn_date]
+        if post:
+            target = today + timedelta(days=dte_target)
+            expiry = min(post, key=lambda e: abs((date.fromisoformat(e) - target).days))
+            dte = (date.fromisoformat(expiry) - today).days
+            note = (
+                f"Earnings awareness active: {earnings_date_str} earnings detected. "
+                f"No pre-earnings expiry with sufficient DTE found; using {expiry} ({dte} DTE) after earnings. "
+                f"Size at half normal allocation given elevated earnings risk."
+            )
+            return expiry, note
+    else:
+        post = [e for e in sorted_exps if date.fromisoformat(e) > earn_date]
+        if post:
+            target = today + timedelta(days=dte_target)
+            expiry = min(post, key=lambda e: abs((date.fromisoformat(e) - target).days))
+            dte = (date.fromisoformat(expiry) - today).days
+            note = (
+                f"Earnings awareness active: {earnings_date_str} earnings detected. "
+                f"As a premium buyer, this trade uses the {expiry} expiry ({dte} DTE) — "
+                f"expiring AFTER earnings to capture the post-announcement move."
+            )
+            return expiry, note
+
+    return None, None
+
+
 def _find_nearest_expiry(expirations: list, dte_target: int = 45) -> str | None:
     """Find the expiration date closest to today + dte_target days."""
     if not expirations:
@@ -577,7 +636,7 @@ def _mid(contract: dict) -> float:
     return round(contract.get("lastPrice", 0.0), 2)
 
 
-def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price: float) -> dict:
+def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price: float, earnings_data: dict | None = None) -> dict:
     """
     Given a strategy key and live options chain (already enriched with greeks),
     find the nearest 45 DTE expiry and select strikes closest to the delta targets.
@@ -589,7 +648,23 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         return {"error": f"Unknown strategy: {strategy_key}"}
 
     expirations = options_chain.get("expirations", [])
-    expiry = _find_nearest_expiry(expirations, strat["dte_target"])
+    earnings_note: str | None = None
+    earnings_adjusted = False
+
+    if earnings_data:
+        earn_date_str = earnings_data.get("earnings_date") or earnings_data.get("next_earnings_date")
+        if earn_date_str:
+            is_seller = strategy_key in SELLER_STRATEGIES
+            adj_expiry, note = _find_earnings_adjusted_expiry(
+                expirations, strat["dte_target"], earn_date_str, is_seller
+            )
+            if adj_expiry:
+                expiry = adj_expiry
+                earnings_note = note
+                earnings_adjusted = True
+
+    if not earnings_adjusted:
+        expiry = _find_nearest_expiry(expirations, strat["dte_target"])
     if not expiry:
         return {"error": "No expirations available"}
 
@@ -1048,4 +1123,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         "tastylive_profit_target": tastylive_profit_target,
         "risk_type": strat["risk_type"],
         "profit_target_pct": strat["profit_target_pct"],
+        "earnings_adjusted": earnings_adjusted,
+        "earnings_note": earnings_note,
     }

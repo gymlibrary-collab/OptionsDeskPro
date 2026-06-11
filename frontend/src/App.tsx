@@ -70,8 +70,8 @@ function Dashboard() {
     { key: 'chain', label: 'Options Chain', short: 'Chain' },
     { key: 'positions', label: 'Positions', short: 'P&L' },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
-    { key: 'ai', label: 'AI Features', short: 'AI' },
     { key: 'guide', label: 'User Guide', short: 'Guide' },
+    { key: 'ai', label: 'AI Features', short: 'AI' },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'Admin', short: 'Admin' }] : []),
   ]
 
@@ -82,7 +82,7 @@ function Dashboard() {
     .join('')
     .toUpperCase()
 
-  const showSidebar = !!selectedTrade && !isMobile && activeDesk === 'options' && activeTab !== 'admin' && activeTab !== 'guide'
+  const showSidebar = !!selectedTrade && !isMobile && activeDesk === 'options' && activeTab !== 'admin' && activeTab !== 'guide' && activeTab !== 'ai'
 
   const deskBtn = (desk: Desk, label: string) => (
     <button
@@ -222,11 +222,11 @@ function Dashboard() {
               <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
                 <StrategyScanner onSelectTrade={handleSelectTrade} />
               </div>
-              <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}>
-                <AISettings />
-              </div>
               <div style={{ display: activeTab === 'guide' ? 'block' : 'none' }}>
                 <UserGuide isAdmin={isAdmin} />
+              </div>
+              <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}>
+                <AISettings />
               </div>
               {isAdmin && (
                 <div style={{ display: activeTab === 'admin' ? 'block' : 'none' }}>
