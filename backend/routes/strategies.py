@@ -2,15 +2,18 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials
 
+from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_strategies, recommend_by_category, build_trade, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
-from services.auth_utils import verify_token
+from services.auth_utils import verify_token, security as bearer_security
 from services.db import get_supabase
 from services.tier_limits import get_user_tier, get_limits
 
@@ -79,7 +82,10 @@ def _get_enriched_chain_for_symbol(symbol: str, expiry: str | None = None) -> tu
 
 
 @router.get("/strategies/analyze/{symbol}")
-async def analyze_symbol(symbol: str):
+async def analyze_symbol(
+    symbol: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
+):
     """
     Full analysis: IV rank, directional bias, and top 3 strategy recommendations
     per direction category (Bullish, Bearish, Neutral, Neutral-Bullish,
@@ -109,12 +115,52 @@ async def analyze_symbol(symbol: str):
         raw = synthetic_options_chain(symbol, spot, current_iv)
         enriched_chain = _enrich_chain_with_greeks(raw, spot)
         enriched_chain["_synthetic"] = True
+    else:
+        # Re-fetch the chain for the target expiry (closest to 45 DTE) so that
+        # build_trade has contract data for the right cycle, not just the front month.
+        expirations = enriched_chain.get("expirations", [])
+        target = _date.today()
+        from datetime import timedelta as _td
+        ideal_date = target + _td(days=45)
+        best_exp = None
+        best_diff = None
+        for exp_str in expirations:
+            try:
+                d = _date.fromisoformat(exp_str)
+                diff = abs((d - ideal_date).days)
+                if best_diff is None or diff < best_diff:
+                    best_diff = diff
+                    best_exp = exp_str
+            except ValueError:
+                continue
+        loaded_exp = enriched_chain.get("expiry")
+        if best_exp and best_exp != loaded_exp:
+            try:
+                _, enriched_chain = _get_enriched_chain_for_symbol(symbol, best_exp)
+                logger.info(f"Reloaded chain for {symbol} at target expiry {best_exp}")
+            except Exception as e:
+                logger.warning(f"Could not reload chain for {best_exp}: {e}")
 
     try:
         market_ctx = get_full_market_context(symbol, enriched_chain)
     except Exception as e:
         logger.warning(f"market_context failed for {symbol}: {e}")
         market_ctx = {}
+
+    # Check earnings awareness setting for authenticated users
+    earnings_data: dict | None = None
+    if credentials:
+        try:
+            from services.db import get_supabase
+            sb = get_supabase()
+            result = sb.auth.get_user(credentials.credentials)
+            if result.user:
+                user_id = result.user.id
+                s = sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", user_id).execute()
+                if s.data and s.data[0].get("earnings_awareness_enabled"):
+                    earnings_data = (market_ctx or {}).get("earnings") or {}
+        except Exception:
+            pass
 
     # Build trades for all unique strategy keys across categories
     unique_keys = {
@@ -125,7 +171,7 @@ async def analyze_symbol(symbol: str):
     trades_by_key: dict = {}
     for strategy_key in unique_keys:
         try:
-            trade = build_trade(symbol, strategy_key, enriched_chain, spot)
+            trade = build_trade(symbol, strategy_key, enriched_chain, spot, earnings_data=earnings_data)
             if enriched_chain.get("_synthetic"):
                 trade["_synthetic"] = True
         except Exception as e:
