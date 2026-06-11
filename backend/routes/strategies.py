@@ -3,6 +3,7 @@ import logging
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 
+from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_strategies, recommend_by_category, build_trade, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
@@ -108,6 +109,31 @@ async def analyze_symbol(symbol: str):
         raw = synthetic_options_chain(symbol, spot, current_iv)
         enriched_chain = _enrich_chain_with_greeks(raw, spot)
         enriched_chain["_synthetic"] = True
+    else:
+        # Re-fetch the chain for the target expiry (closest to 45 DTE) so that
+        # build_trade has contract data for the right cycle, not just the front month.
+        expirations = enriched_chain.get("expirations", [])
+        target = _date.today()
+        from datetime import timedelta as _td
+        ideal_date = target + _td(days=45)
+        best_exp = None
+        best_diff = None
+        for exp_str in expirations:
+            try:
+                d = _date.fromisoformat(exp_str)
+                diff = abs((d - ideal_date).days)
+                if best_diff is None or diff < best_diff:
+                    best_diff = diff
+                    best_exp = exp_str
+            except ValueError:
+                continue
+        loaded_exp = enriched_chain.get("expiry")
+        if best_exp and best_exp != loaded_exp:
+            try:
+                _, enriched_chain = _get_enriched_chain_for_symbol(symbol, best_exp)
+                logger.info(f"Reloaded chain for {symbol} at target expiry {best_exp}")
+            except Exception as e:
+                logger.warning(f"Could not reload chain for {best_exp}: {e}")
 
     try:
         market_ctx = get_full_market_context(symbol, enriched_chain)
