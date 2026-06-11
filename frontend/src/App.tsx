@@ -10,13 +10,14 @@ import PnLChart from './components/PnLChart'
 import RiskMonitor from './components/RiskMonitor'
 import UserGuide from './components/UserGuide'
 import TradingDesk from './components/TradingDesk'
+import AISettings from './components/AISettings'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useWindowSize } from './hooks/useWindowSize'
 import { TradeStructure } from './api/client'
 import api from './api/client'
 
 type Desk = 'options' | 'trading'
-type Tab = 'chain' | 'positions' | 'scanner' | 'admin' | 'guide'
+type Tab = 'chain' | 'positions' | 'scanner' | 'admin' | 'guide' | 'ai'
 
 const C = {
   bg: '#0f1117',
@@ -69,6 +70,7 @@ function Dashboard() {
     { key: 'chain', label: 'Options Chain', short: 'Chain' },
     { key: 'positions', label: 'Positions', short: 'P&L' },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
+    { key: 'ai', label: 'AI Features', short: 'AI' },
     { key: 'guide', label: 'User Guide', short: 'Guide' },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'Admin', short: 'Admin' }] : []),
   ]
@@ -219,6 +221,9 @@ function Dashboard() {
               </div>
               <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
                 <StrategyScanner onSelectTrade={handleSelectTrade} />
+              </div>
+              <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}>
+                <AISettings />
               </div>
               <div style={{ display: activeTab === 'guide' ? 'block' : 'none' }}>
                 <UserGuide isAdmin={isAdmin} />
