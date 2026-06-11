@@ -159,9 +159,12 @@ export default function Positions() {
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([getPositions(), getPortfolio()])
-      .then(([pos, sum]) => { setPositions(pos); setSummary(sum); setLastRefresh(new Date()) })
-      .catch(() => {})
+    Promise.allSettled([getPositions(), getPortfolio()])
+      .then(([posResult, sumResult]) => {
+        if (posResult.status === 'fulfilled') setPositions(posResult.value)
+        if (sumResult.status === 'fulfilled') setSummary(sumResult.value)
+        setLastRefresh(new Date())
+      })
       .finally(() => setLoading(false))
   }, [])
 
