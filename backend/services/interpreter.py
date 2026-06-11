@@ -949,7 +949,6 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"is what the options are written against. Without the shares, the short call is 'naked' (higher margin required)."
         )
 
-    # Consolidate duplicate option legs (same strike + action + type, e.g. butterfly body)
     seen_leg_keys: dict = {}
     consolidated_option_legs = []
     for leg in option_legs:
@@ -1164,7 +1163,7 @@ def _confirmation_summary(symbol: str, trade: dict, strategy: dict) -> str:
 
     return (
         f"TRADE SUMMARY\n"
-        f"{'─' * 40}\n"
+        f"{chr(9472) * 40}\n"
         f"Position:    1× {strat_name} on {symbol}\n"
         f"Expiry:      {expiry} ({dte} days away)\n"
         f"Entry:       {cash_line}\n"
@@ -1174,7 +1173,7 @@ def _confirmation_summary(symbol: str, trade: dict, strategy: dict) -> str:
         f"{target_line}\n"
         f"Probability: {pop_range[0]}–{pop_range[1]}% estimated chance of profit\n"
         f"Risk type:   {'Defined — max loss is fixed' if risk_type == 'DEFINED' else 'Undefined — size small, use 2× stop'}\n"
-        f"{'─' * 40}\n"
+        f"{chr(9472) * 40}\n"
         f"If everything looks right, use the Order Entry panel to place each leg."
     )
 
