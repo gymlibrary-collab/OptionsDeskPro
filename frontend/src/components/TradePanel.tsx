@@ -115,10 +115,10 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
         },
       }
       if (aiReasoningEnabled) {
-        const res = await aiStrategyReasoning(payload)
+        const res = await aiStrategyReasoning(payload.symbol, payload.iv_analysis, payload.bias_analysis, payload.strategy, payload.trade)
         setAiInsight(res.reasoning || 'No insight available.')
       } else {
-        const res = await aiEnhanceNarrative(payload)
+        const res = await aiEnhanceNarrative(payload.symbol, payload.iv_analysis, payload.bias_analysis, payload.strategy, payload.trade)
         setAiInsight(res.insight || 'No insight available.')
       }
     } catch (e: any) {
