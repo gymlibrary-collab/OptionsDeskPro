@@ -330,7 +330,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
         {(aiNarrativeEnabled || aiReasoningEnabled) && (
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
-              onClick={fetchAIInsight}
+              onClick={() => fetchAIInsight()}
               disabled={aiLoading}
               style={{
                 background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
