@@ -327,21 +327,11 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
           </div>
         )}
 
-        {(aiNarrativeEnabled || aiReasoningEnabled) && (
+        {(aiNarrativeEnabled || aiReasoningEnabled) && (aiLoading || aiInsight || aiError) && (
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button
-              onClick={() => fetchAIInsight()}
-              disabled={aiLoading}
-              style={{
-                background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
-                color: C.accent, padding: '8px 14px', fontSize: '12px', fontWeight: 700,
-                cursor: aiLoading ? 'default' : 'pointer', opacity: aiLoading ? 0.6 : 1,
-                display: 'flex', alignItems: 'center', gap: '6px',
-              }}
-            >
-              <span>✦</span>
-              {aiLoading ? 'Analysing setup…' : aiInsight ? 'Refresh AI Insight' : 'Get AI Insight'}
-            </button>
+            {aiLoading && (
+              <div style={{ fontSize: '12px', color: C.muted }}>✦ Generating AI insight…</div>
+            )}
             {aiError && <div style={{ fontSize: '12px', color: C.red }}>{aiError}</div>}
             {aiInsight && (
               <div style={{
