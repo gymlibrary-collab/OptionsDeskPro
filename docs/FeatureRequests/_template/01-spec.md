@@ -63,7 +63,7 @@ _Explicit list of what this feature does NOT include._
 ## 6. Edge Cases & Failure Modes
 
 | Scenario | Expected Behaviour |
-|----------|-----------------|
+|----------|-------------------|
 | Market data unavailable | |
 | Tier limit reached | |
 | AI quota exhausted | |
@@ -87,7 +87,7 @@ _Explicit list of what this feature does NOT include._
 ## 8. Subscription Tier Impact
 
 | Tier | Behaviour |
-|------|-----------|
+|------|----------|
 | free | |
 | starter | |
 | pro | |

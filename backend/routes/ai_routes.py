@@ -150,7 +150,7 @@ def ai_risk_summary(body: RiskSummaryRequest, payload: dict = Depends(verify_tok
 def ai_strategy_reasoning(body: StrategyReasoningRequest, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     settings = _get_settings(user_id)
-    if not settings.get("strategy_reasoning_enabled"):
+    if not settings.get("strategy_reasoning_enabled")):
         raise HTTPException(status_code=403, detail="AI Strategy Reasoning is disabled. Enable it in AI Settings.")
 
     from services import ai_service

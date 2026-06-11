@@ -62,7 +62,7 @@ _One paragraph: what is being built, the key technical decisions, and the approa
 
 **Error responses:**
 | Status | Condition |
-|--------|-----------|
+|--------|----------|
 | 401 | Not authenticated |
 | 403 | Not authorised (admin required) |
 | 422 | Validation error |
