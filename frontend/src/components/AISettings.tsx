@@ -1,102 +1,69 @@
-import { useEffect, useState, useRef } from 'react'
-import {
-  AISettings as AISettingsType,
-  getAISettings,
-  updateAISettings,
-  aiChat,
-} from '../api/client'
+import React, { useEffect, useRef, useState } from 'react'
+import { getAISettings, updateAISettings, aiChat, AISettings as AISettingsType } from '../api/client'
 
 const C = {
   bg: '#0f1117',
   surface: '#1a1d27',
-  surface2: '#252836',
+  surface2: '#20243a',
   border: '#2d3148',
   text: '#e2e8f0',
-  muted: '#64748b',
+  muted: '#94a3b8',
   accent: '#7c6af7',
   green: '#22c55e',
   red: '#ef4444',
-  yellow: '#f59e0b',
+  purple: '#a78bfa',
 }
 
-const FEATURES: {
-  key: keyof AISettingsType
-  label: string
-  description: string
-  tier: string
-}[] = [
+const FEATURES: { key: keyof AISettingsType; label: string; description: string; badge?: string }[] = [
   {
     key: 'narrative_enabled',
-    label: 'AI Coach Insight',
-    description:
-      'Adds a 3–5 sentence coaching paragraph to the Trade Panel explaining why a setup has edge right now — grounded in the exact IV rank, bias, and risk numbers.',
-    tier: 'Beta · All users',
+    label: 'AI Narrative Enhancement',
+    description: 'Adds a Claude-written coaching paragraph to each strategy setup — explains the specific IV/bias edge, exact numbers, and what has to go wrong for the trade to lose.',
   },
   {
     key: 'chat_enabled',
     label: 'Portfolio Chat',
-    description:
-      'Ask natural-language questions about your open positions, P&L, and portfolio health. Answers are grounded in your actual trades.',
-    tier: 'Beta · All users',
+    description: 'Ask plain-English questions about your open positions. Claude answers using your real portfolio data — P&L, strikes, expiry, and strategy context.',
+    badge: 'Chat',
   },
   {
     key: 'risk_summary_enabled',
-    label: 'AI Risk Overview',
-    description:
-      'One-paragraph risk analysis of your entire portfolio — most urgent action, overall health, and one specific recommendation.',
-    tier: 'Beta · All users',
+    label: 'AI Risk Summary',
+    description: 'One-paragraph portfolio health overview from Claude — most urgent action needed, things to watch, and a concrete recommendation. Appears in the Risk Monitor.',
   },
   {
     key: 'strategy_reasoning_enabled',
     label: 'Strategy Reasoning',
-    description:
-      'Why is this the top-ranked strategy for this ticker right now? 3–4 sentences on the IV+bias combination, concrete edge, and what could go wrong.',
-    tier: 'Beta · All users',
+    description: 'Explains in 3–4 sentences why the top-ranked strategy is the best fit right now — the specific IV+bias combination, one concrete edge, and what has to go wrong.',
   },
   {
     key: 'earnings_awareness_enabled',
     label: 'Earnings Awareness',
-    description:
-      'Adjusts the recommended expiry cycle to account for upcoming earnings. ' +
-      'Premium sellers are routed to a pre-earnings expiry (avoiding IV crush). ' +
-      'Premium buyers are routed to a post-earnings expiry (capturing the move). ' +
-      'The trade narrative explains the adjustment.',
-    tier: 'Beta · All users',
+    description: 'Adjusts recommended expiry cycles around upcoming earnings. Premium sellers are routed to pre-earnings expiries; buyers to post-earnings. The narrative explains the adjustment.',
+    badge: 'Smart',
   },
 ]
 
-function Toggle({ enabled, onChange, disabled }: { enabled: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div
-      onClick={() => !disabled && onChange(!enabled)}
+    <button
+      onClick={() => onChange(!on)}
       style={{
-        width: '42px', height: '24px', borderRadius: '12px',
-        background: enabled ? C.accent : C.surface2,
-        cursor: disabled ? 'default' : 'pointer',
-        position: 'relative', transition: 'background 0.2s',
-        border: `1px solid ${enabled ? C.accent : '#3a3f5c'}`,
-        flexShrink: 0, opacity: disabled ? 0.5 : 1,
+        width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+        background: on ? C.accent : '#3a3f5c', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
       }}
     >
-      <div style={{
-        position: 'absolute', top: '3px',
-        left: enabled ? '20px' : '3px',
-        width: '16px', height: '16px', borderRadius: '50%',
-        background: '#fff', transition: 'left 0.2s',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+      <span style={{
+        position: 'absolute', top: '3px', left: on ? '23px' : '3px', width: '18px', height: '18px',
+        borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
       }} />
-    </div>
+    </button>
   )
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  text: string
-}
-
 function ChatPanel() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
+  const [question, setQuestion] = useState('')
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -105,89 +72,68 @@ function ChatPanel() {
   }, [messages])
 
   const send = async () => {
-    const q = input.trim()
+    const q = question.trim()
     if (!q || loading) return
-    setInput('')
-    setMessages(prev => [...prev, { role: 'user', text: q }])
+    setQuestion('')
+    setMessages(m => [...m, { role: 'user', text: q }])
     setLoading(true)
     try {
-      const { answer } = await aiChat(q)
-      setMessages(prev => [...prev, { role: 'assistant', text: answer }])
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail || 'Something went wrong — please try again.'
-      setMessages(prev => [...prev, { role: 'assistant', text: detail }])
+      const res = await aiChat(q)
+      setMessages(m => [...m, { role: 'ai', text: res.answer }])
+    } catch {
+      setMessages(m => [...m, { role: 'ai', text: 'Could not reach the AI — please try again.' }])
     } finally {
       setLoading(false)
     }
   }
 
-  const onKey = (e: React.KeyboardEvent) => {
+  const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
   return (
-    <div style={{
-      background: C.surface2, borderRadius: '10px', border: `1px solid ${C.border}`,
-      display: 'flex', flexDirection: 'column', maxHeight: '420px',
-    }}>
-      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: C.accent }}>Portfolio Chat</span>
-        <span style={{ fontSize: '11px', color: C.muted, marginLeft: '8px' }}>
-          Ask about your positions, P&L, or strategy ideas
-        </span>
+    <div style={{ marginTop: '16px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, fontSize: '12px', color: C.muted, fontWeight: 600, letterSpacing: '0.05em' }}>
+        PORTFOLIO CHAT
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '120px' }}>
+      <div style={{ minHeight: '120px', maxHeight: '280px', overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {messages.length === 0 && (
-          <div style={{ color: C.muted, fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>
-            Ask something like "Which position has the most risk?" or "Am I net long or short volatility?"
-          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: C.muted, fontStyle: 'italic' }}>
+            Ask anything about your portfolio — e.g. "Which position has the most risk?" or "What's my total P&L this month?"
+          </p>
         )}
         {messages.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '85%',
-            background: m.role === 'user' ? C.accent + '22' : C.surface,
-            border: `1px solid ${m.role === 'user' ? C.accent + '44' : C.border}`,
-            borderRadius: m.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-            padding: '8px 12px',
-            fontSize: '12px',
-            color: C.text,
-            lineHeight: 1.6,
-          }}>
-            {m.text}
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth: '85%', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', lineHeight: 1.55,
+              background: m.role === 'user' ? C.accent : C.surface2,
+              color: m.role === 'user' ? '#fff' : C.text,
+            }}>
+              {m.text}
+            </div>
           </div>
         ))}
         {loading && (
-          <div style={{
-            alignSelf: 'flex-start', background: C.surface, border: `1px solid ${C.border}`,
-            borderRadius: '10px 10px 10px 2px', padding: '8px 12px', fontSize: '12px', color: C.muted,
-          }}>
-            Thinking…
+          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+            <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 12px', fontSize: '13px', color: C.muted }}>
+              Thinking…
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
-      <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: '8px' }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={onKey}
-          placeholder="Ask about your portfolio…"
-          rows={2}
-          style={{
-            flex: 1, background: C.surface, border: `1px solid #3a3f5c`, borderRadius: '6px',
-            color: C.text, padding: '8px 10px', fontSize: '12px', resize: 'none',
-            outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
-          }}
+      <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: '8px' }}>
+        <input
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Ask about your positions…"
+          style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.text, padding: '7px 10px', fontSize: '13px', outline: 'none' }}
         />
         <button
           onClick={send}
-          disabled={!input.trim() || loading}
-          style={{
-            background: C.accent, border: 'none', borderRadius: '6px', color: '#fff',
-            padding: '0 16px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-            opacity: !input.trim() || loading ? 0.5 : 1, alignSelf: 'stretch',
-          }}
+          disabled={loading || !question.trim()}
+          style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '7px 14px', fontSize: '13px', fontWeight: 600, cursor: loading || !question.trim() ? 'not-allowed' : 'pointer', opacity: loading || !question.trim() ? 0.5 : 1 }}
         >
           Send
         </button>
@@ -197,80 +143,87 @@ function ChatPanel() {
 }
 
 export default function AISettings() {
-  const [settings, setSettings] = useState<AISettingsType | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [settings, setSettings] = useState<AISettingsType>({
+    narrative_enabled: false,
+    chat_enabled: false,
+    risk_summary_enabled: false,
+    strategy_reasoning_enabled: false,
+    earnings_awareness_enabled: false,
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<keyof AISettingsType | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getAISettings().then(setSettings).catch(() => setError('Failed to load AI settings'))
+    getAISettings()
+      .then(setSettings)
+      .catch(() => setError('Could not load AI settings.'))
+      .finally(() => setLoading(false))
   }, [])
 
   const toggle = async (key: keyof AISettingsType) => {
-    if (!settings || saving) return
+    const prev = settings
     const updated = { ...settings, [key]: !settings[key] }
     setSettings(updated)
-    setSaving(true)
+    setSaving(key)
     try {
       await updateAISettings(updated)
     } catch {
-      setSettings(settings)
-      setError('Failed to save — please try again')
+      setSettings(prev)
+      setError('Failed to save — please try again.')
     } finally {
-      setSaving(false)
+      setSaving(null)
     }
   }
 
+  if (loading) {
+    return (
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 0', textAlign: 'center', color: C.muted, fontSize: '14px' }}>
+        Loading AI settings…
+      </div>
+    )
+  }
+
   return (
-    <div style={{ maxWidth: '680px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '16px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>AI Features</div>
-        <div style={{ fontSize: '13px', color: C.muted, lineHeight: 1.5 }}>
-          Powered by Claude. Toggle features on or off — they apply instantly. In a future release, some
-          features will be gated by subscription tier.
-        </div>
-        {error && <div style={{ marginTop: '8px', fontSize: '12px', color: C.red }}>{error}</div>}
+    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 0' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 700, color: C.text }}>AI Features</h2>
+        <p style={{ margin: 0, fontSize: '14px', color: C.muted, lineHeight: 1.6 }}>
+          Toggle Claude-powered features on or off. Each feature uses the Anthropic API — costs are minimal for normal usage.
+        </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
+      {error && (
+        <div style={{ background: '#2d1515', border: `1px solid ${C.red}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: C.red }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {FEATURES.map(f => (
-          <div
-            key={f.key}
-            style={{
-              background: C.surface, border: `1px solid ${settings?.[f.key] ? C.accent + '55' : C.border}`,
-              borderRadius: '10px', padding: '14px 16px',
-              display: 'flex', alignItems: 'flex-start', gap: '14px',
-              transition: 'border-color 0.2s',
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{f.label}</span>
-                <span style={{
-                  fontSize: '10px', padding: '1px 7px', borderRadius: '8px',
-                  background: '#1a1440', border: `1px solid ${C.accent}44`, color: C.accent,
-                  fontWeight: 600, whiteSpace: 'nowrap',
-                }}>{f.tier}</span>
+          <div key={f.key} style={{ background: C.surface, border: `1px solid ${settings[f.key] ? C.accent : C.border}`, borderRadius: '10px', padding: '16px 20px', transition: 'border-color 0.2s' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: C.text }}>{f.label}</span>
+                  {f.badge && (
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: C.accent + '33', color: C.purple, letterSpacing: '0.05em' }}>
+                      {f.badge}
+                    </span>
+                  )}
+                  {saving === f.key && (
+                    <span style={{ fontSize: '11px', color: C.muted }}>saving…</span>
+                  )}
+                </div>
+                <p style={{ margin: 0, fontSize: '13px', color: C.muted, lineHeight: 1.55 }}>{f.description}</p>
               </div>
-              <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.55 }}>{f.description}</div>
+              <Toggle on={settings[f.key]} onChange={() => toggle(f.key)} />
             </div>
-            <Toggle
-              enabled={!!settings?.[f.key]}
-              onChange={() => toggle(f.key)}
-              disabled={!settings || saving}
-            />
+
+            {f.key === 'chat_enabled' && settings.chat_enabled && <ChatPanel />}
           </div>
         ))}
       </div>
-
-      {!settings && (
-        <div style={{ color: C.muted, fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-          Loading settings…
-        </div>
-      )}
-
-      {settings?.chat_enabled && (
-        <ChatPanel />
-      )}
     </div>
   )
 }
