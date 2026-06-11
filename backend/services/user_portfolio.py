@@ -177,8 +177,6 @@ def get_positions(user_id: str) -> list[Position]:
         try:
             chain = get_options_chain(symbol, expiry)
             actual_expiry = chain.get("expiry") or expiry
-            if actual_expiry != expiry:
-                continue
             for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
                 for c in contracts:
                     bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
@@ -186,6 +184,8 @@ def get_positions(user_id: str) -> list[Position]:
                     if price > 0:
                         strike_key = round(float(c["strike"]), 2)
                         price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
+                        if actual_expiry != expiry:
+                            price_lookup[(symbol, expiry, strike_key, otype)] = price
         except Exception:
             pass
 
