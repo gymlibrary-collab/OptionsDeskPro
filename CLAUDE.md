@@ -20,9 +20,10 @@ options/
 │   │   ├── positions.py      /api/positions, /api/portfolio, /api/positions/snapshot
 │   │   ├── strategies.py     /api/strategies — IV analysis, bias, scanner
 │   │   ├── watchlist.py      /api/watchlist — GET/PUT persisted watchlist + tier limits
-│   │   ├── trading_routes.py /api/trading/buzz/* — Reddit sentiment feeds
+│   │   ├── trading_routes.py /api/trading/buzz/* — StockTwits sentiment feeds
 │   │   ├── auth_routes.py    /api/auth — login, me, pnl-history
-│   │   └── admin_routes.py   /api/admin — user list, whitelist, stats
+│   │   ├── admin_routes.py   /api/admin — user list, whitelist, stats
+│   │   └── ai_routes.py      /api/ai/* — AI settings + Claude-powered endpoints
 │   ├── services/
 │   │   ├── auth_utils.py     JWT verify (via Supabase Auth API), admin check
 │   │   ├── db.py             Supabase client factory
@@ -32,18 +33,22 @@ options/
 │   │   ├── strategy_engine.py 31-strategy catalog, fit scoring, strike selection
 │   │   ├── interpreter.py    Plain-English narrative generator (7 sections)
 │   │   ├── market_context.py Earnings, news, flow, IV term structure, MACD/ATR
-│   │   ├── portfolio.py      Portfolio value, P&L calc
+│   │   ├── portfolio.py      Portfolio value, P&L calc (legacy class-based)
 │   │   ├── user_portfolio.py Ensure portfolio exists, activity log upsert
 │   │   ├── tier_limits.py    Subscription tier config (free/starter/pro/enterprise)
-│   │   └── reddit.py         Reddit PRAW client for buzz feeds
+│   │   ├── reddit.py         StockTwits public API client for buzz feeds
+│   │   └── ai_service.py     Anthropic Claude API integration (4 LLM features)
 │   └── migrations/
-│       ├── 001_initial_schema.sql        Full DB schema (run first)
-│       ├── 002_whitelist_role.sql        Adds role column to user_whitelist
+│       ├── 001_initial_schema.sql         Full DB schema (run first)
+│       ├── 002_whitelist_role.sql         Adds role column to user_whitelist
 │       ├── 003_position_strategy_link.sql Adds strategy columns to positions/orders
-│       └── 003_watchlist_subscriptions.sql Adds subscription_tier, user_watchlists, scan_usage
+│       ├── 003_watchlist_subscriptions.sql Adds subscription_tier, user_watchlists, scan_usage
+│       ├── 004_ai_settings.sql            Creates ai_settings table (per-user feature toggles)
+│       ├── 004_stock_orders.sql           Creates stock_orders table for paper stock trades
+│       └── 005_earnings_awareness.sql     Adds earnings_awareness_enabled to ai_settings
 ├── frontend/                 React + TypeScript + Vite
 │   └── src/
-│       ├── App.tsx           Root layout, tab routing, mobile drawer
+│       ├── App.tsx           Root layout, tab routing, mobile drawer, desk switcher
 │       ├── api/client.ts     Axios client, all typed API calls
 │       ├── context/AuthContext.tsx  Supabase auth state, isAdmin flag
 │       ├── lib/supabase.ts   Supabase JS client init
@@ -56,13 +61,15 @@ options/
 │           ├── StrategyDetail.tsx   Per-strategy card (legs, metrics)
 │           ├── StrategyNarrative.tsx  7-section narrative accordion
 │           ├── TradePanel.tsx       Trade structure display + order entry
-│           ├── TradingDesk.tsx      Reddit buzz feeds + trading intelligence
-│           ├── OrderEntry.tsx       Paper trade form (sidebar/drawer)
+│           ├── TradingDesk.tsx      StockTwits buzz feeds + trading intelligence
+│           ├── OrderEntry.tsx       Paper options trade form (sidebar/drawer)
+│           ├── StockOrderEntry.tsx  Paper stock trade form (market/limit orders)
 │           ├── Orders.tsx           Order history table
 │           ├── Positions.tsx        Open positions + portfolio summary
 │           ├── RiskMonitor.tsx      Per-position risk signals and alerts
 │           ├── PnLChart.tsx         90-day portfolio value chart
 │           ├── AdminPanel.tsx       User mgmt, whitelist, stats, leaderboard
+│           ├── AISettings.tsx       Toggle 5 AI features per user
 │           └── UserGuide.tsx        In-app help (role-aware sections)
 ├── migrations/
 │   └── add_whitelist_role.sql  (legacy copy — prefer backend/migrations/)
@@ -81,7 +88,9 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 Required env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-Optional env var: `MARKETDATA_API_TOKEN` (from api.marketdata.app — omit to use yfinance only)
+Optional env vars:
+- `MARKETDATA_API_TOKEN` (from api.marketdata.app — omit to use yfinance only)
+- `ANTHROPIC_API_KEY` (from console.anthropic.com — required for AI features; omit to disable AI gracefully)
 
 ### Frontend
 ```bash
@@ -128,6 +137,19 @@ CORS origins are hardcoded in `backend/main.py`. Add new frontend domains there.
 The `MARKETDATA_API_TOKEN` is a backend-only variable — never expose it to the frontend.
 Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
 
+## AI features
+
+`ai_service.py` integrates with Anthropic Claude via `ANTHROPIC_API_KEY`. All four functions return `None` gracefully if the key is absent or the call fails — the frontend hides the AI section when the response is `null`.
+
+The five per-user toggles stored in `ai_settings`:
+1. **narrative_enabled** — adds a coaching paragraph to deep-analysis results
+2. **chat_enabled** — enables portfolio Q&A chat (passes live positions as context)
+3. **risk_summary_enabled** — generates plain-English summary of risk monitor signals
+4. **strategy_reasoning_enabled** — deeper strategy explanation beyond rule-based narrative
+5. **earnings_awareness_enabled** — adjusts DTE targets to avoid upcoming earnings windows
+
+All toggles default to `false`. Users manage them from the **AI Features** tab.
+
 ## Key invariants
 
 - `SUPABASE_JWT_SECRET` is **not** needed — do not add it back; it caused alg errors
@@ -135,6 +157,8 @@ Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
 - Paper trades are stored in Supabase; they do **not** hit a real broker
 - IV rank is computed from 52-week high/low historical volatility (no external feed)
 - `MARKETDATA_API_TOKEN` is backend-only; a 429 on the first request usually means the token is wrong or the free-plan daily quota (100 credits) is exhausted
+- `trading_routes.py` and `reddit.py` use the **StockTwits** public API — the file/module name is a historical misnomer; there is no Reddit/PRAW dependency
+- The `stock_orders` table and `StockOrderEntry.tsx` component exist; the `/api/stock-orders` backend route is not yet implemented
 
 ## Common mistakes to avoid
 
@@ -143,6 +167,7 @@ Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
 - `user_whitelist` must have a `role` column (see migration 002); the initial schema omits it
 - After pushing files via GitHub MCP API, always sync local: `git fetch origin main && git reset --hard origin/main`
 - Do not cast yfinance volume/openInterest directly to `int()` — yfinance returns NaN for some contracts; use `_safe_int()` from `market_data.py`
+- Do not import `ai_service` at module level in route handlers — import inside the function body to avoid loading `anthropic` when the key is absent
 
 ---
 

@@ -31,6 +31,9 @@ This document covers everything needed to rebuild and deploy OptionsDesk from sc
    2. `backend/migrations/002_whitelist_role.sql`
    3. `backend/migrations/003_position_strategy_link.sql`
    4. `backend/migrations/003_watchlist_subscriptions.sql`
+   5. `backend/migrations/004_ai_settings.sql`
+   6. `backend/migrations/004_stock_orders.sql`
+   7. `backend/migrations/005_earnings_awareness.sql`
 
 > If you're starting fresh, the combined schema at the bottom of this file works too,
 > but you'll still need to run the individual migration files for any incremental updates.
@@ -68,6 +71,13 @@ This document covers everything needed to rebuild and deploy OptionsDesk from sc
    ```
    Without this, the app falls back to yfinance automatically. If you see HTTP 429 from the first
    request, check that the token is correct and that your daily quota hasn't been exhausted.
+
+5. (Optional) Add the Anthropic API key to enable AI features:
+   ```
+   ANTHROPIC_API_KEY=<your key from console.anthropic.com>
+   ```
+   Without this, all AI endpoints return `null` gracefully and the frontend hides AI output.
+   Users must also enable individual AI features from the **AI Features** tab.
 
 5. Note the backend URL Railway assigns (e.g. `https://options-backend-production-xxxx.up.railway.app`)
 
@@ -296,6 +306,7 @@ ON CONFLICT (email) DO NOTHING;
 | `SUPABASE_URL` | Yes | `https://<ref>.supabase.co` |
 | `SUPABASE_SERVICE_KEY` | Yes | Service role key (bypasses RLS) |
 | `MARKETDATA_API_TOKEN` | No | From marketdata.app dashboard; omit to use yfinance only |
+| `ANTHROPIC_API_KEY` | No | From console.anthropic.com; omit to disable AI features |
 
 ### Frontend (Railway / build)
 | Variable | Required | Description |

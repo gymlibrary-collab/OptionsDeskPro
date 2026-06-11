@@ -311,6 +311,43 @@ export default function UserGuide({ isAdmin }: Props) {
         </div>
       </Section>
 
+      {/* ── AI FEATURES ── */}
+      <Section title="AI Features" badge="Beta">
+        <P>
+          The <strong>AI Features</strong> tab lets you enable or disable five AI-powered enhancements
+          to the app, each powered by Claude (Anthropic). All features are <strong>disabled by default</strong> —
+          navigate to the AI Features tab and toggle each one on individually.
+        </P>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Narrative Enhancement</div>
+            <P>Adds a short AI-written coaching paragraph to each deep-analysis result, giving concrete insight on why the setup has edge right now.</P>
+          </div>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Portfolio Q&amp;A Chat</div>
+            <P>Ask natural-language questions about your open positions — for example, "Which of my positions has the most theta decay?" The AI sees your live positions when answering.</P>
+          </div>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Risk Summary</div>
+            <P>Generates a plain-English summary of your risk monitor signals across all open positions, highlighting the most urgent exposures in a single read.</P>
+          </div>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Strategy Reasoning</div>
+            <P>Provides a deeper explanation of why the recommended strategy fits the current setup, going beyond the rule-based narrative with qualitative context and market intuition.</P>
+          </div>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Earnings Awareness</div>
+            <P>When enabled, strategy recommendations account for upcoming earnings dates and automatically adjust DTE targets to avoid having positions open through earnings events.</P>
+          </div>
+        </div>
+
+        <Note color={C.amber}>
+          <strong>Note:</strong> AI features require the app's backend to be configured with an Anthropic API key.
+          If AI responses do not appear after enabling a feature, contact the admin.
+        </Note>
+      </Section>
+
       {/* ── ADMIN SECTION ── */}
       {isAdmin && (
         <Section title="Admin Panel" badge="Admin Only">

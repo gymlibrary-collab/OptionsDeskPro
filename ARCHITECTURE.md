@@ -40,11 +40,17 @@ Market Data (3-tier fallback)
 | PUT | `/api/watchlist` | JWT | Save watchlist (enforces tier symbol limit) |
 | GET | `/api/strategies/analyze/{symbol}` | JWT | Full AI analysis |
 | GET | `/api/strategies/scan` | JWT | Multi-symbol scanner |
-| GET | `/api/trading/buzz/earnings` | JWT | Reddit earnings buzz |
-| GET | `/api/trading/buzz/stocks` | JWT | Reddit stocks buzz |
-| GET | `/api/trading/buzz/crypto` | JWT | Reddit crypto buzz |
-| GET | `/api/trading/buzz/tokens` | JWT | Reddit tokens buzz |
-| GET | `/api/trading/buzz/selected` | JWT | Reddit buzz for specific symbols |
+| GET | `/api/trading/buzz/earnings` | JWT | StockTwits earnings buzz |
+| GET | `/api/trading/buzz/stocks` | JWT | StockTwits stocks buzz |
+| GET | `/api/trading/buzz/crypto` | JWT | StockTwits crypto buzz |
+| GET | `/api/trading/buzz/tokens` | JWT | StockTwits tokens buzz |
+| GET | `/api/trading/buzz/selected` | JWT | StockTwits buzz for specific symbols |
+| GET | `/api/ai/settings` | JWT | Get per-user AI feature toggles |
+| PUT | `/api/ai/settings` | JWT | Update AI feature toggles |
+| POST | `/api/ai/chat` | JWT | Portfolio Q&A (requires chat_enabled) |
+| POST | `/api/ai/risk-summary` | JWT | AI risk summary (requires risk_summary_enabled) |
+| POST | `/api/ai/strategy-reasoning` | JWT | Strategy deep-dive (requires strategy_reasoning_enabled) |
+| POST | `/api/ai/enhance-narrative` | JWT | AI narrative paragraph (requires narrative_enabled) |
 | POST | `/api/auth/login` | JWT | Whitelist check + profile upsert |
 | GET | `/api/auth/me` | JWT | Current user profile |
 | GET | `/api/auth/pnl-history` | JWT | 90-day P&L chart data |
@@ -119,22 +125,25 @@ Tier is stored in `user_profiles.subscription_tier`. The admin is always enterpr
 ```
 Header: OptionsDesk logo | Symbol search | QuoteBar | User avatar | Sign Out
 ──────────────────────────────────────────────────────────────────────────────
-Tabs:  Chain | P&L | Risk | Orders | Scanner | Desk | Guide | Admin (admin only)
+Desk switcher: Options Desk | Trading Desk
+──────────────────────────────────────────────────────────────────────────────
+Tabs (Options Desk):
+  Chain | Positions | Scanner | Guide | AI Features | Admin (admin only)
 ──────────────────────────────────────────────────────────────────────────────
 Main content area                          │  Sidebar (desktop only)
-                                           │  OrderEntry panel
-  Chain tab:   OptionsChain component      │  (hidden on admin/guide tabs)
-  P&L tab:     Positions + PnLChart        │
-  Risk tab:    RiskMonitor component       │
-  Orders tab:  Orders table                │
-  Scanner tab: StrategyScanner             │
-               → deep analysis opens       │
-                 StrategyDetail +          │
-                 StrategyNarrative         │
-                 TradePanel                │
-  Desk tab:    TradingDesk (Reddit buzz)   │
-  Guide tab:   UserGuide                   │
-  Admin tab:   AdminPanel                  │
+                                           │  OrderEntry / TradePanel
+  Chain tab:     OptionsChain component    │  (hidden on guide/ai/admin tabs)
+  Positions tab: Positions + PnLChart      │
+  Scanner tab:   StrategyScanner           │
+                 → deep analysis opens     │
+                   StrategyDetail +        │
+                   StrategyNarrative       │
+                   TradePanel              │
+  Guide tab:     UserGuide                 │
+  AI tab:        AISettings                │
+  Admin tab:     AdminPanel                │
+──────────────────────────────────────────────────────────────────────────────
+Trading Desk: TradingDesk (StockTwits buzz feeds)
 ──────────────────────────────────────────────────────────────────────────────
 Mobile: FAB "Place Order" button → bottom drawer (OrderEntry)
 ```
@@ -142,7 +151,7 @@ Mobile: FAB "Place Order" button → bottom drawer (OrderEntry)
 ## Database schema (Supabase Postgres)
 
 See `backend/migrations/001_initial_schema.sql` for full DDL.
-Run migrations in order: 001 → 002 → 003_position_strategy_link → 003_watchlist_subscriptions.
+Run migrations in order: 001 → 002 → 003_position_strategy_link → 003_watchlist_subscriptions → 004_ai_settings → 004_stock_orders → 005_earnings_awareness.
 
 ### Tables
 
@@ -192,6 +201,16 @@ Run migrations in order: 001 → 002 → 003_position_strategy_link → 003_watc
 - `user_id`, `month` (YYYY-MM), `scan_count`
 - Unique on `(user_id, month)`
 - Incremented on each `/api/strategies/scan` call
+
+**`ai_settings`** — per-user AI feature toggles (migration 004)
+- `user_id` uuid PK → auth.users
+- `narrative_enabled`, `chat_enabled`, `risk_summary_enabled`, `strategy_reasoning_enabled`, `earnings_awareness_enabled` — all bool, default false
+- Row created with all-false defaults on first `GET /api/ai/settings` call
+
+**`stock_orders`** — paper stock trade history (migration 004)
+- `user_id`, `symbol`, `action` (buy/sell), `quantity`, `order_type` (market/limit)
+- `limit_price` optional, `fill_price`, `total_value`, `status` (filled)
+- Note: backend route `/api/stock-orders` not yet implemented; frontend client includes the type definitions
 
 ### RLS policies
 
