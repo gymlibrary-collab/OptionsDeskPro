@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Full strategy catalog — 31 strategies
 STRATEGIES = {
-    # ── Bullish ────────────────────────────────────────────
+    # ── Bullish ────────────────────────────────────────────────────
     "covered_call": {
         "name": "Covered Call",
         "direction": ["BULLISH"],
@@ -103,7 +103,7 @@ STRATEGIES = {
         "legs": ["short_call_otm_front", "long_call_itm_back"],
         "delta_targets": {"short_call": 0.30, "long_call": 0.70},
     },
-    # ── Bearish ─────────────────────────────────────────────
+    # ── Bearish ─────────────────────────────────────────────────────
     "long_put_vertical": {
         "name": "Long Put Vertical Spread",
         "direction": ["BEARISH"],
@@ -169,7 +169,7 @@ STRATEGIES = {
         "legs": ["short_put_otm_front", "long_put_itm_back"],
         "delta_targets": {"short_put": -0.30, "long_put": -0.70},
     },
-    # ── Neutral ─────────────────────────────────────────────
+    # ── Neutral ─────────────────────────────────────────────────────
     "short_strangle": {
         "name": "Short Strangle",
         "direction": ["NEUTRAL"],
@@ -222,7 +222,7 @@ STRATEGIES = {
         "legs": ["short_put_atm", "short_call_atm", "long_put_wing", "long_call_wing"],
         "delta_targets": {"short_put": -50, "short_call": 50, "wing_put": -16, "wing_call": 16},
     },
-    # ── Neutral-Bullish ─────────────────────────────────────────
+    # ── Neutral-Bullish ─────────────────────────────────────────────────────
     "short_naked_put": {
         "name": "Short Naked Put",
         "direction": ["NEUTRAL_BULLISH"],
@@ -301,7 +301,7 @@ STRATEGIES = {
         "legs": ["long_stock", "short_call_otm", "long_put_otm"],
         "delta_targets": {"short_call": 0.30, "long_put": -0.30},
     },
-    # ── Neutral-Bearish ─────────────────────────────────────────
+    # ── Neutral-Bearish ─────────────────────────────────────────────────────
     "short_naked_call": {
         "name": "Short Naked Call",
         "direction": ["NEUTRAL_BEARISH"],
@@ -367,7 +367,7 @@ STRATEGIES = {
         "legs": ["long_call_otm", "short_2_calls_further_otm"],
         "delta_targets": {"long_call": 0.40, "short_call": 0.20},
     },
-    # ── Omnidirectional ─────────────────────────────────────────
+    # ── Omnidirectional ─────────────────────────────────────────────────────
     "put_broken_wing_butterfly": {
         "name": "Put Broken Wing Butterfly",
         "direction": ["NEUTRAL", "NEUTRAL_BULLISH", "OMNIDIRECTIONAL"],
@@ -701,7 +701,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             "signed_mid": signed_mid,
         }
 
-    # ── Build legs based on strategy ──────────────────────────────────────────
+    # ── Build legs based on strategy ────────────────────────────────────────────
     if strategy_key == "covered_call":
         leg = make_leg("Short Call", "call", 0.30, "sell")
         if leg:
