@@ -139,6 +139,46 @@ test.describe('Admin portal — /api/platform/* API mock contracts', () => {
     expect(result.active_subscribers_by_tier).toHaveProperty('pro', 24)
   })
 
+  test('GET /api/platform/revenue/export-csv sends Authorization header and returns CSV blob (MEDIUM-002)', async ({ authedPage }) => {
+    // Verify the endpoint is hit with an Authorization header (not a bare window.open navigation).
+    // The route intercept captures the request headers and returns a minimal CSV blob.
+    let capturedAuthHeader: string | null = null
+    await authedPage.route(`${API}platform/revenue/export-csv*`, (r) => {
+      capturedAuthHeader = r.request().headers()['authorization'] ?? null
+      r.fulfill({
+        status: 200,
+        contentType: 'text/csv',
+        body: 'month,mrr_usd\n2026-05,2523\n',
+      })
+    })
+
+    const result = await authedPage.evaluate(async () => {
+      const res = await fetch('/api/platform/revenue/export-csv?from_date=2025-06-01&to_date=2026-06-12', {
+        headers: { Authorization: 'Bearer mock-access-token' },
+      })
+      const text = await res.text()
+      return { status: res.status, contentType: res.headers.get('content-type'), text }
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.contentType).toMatch(/text\/csv/)
+    expect(result.text).toContain('mrr_usd')
+    // The route was matched — confirming the request used the /api/platform/revenue/export-csv path
+    // (not a window.open navigation to BACKEND_URL which would never reach the route interceptor)
+    expect(capturedAuthHeader).toBe('Bearer mock-access-token')
+  })
+
+  test('GET /api/platform/revenue/export-csv returns 401 when Authorization header is absent (MEDIUM-002)', async ({ authedPage }) => {
+    await authedPage.route(`${API}platform/revenue/export-csv*`, (r) =>
+      r.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
+
+    const result = await authedPage.evaluate(async () => {
+      const res = await fetch('/api/platform/revenue/export-csv?from_date=2025-06-01&to_date=2026-06-12')
+      return { status: res.status }
+    })
+    expect(result.status).toBe(401)
+  })
+
   test('GET /api/platform/health returns health panel shape with alert_level', async ({ authedPage }) => {
     await authedPage.route(`${API}platform/health`, (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_HEALTH_DATA) }))

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getRevenueMetrics, RevenueMetrics } from '../../api/client'
+import { getRevenueMetrics, exportRevenueCsv, RevenueMetrics } from '../../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -18,15 +18,12 @@ const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
 const fmtUsd = (v: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v)
 
-const BACKEND_URL =
-  (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
-  'https://optionspro-backend-production.up.railway.app'
-
 export default function RevenuePanel() {
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,11 +42,20 @@ export default function RevenuePanel() {
 
   const handleExport = async () => {
     setExportLoading(true)
+    setExportError(null)
     try {
       const today = new Date()
       const from = new Date(today.getFullYear(), today.getMonth() - 11, 1).toISOString().slice(0, 10)
       const to = today.toISOString().slice(0, 10)
-      window.open(`${BACKEND_URL}/api/platform/revenue/export-csv?from_date=${from}&to_date=${to}`, '_blank')
+      const blob = await exportRevenueCsv(from, to)
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = 'revenue.csv'
+      a.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      setExportError('Export failed. Please try again.')
     } finally {
       setExportLoading(false)
     }
@@ -64,13 +70,18 @@ export default function RevenuePanel() {
     <div style={{ fontFamily: FONT }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: C.text }}>Revenue</h2>
-        <button
-          onClick={handleExport}
-          disabled={exportLoading}
-          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', color: C.text, padding: '7px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}
-        >
-          {exportLoading ? 'Exporting...' : 'Export CSV'}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+          <button
+            onClick={handleExport}
+            disabled={exportLoading}
+            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', color: C.text, padding: '7px 14px', fontSize: '13px', fontWeight: 600, cursor: exportLoading ? 'not-allowed' : 'pointer', fontFamily: FONT, opacity: exportLoading ? 0.7 : 1 }}
+          >
+            {exportLoading ? 'Exporting...' : 'Export CSV'}
+          </button>
+          {exportError && (
+            <span style={{ fontSize: '12px', color: C.error }}>{exportError}</span>
+          )}
+        </div>
       </div>
 
       {/* KPI row */}

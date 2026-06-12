@@ -731,6 +731,12 @@ export const patchPlatformPricing = (tierKey: string, req: PricingPatchRequest):
 export const getRevenueMetrics = (): Promise<RevenueMetrics> =>
   api.get('/platform/revenue').then(r => r.data)
 
+export const exportRevenueCsv = (fromDate: string, toDate: string): Promise<Blob> =>
+  api.get('/platform/revenue/export-csv', {
+    params: { from_date: fromDate, to_date: toDate },
+    responseType: 'blob',
+  }).then(r => r.data as Blob)
+
 export const getHealthData = (): Promise<HealthData> =>
   api.get('/platform/health').then(r => r.data)
 
