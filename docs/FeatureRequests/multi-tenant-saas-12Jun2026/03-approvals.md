@@ -57,7 +57,21 @@
 
 ## Gate 4 — Test
 
-**Status:** pending
+**Status:** APPROVED (pre-authorised) — 12 Jun 2026
+
+- Automated: 140/140 Playwright tests pass (commit a7156a1); 7 new spec files,
+  8 pre-existing specs repaired. Report: 04-test-report.md.
+- Manual/exploratory: tester identified 15 findings (F-001..F-015) incl. 1 critical
+  (support-view no-op), plus a critical billing-safety gap in account deletion.
+- Remediation: backend commit c16d022 (8 fixes incl. deletion abort-on-Stripe-failure,
+  webhook idempotency INSERT-first, maintenance_mode enforcement, migration 007
+  onboarding backfill); frontend commit 6086773 (9 fixes incl. inline support view,
+  downgrade UI, role-gated admin nav + platform settings panel, typed CANCEL/DOWNGRADE
+  confirmations, safe markdown FAQ renderer, /settings deep-link handling).
+- Post-remediation: tsc + vite build clean, 140/140 tests still pass.
+- Deferred (accepted): F-007 (low-probability webhook/db race on pending downgrade),
+  Stripe-hosted flows untestable in mocked E2E (need live test-mode verification —
+  see pre-launch checklist in 06-release-note.md).
 
 ## Gate 5 — Security
 
