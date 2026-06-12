@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from services.auth_utils import verify_token
 from services.db import get_supabase
 from services.tier_limits import get_user_tier, get_limits
+from services.entitlements import compute_entitlements
 
 router = APIRouter()
 
@@ -18,8 +19,9 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
     user_id = payload["sub"]
     db = get_supabase()
 
-    tier = get_user_tier(db, user_id)
-    limits = get_limits(tier)
+    # Use compute_entitlements for authoritative DB-backed limits (ADR-0003)
+    entitlements = compute_entitlements(user_id)
+    tier = entitlements["effective_tier"]
 
     symbols_result = (
         db.table("user_watchlists")
@@ -40,12 +42,16 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
     )
     scans_used = usage_result.data[0]["scans_used"] if usage_result.data else 0
 
+    max_symbols = entitlements["max_symbols"]
+    over_limit = max_symbols is not None and len(symbols) > max_symbols
+
     return {
         "symbols": symbols,
         "tier": tier,
-        "max_symbols": limits["max_symbols"],
+        "max_symbols": max_symbols,
         "scans_used": scans_used,
-        "max_scans_per_month": limits["max_scans_per_month"],
+        "max_scans_per_month": entitlements["max_scans_per_month"],
+        "over_limit": over_limit,
     }
 
 
@@ -55,9 +61,10 @@ async def save_watchlist(body: WatchlistSaveRequest, payload: dict = Depends(ver
     symbols = [s.strip().upper() for s in body.symbols if s.strip()]
     db = get_supabase()
 
-    tier = get_user_tier(db, user_id)
-    limits = get_limits(tier)
-    max_syms = limits["max_symbols"]
+    # Use compute_entitlements for authoritative DB-backed limits (ADR-0003)
+    entitlements = compute_entitlements(user_id)
+    tier = entitlements["effective_tier"]
+    max_syms = entitlements["max_symbols"]
 
     if max_syms is not None and len(symbols) > max_syms:
         raise HTTPException(

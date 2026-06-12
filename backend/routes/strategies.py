@@ -16,6 +16,8 @@ from services.market_context import get_full_market_context
 from services.auth_utils import verify_token, security as bearer_security
 from services.db import get_supabase
 from services.tier_limits import get_user_tier, get_limits
+from services.entitlements import compute_entitlements
+import services.metrics as _metrics
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +199,9 @@ async def analyze_symbol(
         for cat, strats in recommendations_by_category.items()
     }
 
+    # Increment request counter for health panel (ADR-0006)
+    _metrics.increment("strategy_analyze")
+
     return {
         "symbol": symbol,
         "iv_analysis": iv_data,
@@ -220,10 +225,13 @@ async def scan_watchlist(
     symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
 
     db = get_supabase()
-    tier = get_user_tier(db, user_id)
-    limits = get_limits(tier)
 
-    max_syms = limits["max_symbols"]
+    # Use compute_entitlements for authoritative DB-backed limits (ADR-0003)
+    entitlements = compute_entitlements(user_id)
+    tier = entitlements["effective_tier"]
+    max_syms = entitlements["max_symbols"]
+    max_scans = entitlements["max_scans_per_month"]
+
     if max_syms is not None and len(symbol_list) > max_syms:
         raise HTTPException(
             status_code=400,
@@ -235,7 +243,6 @@ async def scan_watchlist(
             },
         )
 
-    max_scans = limits["max_scans_per_month"]
     if max_scans is not None:
         month = datetime.utcnow().strftime("%Y-%m")
         usage_result = (
@@ -261,6 +268,9 @@ async def scan_watchlist(
             {"user_id": user_id, "month": month, "scans_used": scans_used + 1, "last_scan_at": datetime.utcnow().isoformat()},
             on_conflict="user_id,month",
         ).execute()
+
+    # Increment request counter for health panel (ADR-0006)
+    _metrics.increment("strategy_scan")
 
     def _scan_one(symbol: str) -> dict:
         try:

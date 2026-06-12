@@ -3,7 +3,7 @@ import time
 import os
 import math
 import requests as _requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import logging
 
@@ -22,6 +22,42 @@ def _safe_int(val, default: int = 0) -> int:
 _cache: dict = {}
 _TTL_MARKETDATA = 300   # 5 min — conserve API credits
 _TTL_YFINANCE   = 30    # 30 s
+
+# ── Market Data App credit counter (ADR-0006) ────────────────────────────────
+# In-process counter keyed by UTC date string. Resets on process restart.
+# Approximate — not accurate across multiple backend instances.
+_mda_credit_counter: dict[str, int] = {}
+
+_MDA_DAILY_LIMIT = 100  # Market Data App free plan daily quota
+
+
+def _mda_increment() -> None:
+    """Increment today's Market Data App credit counter."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    _mda_credit_counter[today] = _mda_credit_counter.get(today, 0) + 1
+
+
+def get_mda_credit_usage() -> dict:
+    """
+    Return the current-day Market Data App credit usage.
+    Called by GET /api/platform/health — no external API call made.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    calls_today = _mda_credit_counter.get(today, 0)
+    pct = round(calls_today / _MDA_DAILY_LIMIT * 100, 1)
+    if pct >= 100:
+        alert_level = "critical"
+    elif pct >= 80:
+        alert_level = "warning"
+    else:
+        alert_level = "ok"
+    return {
+        "date": today,
+        "calls_today": calls_today,
+        "limit": _MDA_DAILY_LIMIT,
+        "pct": pct,
+        "alert_level": alert_level,
+    }
 
 
 def _cache_get(key: str) -> Optional[dict]:
@@ -122,13 +158,16 @@ def _marketdata_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dic
             else:
                 puts.append(row)
 
-        return {
+        result = {
             "expirations": all_expiries,
             "expiry":      actual_expiry,
             "calls":       calls,
             "puts":        puts,
             "_source":     "marketdata",
         }
+        # Increment credit counter after a successful API response (ADR-0006)
+        _mda_increment()
+        return result
     except Exception as e:
         logger.warning("MarketData.app chain failed for %s: %s", symbol, e)
         return None
