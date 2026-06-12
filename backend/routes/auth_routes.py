@@ -23,10 +23,22 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     email = get_user_email(payload)
 
-    # ── Invite-only mode gate (ADR-0005) ─────────────────────────────────────
+    # ── Platform-level gates (maintenance mode + invite-only) ─────────────────
     if email != ADMIN_EMAIL:
         from services.stripe_service import get_platform_settings
         settings = get_platform_settings()
+
+        # Maintenance mode: block all non-admin, non-staff logins
+        if settings.get("maintenance_mode", False):
+            # Allow platform staff through even in maintenance mode
+            staff_check_maint = sb.table("platform_staff").select("id, is_active").eq("email", email).maybe_single().execute()
+            is_platform_staff_maint = bool(staff_check_maint.data and staff_check_maint.data.get("is_active"))
+            if not is_platform_staff_maint:
+                raise HTTPException(
+                    status_code=503,
+                    detail="OptionsDesk is under maintenance. Please try again later.",
+                )
+
         if settings.get("invite_only_mode", False):
             wl = sb.table("user_whitelist").select("id, role").eq("email", email).execute()
             if not wl.data:
@@ -181,20 +193,24 @@ async def delete_account(
             from services.stripe_service import _get_stripe
             stripe = _get_stripe()
             stripe.Subscription.cancel(stripe_sub_id)
-        except HTTPException as e:
-            if e.status_code == 503:
-                # Stripe not configured — skip cancellation (free tier or test env)
-                pass
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Deletion partially failed at step: stripe_cancel. Contact support.",
-                )
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail="Deletion partially failed at step: stripe_cancel. Contact support.",
-            )
+            # Allow deletion to proceed only when Stripe itself tells us the
+            # subscription is already cancelled (idempotent retry case — F-009).
+            already_cancelled = False
+            try:
+                import stripe as _stripe_mod
+                if isinstance(e, _stripe_mod.error.InvalidRequestError):
+                    msg = str(e).lower()
+                    if "cancel" in msg or "no such subscription" in msg:
+                        already_cancelled = True
+            except Exception:
+                pass
+
+            if not already_cancelled:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Cannot delete account: subscription cancellation unavailable; contact support.",
+                )
 
     # Step 2: Delete the Supabase Auth user (CASCADE deletes all user data)
     try:

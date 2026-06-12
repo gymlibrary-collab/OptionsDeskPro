@@ -58,6 +58,8 @@ def compute_entitlements(user_id: str) -> dict:
 
     return {
         "effective_tier":       effective_tier,
+        "display_name":         plan.get("display_name", effective_tier.capitalize()),
+        "price_monthly_usd":    plan.get("price_monthly_usd", 0.0),
         "subscription_status":  status,
         "stripe_tier":          stripe_tier,
         "admin_override_tier":  admin_override,

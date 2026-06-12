@@ -5,6 +5,7 @@ All routes require an active platform_staff row (checked by require_staff()).
 Further role restrictions are enforced per endpoint.
 """
 import logging
+import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -135,11 +136,56 @@ async def get_subscriber(
     sub_result = sb.table("subscriptions").select("*").eq("user_id", user_id).maybe_single().execute()
     subscription = sub_result.data or {}
 
-    pos_count = 0
-    ord_count = 0
+    # Watchlist symbols
+    watchlist_symbols: list = []
     try:
-        pos_count = sb.table("positions").select("id", count="exact").eq("user_id", user_id).execute().count or 0
-        ord_count = sb.table("orders").select("id", count="exact").eq("user_id", user_id).execute().count or 0
+        wl_result = sb.table("user_watchlists").select("symbols").eq("user_id", user_id).maybe_single().execute()
+        if wl_result.data:
+            raw = wl_result.data.get("symbols") or []
+            watchlist_symbols = raw if isinstance(raw, list) else []
+    except Exception:
+        pass
+
+    # Open positions summary (symbol, qty, avg_cost, strategy)
+    positions: list = []
+    positions_count = 0
+    try:
+        pos_result = sb.table("positions").select(
+            "id, symbol, quantity, avg_cost, strategy_name, opened_at"
+        ).eq("user_id", user_id).eq("status", "open").execute()
+        rows = pos_result.data or []
+        positions_count = len(rows)
+        positions = [
+            {
+                "id":            r.get("id"),
+                "symbol":        r.get("symbol"),
+                "quantity":      r.get("quantity"),
+                "avg_cost":      r.get("avg_cost"),
+                "strategy":      r.get("strategy_name"),
+                "opened_at":     r.get("opened_at"),
+            }
+            for r in rows
+        ]
+    except Exception:
+        pass
+
+    # Recent orders (last 20)
+    orders: list = []
+    orders_count = 0
+    try:
+        ord_result = sb.table("orders").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(20).execute()
+        orders = ord_result.data or []
+        # Total orders count (for summary display)
+        ord_count_result = sb.table("orders").select("id", count="exact").eq("user_id", user_id).execute()
+        orders_count = ord_count_result.count or 0
+    except Exception:
+        pass
+
+    # Recent activity (last 20 entries)
+    recent_activity: list = []
+    try:
+        act_result = sb.table("activity_log").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(20).execute()
+        recent_activity = act_result.data or []
     except Exception:
         pass
 
@@ -157,17 +203,21 @@ async def get_subscriber(
             "is_active":            profile.get("deactivated_at") is None,
         },
         "subscription": {
-            "tier_key":             subscription.get("tier_key", "free"),
-            "status":               subscription.get("status", "active"),
-            "current_period_end":   subscription.get("current_period_end"),
-            "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
-            "stripe_customer_id":   subscription.get("stripe_customer_id"),
+            "tier_key":               subscription.get("tier_key", "free"),
+            "status":                 subscription.get("status", "active"),
+            "current_period_end":     subscription.get("current_period_end"),
+            "cancel_at_period_end":   subscription.get("cancel_at_period_end", False),
+            "stripe_customer_id":     subscription.get("stripe_customer_id"),
             "stripe_subscription_id": subscription.get("stripe_subscription_id"),
             "admin_override_tier_key": subscription.get("admin_override_tier_key"),
         },
-        "positions_count": pos_count,
-        "orders_count":    ord_count,
-        "invoices":        invoices_result.data or [],
+        "watchlist_symbols": watchlist_symbols,
+        "positions":         positions,
+        "positions_count":   positions_count,
+        "orders":            orders,
+        "orders_count":      orders_count,
+        "recent_activity":   recent_activity,
+        "invoices":          invoices_result.data or [],
     }
 
 
@@ -422,6 +472,7 @@ async def get_revenue(staff: dict = Depends(require_staff(["owner", "finance"]))
     # MRR: sum of plan prices for active paid subscribers
     mrr_usd = 0.0
     active_by_tier: dict[str, int] = {}
+    plan_prices: dict[str, float] = {}  # initialised here so past_due block can always reference it
     try:
         # Get plans with prices
         plans_result = sb.table("plans").select("tier_key, price_monthly_usd").execute()
@@ -641,9 +692,6 @@ async def invite_staff(
     })
 
     return {"ok": True, "email": body.email}
-
-
-import os  # needed for ADMIN_PORTAL_URL above — import here to avoid module-level side-effects
 
 
 class StaffRoleRequest(BaseModel):

@@ -397,13 +397,10 @@ def handle_webhook_event(raw_body: bytes, sig_header: str) -> dict:
     from services.db import get_supabase
     sb = get_supabase()
 
-    # Idempotency check
-    existing = sb.table("stripe_webhook_events").select("stripe_event_id").eq("stripe_event_id", event_id).maybe_single().execute()
-    if existing.data:
-        logger.debug("Stripe webhook event %s already processed — skipping", event_id)
-        return {"received": True}
-
-    # Record event for idempotency (before processing to avoid race on retry)
+    # Idempotency: attempt INSERT first. The primary key on stripe_event_id
+    # makes duplicate inserts fail with postgres error code 23505. We only
+    # process the event when the INSERT succeeds — this is atomic and
+    # eliminates the SELECT-then-INSERT race on concurrent duplicate deliveries.
     import json
     payload_summary = json.dumps(event)[:500]
     try:
@@ -413,6 +410,12 @@ def handle_webhook_event(raw_body: bytes, sig_header: str) -> dict:
             "payload_summary": payload_summary,
         }).execute()
     except Exception as e:
+        err_str = str(e)
+        if "23505" in err_str or "duplicate key" in err_str.lower():
+            logger.debug("Stripe webhook event %s already processed — skipping", event_id)
+            return {"received": True}
+        # Any other insert error: log and fall through; processing should still
+        # be attempted rather than silently dropped for non-idempotency errors.
         logger.warning("Could not record webhook event %s: %s", event_id, e)
 
     _process_event(sb, stripe, event)
