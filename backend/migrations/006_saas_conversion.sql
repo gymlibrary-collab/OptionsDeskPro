@@ -148,12 +148,12 @@ CREATE INDEX IF NOT EXISTS idx_platform_staff_role ON public.platform_staff(staf
 
 -- Seed the platform owner from the existing ADMIN_EMAIL
 -- This INSERT is safe to re-run (ON CONFLICT DO NOTHING).
--- It will only succeed after leonard.simgt@gmail.com has logged in at least once
+-- It will only succeed after leonardsim.sm@gmail.com has logged in at least once
 -- and has a row in auth.users. The backend also upserts this on first staff login.
 INSERT INTO public.platform_staff (id, email, full_name, staff_role)
 SELECT id, email, COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', email), 'owner'
 FROM auth.users
-WHERE email = 'leonard.simgt@gmail.com'
+WHERE email = 'leonardsim.sm@gmail.com'
 ON CONFLICT (id) DO NOTHING;
 
 
@@ -267,7 +267,7 @@ ALTER TABLE public.user_profiles
 UPDATE public.user_profiles
 SET onboarding_completed = true,
     onboarding_step = 'complete'
-WHERE email = 'leonard.simgt@gmail.com';
+WHERE email = 'leonardsim.sm@gmail.com';
 
 
 -- -----------------------------------------------------------------------------

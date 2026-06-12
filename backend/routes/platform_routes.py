@@ -6,6 +6,7 @@ Further role restrictions are enforced per endpoint.
 """
 import logging
 import os
+import re
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -17,6 +18,15 @@ from services.db import get_supabase
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Whitelist for subscriber search — alphanumeric, @, ., _, -, and space only.
+# Everything else is stripped before interpolation into PostgREST filter strings.
+_SEARCH_SAFE = re.compile(r"[^a-zA-Z0-9@._\- ]")
+
+
+def _sanitise_search(raw: str) -> str:
+    """Strip characters that are not in the PostgREST-safe whitelist."""
+    return _SEARCH_SAFE.sub("", raw)
 
 
 # ── Audit log helper ─────────────────────────────────────────────────────────
@@ -65,8 +75,9 @@ async def list_subscribers(
     )
 
     if search:
-        # ilike search on email or full_name
-        query = query.or_(f"email.ilike.%{search}%,full_name.ilike.%{search}%")
+        # ilike search on email or full_name — sanitise before interpolation
+        safe = _sanitise_search(search)
+        query = query.or_(f"email.ilike.%{safe}%,full_name.ilike.%{safe}%")
 
     if tier_key:
         query = query.eq("subscriptions.tier_key", tier_key)
@@ -77,7 +88,8 @@ async def list_subscribers(
     # Count total — separate query
     count_query = sb.table("user_profiles").select("id", count="exact")
     if search:
-        count_query = count_query.or_(f"email.ilike.%{search}%,full_name.ilike.%{search}%")
+        safe = _sanitise_search(search)
+        count_query = count_query.or_(f"email.ilike.%{safe}%,full_name.ilike.%{safe}%")
 
     try:
         count_result = count_query.execute()
@@ -191,6 +203,20 @@ async def get_subscriber(
 
     invoices_result = sb.table("invoices").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(20).execute()
 
+    # Stripe internal IDs are restricted to owner role — support staff
+    # do not need them and the principle of least disclosure applies.
+    is_owner = staff.get("staff_role") == "owner"
+    subscription_block: dict = {
+        "tier_key":               subscription.get("tier_key", "free"),
+        "status":                 subscription.get("status", "active"),
+        "current_period_end":     subscription.get("current_period_end"),
+        "cancel_at_period_end":   subscription.get("cancel_at_period_end", False),
+        "admin_override_tier_key": subscription.get("admin_override_tier_key"),
+    }
+    if is_owner:
+        subscription_block["stripe_customer_id"]     = subscription.get("stripe_customer_id")
+        subscription_block["stripe_subscription_id"] = subscription.get("stripe_subscription_id")
+
     return {
         "profile": {
             "id":                   profile.get("id"),
@@ -202,15 +228,7 @@ async def get_subscriber(
             "onboarding_completed": profile.get("onboarding_completed", False),
             "is_active":            profile.get("deactivated_at") is None,
         },
-        "subscription": {
-            "tier_key":               subscription.get("tier_key", "free"),
-            "status":                 subscription.get("status", "active"),
-            "current_period_end":     subscription.get("current_period_end"),
-            "cancel_at_period_end":   subscription.get("cancel_at_period_end", False),
-            "stripe_customer_id":     subscription.get("stripe_customer_id"),
-            "stripe_subscription_id": subscription.get("stripe_subscription_id"),
-            "admin_override_tier_key": subscription.get("admin_override_tier_key"),
-        },
+        "subscription": subscription_block,
         "watchlist_symbols": watchlist_symbols,
         "positions":         positions,
         "positions_count":   positions_count,
@@ -326,6 +344,10 @@ async def deactivate_subscriber(
     """Suspend a subscriber account by setting deactivated_at = now()."""
     sb = get_supabase()
     sb.table("user_profiles").update({"deactivated_at": "now()"}).eq("id", user_id).execute()
+    # Immediately evict from the deactivation cache so the 403 takes effect
+    # on the very next request, not after the 60 s TTL expires.
+    from services.auth_utils import invalidate_deactivation_cache
+    invalidate_deactivation_cache(user_id)
     _audit(staff, "account_deactivate", target_user_id=user_id)
     return {"ok": True}
 
@@ -338,6 +360,9 @@ async def reactivate_subscriber(
     """Clear deactivated_at to restore login access."""
     sb = get_supabase()
     sb.table("user_profiles").update({"deactivated_at": None}).eq("id", user_id).execute()
+    # Evict cache so the account is unblocked immediately.
+    from services.auth_utils import invalidate_deactivation_cache
+    invalidate_deactivation_cache(user_id)
     _audit(staff, "account_reactivate", target_user_id=user_id)
     return {"ok": True}
 

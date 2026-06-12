@@ -30,6 +30,8 @@ _admin_origins = [
     o.strip()
     for o in os.getenv("ADMIN_PORTAL_ORIGINS", "").split(",")
     if o.strip()
+    and o.strip() != "*"
+    and (o.strip().startswith("http://") or o.strip().startswith("https://"))
 ]
 
 app.add_middleware(

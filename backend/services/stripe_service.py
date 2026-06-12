@@ -380,6 +380,9 @@ def handle_webhook_event(raw_body: bytes, sig_header: str) -> dict:
     Returns {"received": True} on success or raises HTTPException(400) on signature failure.
     """
     webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not webhook_secret:
+        logger.error("STRIPE_WEBHOOK_SECRET is not configured — webhook endpoint is non-functional")
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
     stripe = _get_stripe()
 
     try:

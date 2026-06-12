@@ -4,12 +4,57 @@ This approach is algorithm-agnostic — it works regardless of whether the proje
 uses HS256 or RS256, and doesn't require the JWT secret to be present.
 """
 import os
+import time
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 ADMIN_EMAIL = "leonardsim.sm@gmail.com"
 
 security = HTTPBearer(auto_error=False)
+
+# ── Deactivation TTL cache (60 s, keyed by user_id) ─────────────────────────
+# Stores True when deactivated_at is set; False when account is active.
+# Fail-open: missing key means we haven't cached yet (triggers a DB lookup).
+_deactivation_cache: dict[str, bool] = {}
+_deactivation_cache_ts: dict[str, float] = {}
+_DEACTIVATION_TTL = 60.0  # seconds
+
+
+def _is_deactivated(user_id: str) -> bool:
+    """
+    Return True if user_profiles.deactivated_at is non-null for this user.
+    Result is cached for _DEACTIVATION_TTL seconds per user_id.
+    Fail-open: any DB error returns False (allows the request).
+    """
+    now = time.time()
+    if user_id in _deactivation_cache:
+        if (now - _deactivation_cache_ts.get(user_id, 0)) < _DEACTIVATION_TTL:
+            return _deactivation_cache[user_id]
+
+    try:
+        from services.db import get_supabase
+        sb = get_supabase()
+        result = (
+            sb.table("user_profiles")
+            .select("deactivated_at")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        deactivated = bool(result.data and result.data.get("deactivated_at"))
+        _deactivation_cache[user_id] = deactivated
+        _deactivation_cache_ts[user_id] = now
+        return deactivated
+    except Exception:
+        # DB error — fail-open: do not block the request
+        return False
+
+
+def invalidate_deactivation_cache(user_id: str) -> None:
+    """Force a fresh lookup on the next request for this user_id.
+    Call this after deactivating or reactivating an account."""
+    _deactivation_cache.pop(user_id, None)
+    _deactivation_cache_ts.pop(user_id, None)
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
@@ -25,6 +70,13 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
         user = result.user
         if not user:
             raise HTTPException(status_code=401, detail="Not authenticated")
+
+        # Deactivation check — runs on every authenticated request.
+        # Uses a 60 s in-process cache to avoid a DB round-trip per call.
+        # Fail-open: _is_deactivated() returns False on DB error.
+        if _is_deactivated(user.id):
+            raise HTTPException(status_code=403, detail="Account suspended")
+
         return {
             "sub": user.id,
             "email": user.email,

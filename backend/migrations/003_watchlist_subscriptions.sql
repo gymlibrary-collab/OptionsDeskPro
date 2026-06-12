@@ -9,7 +9,7 @@ alter table public.user_profiles
 -- Admin gets enterprise tier
 update public.user_profiles
   set subscription_tier = 'enterprise'
-  where email = 'leonard.simgt@gmail.com';
+  where email = 'leonardsim.sm@gmail.com';
 
 -- 2. User watchlists — persisted per-user symbol list
 create table if not exists public.user_watchlists (
