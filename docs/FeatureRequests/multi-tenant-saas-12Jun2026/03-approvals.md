@@ -75,7 +75,18 @@
 
 ## Gate 5 — Security
 
-**Status:** pending
+**Status:** PASS — 12 Jun 2026
+
+All 7 findings from the initial FAIL closed by commits c16d022 (backend) + df545fc (frontend):
+- CRITICAL-001: admin email mismatch fixed across all migrations, CLAUDE.md
+- CRITICAL-002: per-request deactivation check in verify_token(), cache invalidated immediately on staff action
+- HIGH-001: webhook secret guard — raises 500 loudly when unset
+- HIGH-002: PostgREST search injection sanitised with whitelist regex
+- HIGH-003: python-jose removed from requirements.txt
+- MEDIUM-001: migration 008_rls_hardening.sql — RLS enabled on all 8 new tables
+- MEDIUM-002: CSV export uses authenticated blob fetch, not window.open
+Accepted operational note: deactivation cache is in-process (60 s TTL); acceptable for
+single-worker Railway; must move to shared cache before horizontal scaling.
 
 ## Gate 6 — Release
 

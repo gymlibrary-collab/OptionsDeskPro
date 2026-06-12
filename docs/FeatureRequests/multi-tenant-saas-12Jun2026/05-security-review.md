@@ -264,3 +264,61 @@ Two Critical findings (CRITICAL-001, CRITICAL-002) and three High findings (HIGH
 - MEDIUM-001: Enable RLS on all 8 tables with no permissive policies (add migration 008).
 - MEDIUM-002: Fix CSV export to use fetch + Blob download with Authorization header.
 
+
+---
+
+## Gate 5 Re-verification — 12 Jun 2026
+
+**Re-reviewer:** security-reviewer
+**Re-verification date:** 12 Jun 2026
+**Scope:** Confirm closure of all 7 findings flagged in the original Gate 5 review (CRITICAL-001, CRITICAL-002, HIGH-001, HIGH-002, HIGH-003, MEDIUM-001, MEDIUM-002). One new operational limitation (multi-worker cache) noted below.
+
+---
+
+### Finding Close-out Table
+
+| Finding ID | Original Severity | Title | Verification Method | Result | Status |
+|------------|------------------|-------|---------------------|--------|--------|
+| CRITICAL-001 | Critical | ADMIN_EMAIL mismatch | grep backend/ and CLAUDE.md for `leonard.simgt`; read `auth_utils.py` line 11 | Zero matches in backend/. `ADMIN_EMAIL = "leonardsim.sm@gmail.com"` at line 11. CLAUDE.md contains no occurrence of `leonard.simgt`. | CLOSED |
+| CRITICAL-002 | Critical | Deactivated subscriber bypass | Read `auth_utils.py` lines 15–89; grep platform_routes.py for `invalidate_deactivation_cache` | `_is_deactivated()` is called inside `verify_token()` at line 77 before the payload is returned. `invalidate_deactivation_cache()` is called at lines 350 and 365 of `platform_routes.py` inside the deactivate and reactivate handlers respectively. | CLOSED |
+| HIGH-001 | High | Stripe webhook secret guard absent | Read `stripe_service.py` lines 382–385 | `webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()` followed immediately by `if not webhook_secret: raise HTTPException(status_code=500, detail="Webhook secret not configured")`. Guard is in place before `_get_stripe()` and before `construct_event`. | CLOSED |
+| HIGH-002 | High | PostgREST filter injection | Read `platform_routes.py` lines 22–29 and 77–92 | `_SEARCH_SAFE = re.compile(r"[^a-zA-Z0-9@._\- ]")` at line 24. `_sanitise_search()` strips all other characters at line 29. Called at lines 79 and 92 before the `or_()` interpolation. Whitelist is appropriately tight (alphanumeric, `@`, `.`, `_`, `-`, space). | CLOSED |
+| HIGH-003 | High | `python-jose` in requirements.txt | Read `backend/requirements.txt` | File contains 10 lines. `python-jose` is absent. Only packages present: fastapi, requests, uvicorn, yfinance, numpy, scipy, pydantic, supabase, anthropic, stripe. | CLOSED |
+| MEDIUM-001 | Medium | 8 tables lack RLS | Read `backend/migrations/008_rls_hardening.sql` | Migration file exists. All 8 tables are covered with `ALTER TABLE public.<table> ENABLE ROW LEVEL SECURITY`: `plans`, `stripe_webhook_events`, `platform_staff`, `platform_audit_log`, `support_sessions`, `faq_categories`, `faq_articles`, `platform_settings`. No permissive policies added — deny-all for anon/authenticated roles by design. | CLOSED |
+| MEDIUM-002 | Medium | CSV export uses `window.open` | Read `frontend/src/api/client.ts` lines 734–738; read `frontend/src/components/admin/RevenuePanel.tsx` lines 43–61 | `exportRevenueCsv` in `client.ts` uses `api.get(...)` with `responseType: 'blob'` — the axios `api` instance attaches the `Authorization` header on every request. `RevenuePanel.tsx` awaits `exportRevenueCsv`, constructs a `Blob`, creates an object URL, triggers download via a transient `<a>` element, and calls `URL.revokeObjectURL`. No `window.open` present. | CLOSED |
+
+---
+
+### Spot-check: Multi-worker deactivation cache propagation
+
+**Classification:** Accepted Operational Limitation (not a new finding)
+
+**Observation:** The deactivation enforcement introduced for CRITICAL-002 uses a module-level in-process dict (`_deactivation_cache` in `auth_utils.py`). In a single-process uvicorn deployment the cache is shared across all async workers within that process and behaves correctly: calling `invalidate_deactivation_cache(user_id)` in the deactivate handler causes the next request in the same process to perform a fresh DB lookup.
+
+In a multi-process deployment (e.g., `uvicorn --workers N` with N > 1, or multiple Railway replica instances), each OS process maintains its own independent copy of `_deactivation_cache`. A deactivation event that hits process A will invalidate the cache in process A only. Processes B through N will continue to serve the deactivated user until either the 60-second TTL expires naturally in each process, or those processes happen to handle a request for the same user_id and the TTL has elapsed.
+
+The practical window is bounded by `_DEACTIVATION_TTL = 60.0` seconds (line 20 of `auth_utils.py`). A deactivated subscriber who holds an active session may continue to reach data-plane endpoints for up to 60 seconds per non-invalidated worker.
+
+**Accepted posture:** The current Railway deployment of OptionsDesk runs a single backend service instance with a single uvicorn process (the Railway start command does not pass `--workers`). Under this topology the cache inconsistency window does not exist. The limitation becomes relevant only if the deployment is scaled horizontally.
+
+**Workaround for future scale-out:** Replace the module-level dict with a short-TTL Redis or Supabase-backed flag, or reduce `_DEACTIVATION_TTL` to a value operationally acceptable as a maximum suspension lag (e.g., 5–10 seconds). Alternatively, use the Supabase Admin API to revoke the user's session token on deactivation, which eliminates the need for any out-of-band cache entirely.
+
+**Action required before this limitation becomes a real risk:** Document in the Railway deployment runbook that horizontal scaling of the backend service requires either a shared cache layer or a session revocation strategy before activation. No code change is required for the current single-instance deployment.
+
+---
+
+### Re-verification Gate Decision: PASS
+
+All 7 findings from the original Gate 5 review have been remediated and are confirmed closed:
+
+- CRITICAL-001: Closed. `ADMIN_EMAIL` is `leonardsim.sm@gmail.com` throughout; `leonard.simgt` is absent from all backend files and CLAUDE.md.
+- CRITICAL-002: Closed. `verify_token()` calls `_is_deactivated()` on every authenticated request; deactivate/reactivate handlers call `invalidate_deactivation_cache()` to make enforcement immediate within the current single-process deployment.
+- HIGH-001: Closed. `handle_webhook_event` raises HTTP 500 before any Stripe call when `STRIPE_WEBHOOK_SECRET` is unset.
+- HIGH-002: Closed. `_sanitise_search()` strips PostgREST-unsafe characters via a tight whitelist regex before any interpolation into `or_()`.
+- HIGH-003: Closed. `python-jose` is not present in `backend/requirements.txt`.
+- MEDIUM-001: Closed. Migration `008_rls_hardening.sql` enables RLS on all 8 flagged tables with deny-all posture for non-service-role access.
+- MEDIUM-002: Closed. CSV export uses an authenticated blob fetch via the axios `api` client; `window.open` is not used.
+
+The in-process deactivation cache limitation under multi-worker deployments is noted as an accepted operational constraint for the current single-instance Railway topology. It must be addressed before horizontal scaling is enabled.
+
+No Critical or High findings remain open. The feature is cleared to proceed to Gate 6.
