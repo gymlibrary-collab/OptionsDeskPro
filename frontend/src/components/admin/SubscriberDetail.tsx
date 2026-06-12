@@ -1,0 +1,390 @@
+import { useEffect, useState, useCallback } from 'react'
+import {
+  getSubscriberDetail,
+  SubscriberDetailResponse,
+  tierOverride,
+  deactivateSubscriber,
+  reactivateSubscriber,
+  startSupportSession,
+  endSupportSession,
+} from '../../api/client'
+import { useStaffAuth } from '../../context/StaffAuthContext'
+
+const C = {
+  bg: '#0f1117',
+  surface: '#1a1d27',
+  border: '#2d3148',
+  text: '#e2e8f0',
+  muted: '#94a3b8',
+  accent: '#7c6af7',
+  input: '#252836',
+  error: '#ef4444',
+  success: '#22c55e',
+  warning: '#f59e0b',
+}
+
+const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
+
+const TIER_OPTIONS = ['free', 'starter', 'pro', 'enterprise']
+
+const fmtDate = (iso: string | null | undefined) => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+const fmtAmount = (amount: number, currency: string) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format(amount)
+
+interface Props {
+  userId: string
+  onBack: () => void
+}
+
+export default function SubscriberDetail({ userId, onBack }: Props) {
+  const { staffRole } = useStaffAuth()
+  const [data, setData] = useState<SubscriberDetailResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [overrideTier, setOverrideTier] = useState('')
+  const [overrideReason, setOverrideReason] = useState('')
+  const [overrideLoading, setOverrideLoading] = useState(false)
+  const [overrideError, setOverrideError] = useState<string | null>(null)
+  const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null)
+
+  const [deactivateLoading, setDeactivateLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+
+  const [sessionLoading, setSessionLoading] = useState(false)
+  const [activeSession, setActiveSession] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getSubscriberDetail(userId)
+      setData(res)
+    } catch {
+      setError('Failed to load subscriber details.')
+    } finally {
+      setLoading(false)
+    }
+  }, [userId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleTierOverride = async () => {
+    if (!overrideTier) { setOverrideError('Select a tier.'); return }
+    setOverrideError(null)
+    setOverrideSuccess(null)
+    setOverrideLoading(true)
+    try {
+      await tierOverride(userId, overrideTier || null, overrideReason || 'Admin override')
+      setOverrideSuccess(`Tier override set to ${overrideTier}.`)
+      await load()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setOverrideError(err?.response?.data?.detail || 'Failed to update tier override.')
+    } finally {
+      setOverrideLoading(false)
+    }
+  }
+
+  const handleClearOverride = async () => {
+    setOverrideError(null)
+    setOverrideSuccess(null)
+    setOverrideLoading(true)
+    try {
+      await tierOverride(userId, null, 'Clear override')
+      setOverrideSuccess('Tier override cleared.')
+      await load()
+    } catch {
+      setOverrideError('Failed to clear tier override.')
+    } finally {
+      setOverrideLoading(false)
+    }
+  }
+
+  const handleToggleActive = async () => {
+    if (!data) return
+    const isActive = data.profile.is_active
+    if (!window.confirm(isActive ? 'Suspend this account?' : 'Reactivate this account?')) return
+    setActionError(null)
+    setActionSuccess(null)
+    setDeactivateLoading(true)
+    try {
+      if (isActive) {
+        await deactivateSubscriber(userId)
+        setActionSuccess('Account suspended.')
+      } else {
+        await reactivateSubscriber(userId)
+        setActionSuccess('Account reactivated.')
+      }
+      await load()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setActionError(err?.response?.data?.detail || 'Action failed.')
+    } finally {
+      setDeactivateLoading(false)
+    }
+  }
+
+  const handleStartSession = async () => {
+    setSessionLoading(true)
+    try {
+      const res = await startSupportSession(userId)
+      setActiveSession(res.support_session_id)
+      const clientUrl = import.meta.env.VITE_CLIENT_PORTAL_URL || window.location.origin.replace('-admin', '-client')
+      window.open(`${clientUrl}?support_session_id=${res.support_session_id}&subscriber_id=${res.subscriber_id}`, '_blank')
+    } catch {
+      setActionError('Failed to start support session.')
+    } finally {
+      setSessionLoading(false)
+    }
+  }
+
+  const handleEndSession = async () => {
+    if (!activeSession) return
+    try {
+      await endSupportSession(userId)
+      setActiveSession(null)
+    } catch {
+      setActionError('Failed to end support session.')
+    }
+  }
+
+  if (loading) {
+    return <div style={{ color: C.muted, fontSize: '14px', padding: '40px', fontFamily: FONT }}>Loading subscriber...</div>
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ padding: '40px', fontFamily: FONT }}>
+        <button onClick={onBack} style={backBtn}>Back</button>
+        <div style={{ color: C.error, fontSize: '14px', marginTop: '16px' }}>{error || 'Not found.'}</div>
+      </div>
+    )
+  }
+
+  const { profile, subscription, positions_count, orders_count, invoices } = data
+  const isOwner = staffRole === 'owner'
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        <button onClick={onBack} style={backBtn}>Back</button>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: C.text }}>{profile.email}</h2>
+        {!profile.is_active && (
+          <span style={{ background: 'rgba(239,68,68,0.2)', color: C.error, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>SUSPENDED</span>
+        )}
+      </div>
+
+      {actionError && <ErrorMsg msg={actionError} />}
+      {actionSuccess && <SuccessMsg msg={actionSuccess} />}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+
+        {/* Profile */}
+        <Section title="Profile">
+          <Field label="Full name" value={profile.full_name || '—'} />
+          <Field label="Account status" value={profile.is_active ? 'Active' : 'Suspended'} highlight={profile.is_active ? undefined : 'error'} />
+          <Field label="Onboarding" value={profile.onboarding_completed ? 'Complete' : 'Incomplete'} />
+          <Field label="Joined" value={fmtDate(profile.created_at)} />
+          <Field label="Last seen" value={fmtDate(profile.last_seen_at)} />
+        </Section>
+
+        {/* Subscription */}
+        <Section title="Subscription">
+          <Field label="Tier" value={subscription.tier_key} />
+          <Field label="Status" value={subscription.status} highlight={subscription.status === 'past_due' ? 'warning' : undefined} />
+          <Field label="Period end" value={fmtDate(subscription.current_period_end)} />
+          <Field label="Cancel at period end" value={subscription.cancel_at_period_end ? 'Yes' : 'No'} />
+          <Field label="Stripe customer" value={subscription.stripe_customer_id ? subscription.stripe_customer_id.slice(-8) : '—'} />
+        </Section>
+
+        {/* Activity */}
+        <Section title="Activity">
+          <Field label="Positions" value={String(positions_count)} />
+          <Field label="Orders" value={String(orders_count)} />
+        </Section>
+      </div>
+
+      {/* Support Session */}
+      <Section title="Support session (read-only view)">
+        <p style={{ margin: '0 0 12px', fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>
+          Opens the client portal in a new tab with this subscriber's view. All actions are read-only. Session is audit-logged.
+        </p>
+        {activeSession ? (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', color: C.success }}>Session active</span>
+            <button onClick={handleEndSession} style={btnSecondary(false)}>End session</button>
+          </div>
+        ) : (
+          <button onClick={handleStartSession} disabled={sessionLoading} style={btnPrimary(sessionLoading)}>
+            {sessionLoading ? 'Starting...' : 'Start support session'}
+          </button>
+        )}
+      </Section>
+
+      {/* Tier override (owner only) */}
+      {isOwner && (
+        <Section title="Tier override (owner only)">
+          <p style={{ margin: '0 0 12px', fontSize: '13px', color: C.muted }}>
+            Manually set the effective tier, bypassing Stripe. Does not affect billing.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            <select
+              value={overrideTier}
+              onChange={e => setOverrideTier(e.target.value)}
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: '8px', color: C.text, padding: '8px 12px', fontSize: '13px', fontFamily: FONT }}
+            >
+              <option value="">Select tier...</option>
+              {TIER_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input
+              type="text"
+              placeholder="Reason (optional)"
+              value={overrideReason}
+              onChange={e => setOverrideReason(e.target.value)}
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: '8px', color: C.text, padding: '8px 12px', fontSize: '13px', fontFamily: FONT, flex: 1, minWidth: '160px' }}
+            />
+          </div>
+          {overrideError && <ErrorMsg msg={overrideError} />}
+          {overrideSuccess && <SuccessMsg msg={overrideSuccess} />}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+            <button onClick={handleTierOverride} disabled={overrideLoading} style={btnPrimary(overrideLoading)}>
+              {overrideLoading ? 'Saving...' : 'Apply override'}
+            </button>
+            <button onClick={handleClearOverride} disabled={overrideLoading} style={btnSecondary(overrideLoading)}>
+              Clear override
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {/* Account suspension (owner only) */}
+      {isOwner && (
+        <Section title={profile.is_active ? 'Suspend account' : 'Reactivate account'}>
+          <p style={{ margin: '0 0 12px', fontSize: '13px', color: C.muted }}>
+            {profile.is_active
+              ? 'Suspending blocks all login access. Does not cancel their Stripe subscription.'
+              : 'Reactivating restores login access.'}
+          </p>
+          <button
+            onClick={handleToggleActive}
+            disabled={deactivateLoading}
+            style={{
+              background: profile.is_active ? 'rgba(239,68,68,0.15)' : undefined,
+              border: `1px solid ${profile.is_active ? C.error : C.border}`,
+              borderRadius: '8px',
+              color: profile.is_active ? C.error : C.text,
+              padding: '8px 18px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: deactivateLoading ? 'not-allowed' : 'pointer',
+              fontFamily: FONT,
+            }}
+          >
+            {deactivateLoading ? 'Processing...' : profile.is_active ? 'Suspend account' : 'Reactivate account'}
+          </button>
+        </Section>
+      )}
+
+      {/* Invoices */}
+      <Section title="Invoices">
+        {invoices.length === 0 ? (
+          <div style={{ color: C.muted, fontSize: '14px' }}>No invoices.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  {['Date', 'Amount', 'Status', 'PDF'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', color: C.muted, fontWeight: 600, padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map(inv => (
+                  <tr key={inv.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '8px', color: C.muted }}>{fmtDate(inv.created_at)}</td>
+                    <td style={{ padding: '8px', color: C.text }}>{fmtAmount(inv.amount_paid, inv.currency)}</td>
+                    <td style={{ padding: '8px', color: inv.status === 'paid' ? C.success : C.warning }}>{inv.status}</td>
+                    <td style={{ padding: '8px' }}>
+                      {inv.invoice_pdf && <a href={inv.invoice_pdf} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: 'none', fontSize: '12px' }}>PDF</a>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '20px', marginBottom: '16px' }}>
+      <h3 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: 700, color: C.text }}>{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, value, highlight }: { label: string; value: string; highlight?: 'warning' | 'error' }) {
+  const color = highlight === 'warning' ? C.warning : highlight === 'error' ? C.error : C.text
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid rgba(45,49,72,0.5)`, gap: '12px' }}>
+      <span style={{ fontSize: '13px', color: C.muted }}>{label}</span>
+      <span style={{ fontSize: '13px', color, fontWeight: 600 }}>{value}</span>
+    </div>
+  )
+}
+
+function ErrorMsg({ msg }: { msg: string }) {
+  return <div style={{ background: 'rgba(239,68,68,0.1)', border: `1px solid ${C.error}`, borderRadius: '8px', padding: '10px 12px', fontSize: '13px', color: C.error, marginBottom: '12px' }}>{msg}</div>
+}
+
+function SuccessMsg({ msg }: { msg: string }) {
+  return <div style={{ background: 'rgba(34,197,94,0.1)', border: `1px solid ${C.success}`, borderRadius: '8px', padding: '10px 12px', fontSize: '13px', color: C.success, marginBottom: '12px' }}>{msg}</div>
+}
+
+const backBtn: React.CSSProperties = {
+  background: 'transparent',
+  border: `1px solid ${C.border}`,
+  borderRadius: '6px',
+  color: C.muted,
+  padding: '5px 12px',
+  fontSize: '13px',
+  cursor: 'pointer',
+  fontFamily: FONT,
+}
+
+const btnPrimary = (disabled: boolean): React.CSSProperties => ({
+  background: C.accent,
+  border: 'none',
+  borderRadius: '8px',
+  color: '#fff',
+  padding: '8px 16px',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.7 : 1,
+  fontFamily: FONT,
+})
+
+const btnSecondary = (disabled: boolean): React.CSSProperties => ({
+  background: 'transparent',
+  border: `1px solid ${C.border}`,
+  borderRadius: '8px',
+  color: C.muted,
+  padding: '8px 16px',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.7 : 1,
+  fontFamily: FONT,
+})
