@@ -13,8 +13,9 @@ on:
         default: 'all'
 
 jobs:
+  # ── Client portal (VITE_PORTAL_MODE=client, the default) ──────────────────────
   e2e:
-    name: Playwright E2E (${{ github.event.inputs.browser || 'all' }})
+    name: Playwright E2E — client portal (${{ github.event.inputs.browser || 'all' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -39,7 +40,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run E2E tests
+      - name: Run E2E tests (client portal)
         run: |
           if [ "${{ github.event.inputs.browser }}" = "all" ] || [ -z "${{ github.event.inputs.browser }}" ]; then
             npx playwright test
@@ -48,21 +49,78 @@ jobs:
           fi
         env:
           CI: true
+          VITE_PORTAL_MODE: client
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://mock.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'mock-anon-key' }}
 
-      - name: Upload Playwright report
+      - name: Upload Playwright report (client portal)
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-${{ github.run_number }}
+          name: playwright-report-client-${{ github.run_number }}
           path: frontend/playwright-report/
           retention-days: 14
 
-      - name: Upload test traces (on failure)
+      - name: Upload test traces — client portal (on failure)
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-traces-${{ github.run_number }}
+          name: playwright-traces-client-${{ github.run_number }}
+          path: frontend/test-results/
+          retention-days: 7
+
+  # ── Admin portal (VITE_PORTAL_MODE=admin) ─────────────────────────────────────
+  e2e-admin:
+    name: Playwright E2E — admin portal (${{ github.event.inputs.browser || 'all' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests (admin portal)
+        run: |
+          if [ "${{ github.event.inputs.browser }}" = "all" ] || [ -z "${{ github.event.inputs.browser }}" ]; then
+            npx playwright test
+          else
+            npx playwright test --project="${{ github.event.inputs.browser }}"
+          fi
+        env:
+          CI: true
+          VITE_PORTAL_MODE: admin
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://mock.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'mock-anon-key' }}
+
+      - name: Upload Playwright report (admin portal)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-admin-${{ github.run_number }}
+          path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload test traces — admin portal (on failure)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-admin-${{ github.run_number }}
           path: frontend/test-results/
           retention-days: 7

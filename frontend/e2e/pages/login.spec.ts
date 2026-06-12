@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 // Login page tests run WITHOUT auth — testing the unauthenticated state.
 
-const BACKEND_URL = 'https://options-backend-production-28c6.up.railway.app'
+const BACKEND_URL = '**/api'
 
 test.describe('Login page', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('Login page', () => {
 
   test('shows the login page when unauthenticated', async ({ page }) => {
     await page.goto('http://localhost:5173/')
-    await expect(page.getByText(/sign in/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible()
   })
 
   test('shows the OptionsDesk branding on the login page', async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe('Login page', () => {
   test('shows login page on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('http://localhost:5173/')
-    await expect(page.getByText(/sign in/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible()
   })
 
   test('shows an error when the backend rejects the user (not whitelisted)', async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe('Login page', () => {
         body: JSON.stringify({ id: 'user-1', email: 'notwhitelisted@test.com' }),
       })
     })
-    await page.route(`${BACKEND_URL}/api/auth/login`, (route) => {
+    await page.route(`${BACKEND_URL}/**/auth/login`, (route) => {
       route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authorised' }) })
     })
     await page.goto('http://localhost:5173/')

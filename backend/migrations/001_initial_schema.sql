@@ -105,5 +105,5 @@ alter table public.activity_log enable row level security;
 
 -- Seed admin whitelist
 insert into public.user_whitelist (email, role, note)
-values ('leonard.simgt@gmail.com', 'admin', 'Admin account')
+values ('leonardsim.sm@gmail.com', 'admin', 'Admin account')
 on conflict (email) do nothing;

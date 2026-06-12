@@ -1,115 +1,77 @@
+/**
+ * Admin spec — updated for the multi-tenant SaaS conversion (Gate 3).
+ *
+ * The old AdminPanel.tsx tab has been retired from the client portal dashboard.
+ * Admin functions now live in the separate admin subdomain portal (VITE_PORTAL_MODE=admin).
+ * These tests verify:
+ *   - The "Admin" tab no longer appears in the client dashboard (for any user).
+ *   - The dashboard still loads correctly after the tab removal.
+ *   - Settings and FAQ buttons are present in the authenticated dashboard header.
+ *
+ * Full admin portal (AdminApp) tests live in admin-portal.spec.ts.
+ */
 import { test, expect } from '../fixtures/auth'
 import {
   MOCK_WATCHLIST,
   MOCK_PORTFOLIO,
   MOCK_AI_SETTINGS,
-  MOCK_ADMIN_USERS,
+  MOCK_OPTIONS_CHAIN,
+  MOCK_ENTITLEMENTS_PRO,
 } from '../mock-data'
 
-const BACKEND_URL = 'https://options-backend-production-28c6.up.railway.app'
+const API = '**/api/**'
 
-test.describe('Admin Panel', () => {
-  test.beforeEach(async ({ adminPage }) => {
-    await adminPage.route(`${BACKEND_URL}/api/watchlist`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_WATCHLIST) })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/portfolio`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PORTFOLIO) })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/ai/settings`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/admin/users`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ADMIN_USERS) })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/admin/whitelist`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ email: 'test@example.com', role: 'user' }]) })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/admin/stats`, (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ total_users: 2, active_today: 1, total_trades: 15 }),
-      })
-    })
-    await adminPage.route(`${BACKEND_URL}/api/admin/activity`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
-    })
+async function mockDashboard(page: import('@playwright/test').Page) {
+  await page.route(`${API}watchlist`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_WATCHLIST) }))
+  await page.route(`${API}portfolio`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PORTFOLIO) }))
+  await page.route(`${API}ai/settings`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) }))
+  await page.route(`${API}options/chain/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_OPTIONS_CHAIN) }))
+  await page.route(`${API}auth/entitlements`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_PRO) }))
+}
+
+test.describe('Client dashboard — Admin tab retired', () => {
+  test.beforeEach(async ({ authedPage }) => {
+    await mockDashboard(authedPage)
   })
 
-  test('admin tab is visible for admin users', async ({ adminPage }) => {
-    await adminPage.goto('http://localhost:5173/')
-    await adminPage.waitForLoadState('networkidle')
-    const adminTab = adminPage.getByRole('tab', { name: /admin/i })
-    await expect(adminTab).toBeVisible({ timeout: 10000 })
-  })
-
-  test('shows user list in admin panel', async ({ adminPage }) => {
-    await adminPage.goto('http://localhost:5173/')
-    await adminPage.waitForLoadState('networkidle')
-    await adminPage.getByRole('tab', { name: /admin/i }).click()
-    // Should list test@example.com from mock data
-    await expect(adminPage.getByText('test@example.com')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('shows whitelist tab with email entries', async ({ adminPage }) => {
-    await adminPage.goto('http://localhost:5173/')
-    await adminPage.waitForLoadState('networkidle')
-    await adminPage.getByRole('tab', { name: /admin/i }).click()
-    const whitelistTab = adminPage.getByRole('tab', { name: /whitelist/i })
-      .or(adminPage.getByText(/whitelist/i))
-    if (await whitelistTab.isVisible()) {
-      await whitelistTab.click()
-    }
-    await expect(adminPage.getByText('test@example.com')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('admin tab is hidden for non-admin users', async ({ authedPage }) => {
-    await authedPage.route(`${BACKEND_URL}/api/watchlist`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_WATCHLIST) })
-    })
-    await authedPage.route(`${BACKEND_URL}/api/portfolio`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PORTFOLIO) })
-    })
-    await authedPage.route(`${BACKEND_URL}/api/ai/settings`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) })
-    })
+  test('admin tab is no longer visible for regular users', async ({ authedPage }) => {
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
-    // Admin tab should not be visible for non-admin users
-    const adminTab = authedPage.getByRole('tab', { name: /^admin$/i })
+    // The old "Admin" tab should not exist in the client dashboard
+    const adminTab = authedPage.getByRole('button', { name: /^admin$/i })
     await expect(adminTab).not.toBeVisible({ timeout: 5000 })
   })
 
-  test('non-admin cannot access admin endpoints directly', async ({ authedPage }) => {
-    await authedPage.route(`${BACKEND_URL}/api/watchlist`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_WATCHLIST) })
-    })
-    await authedPage.route(`${BACKEND_URL}/api/portfolio`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PORTFOLIO) })
-    })
-    await authedPage.route(`${BACKEND_URL}/api/ai/settings`, (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) })
-    })
-    // Mock admin endpoint to return 403 for non-admin
-    await authedPage.route(`${BACKEND_URL}/api/admin/**`, (route) => {
-      route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ detail: 'Admin only' }) })
-    })
-    await authedPage.goto('http://localhost:5173/')
-    await authedPage.waitForLoadState('networkidle')
-    // Verify admin tab is not accessible
-    const adminTab = authedPage.getByRole('tab', { name: /^admin$/i })
+  test('admin tab is no longer visible for admin-email users', async ({ adminPage }) => {
+    await mockDashboard(adminPage)
+    await adminPage.goto('http://localhost:5173/')
+    await adminPage.waitForLoadState('networkidle')
+    // AdminPanel tab is retired — admin users now use the separate admin portal
+    const adminTab = adminPage.getByRole('button', { name: /^admin$/i })
     await expect(adminTab).not.toBeVisible({ timeout: 5000 })
   })
 
-  test('renders admin panel on mobile viewport', async ({ adminPage }) => {
-    await adminPage.setViewportSize({ width: 390, height: 844 })
-    await adminPage.goto('http://localhost:5173/')
-    await adminPage.waitForLoadState('networkidle')
-    const adminTab = adminPage.getByRole('tab', { name: /admin/i })
-    if (await adminTab.isVisible()) {
-      await adminTab.click()
-    }
-    await expect(adminPage.getByText(/users|whitelist/i)).toBeVisible({ timeout: 10000 })
+  test('dashboard loads and shows Options Chain tab after admin tab removal', async ({ authedPage }) => {
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    // Options Chain tab should still be the default active tab
+    await expect(authedPage.getByRole('button', { name: /options chain/i })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('Settings button is visible in dashboard header', async ({ authedPage }) => {
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await expect(authedPage.getByRole('button', { name: /settings/i })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('FAQ button is visible in dashboard header', async ({ authedPage }) => {
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await expect(authedPage.getByRole('button', { name: /faq/i })).toBeVisible({ timeout: 10000 })
   })
 })

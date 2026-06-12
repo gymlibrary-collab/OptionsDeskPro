@@ -4,19 +4,30 @@ import {
   MOCK_SUPABASE_SESSION,
   MOCK_AUTH_ME,
   MOCK_ADMIN_USER,
+  MOCK_LOGIN_RESPONSE,
+  MOCK_ENTITLEMENTS_PRO,
 } from '../mock-data'
 
-const BACKEND_URL = 'https://options-backend-production-28c6.up.railway.app'
+// Glob pattern that matches any backend URL (old Railway URL, new Railway URL, localhost)
+const API_GLOB = '**/api/**'
 
 /**
  * Sets up a mock Supabase session in localStorage and intercepts all
  * Supabase auth API calls so the app believes the user is logged in
  * without going through real Google OAuth.
  *
- * Also intercepts the backend /api/auth/login and /api/auth/me routes
- * to return the mock user profile.
+ * Also intercepts the backend /api/auth/login, /api/auth/me, and
+ * /api/auth/entitlements routes to return mock responses matching the
+ * new multi-tenant SaaS login shape.
+ *
+ * NEVER uses real Google OAuth — always uses mock sessions.
  */
-async function bypassAuth(page: Page, user = MOCK_USER): Promise<void> {
+async function bypassAuth(
+  page: Page,
+  user = MOCK_USER,
+  loginResponse = MOCK_LOGIN_RESPONSE,
+  entitlements = MOCK_ENTITLEMENTS_PRO,
+): Promise<void> {
   // Intercept Supabase auth/v1/user so the JS client sees a valid session
   await page.route('**/auth/v1/user', (route) => {
     route.fulfill({
@@ -35,21 +46,30 @@ async function bypassAuth(page: Page, user = MOCK_USER): Promise<void> {
     })
   })
 
-  // Intercept backend login
-  await page.route(`${BACKEND_URL}/api/auth/login`, (route) => {
+  // Intercept backend login — new response shape with onboarding fields
+  await page.route(`${API_GLOB}auth/login`, (route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ status: 'ok', user: MOCK_AUTH_ME }),
+      body: JSON.stringify(loginResponse),
     })
   })
 
   // Intercept backend /api/auth/me
-  await page.route(`${BACKEND_URL}/api/auth/me`, (route) => {
+  await page.route(`${API_GLOB}auth/me`, (route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(MOCK_AUTH_ME),
+    })
+  })
+
+  // Intercept GET /api/auth/entitlements — new endpoint for feature gating
+  await page.route(`${API_GLOB}auth/entitlements`, (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(entitlements),
     })
   })
 
@@ -89,14 +109,15 @@ type AuthFixtures = {
 
 export const test = base.extend<AuthFixtures>({
   authedPage: async ({ page }, use) => {
-    await bypassAuth(page, MOCK_USER)
+    await bypassAuth(page, MOCK_USER, MOCK_LOGIN_RESPONSE, MOCK_ENTITLEMENTS_PRO)
     await use(page)
   },
 
   adminPage: async ({ page }, use) => {
-    await bypassAuth(page, MOCK_ADMIN_USER)
+    await bypassAuth(page, MOCK_ADMIN_USER, MOCK_LOGIN_RESPONSE, MOCK_ENTITLEMENTS_PRO)
     await use(page)
   },
 })
 
 export { expect } from '@playwright/test'
+export { bypassAuth }

@@ -107,7 +107,7 @@ CORS origins are hardcoded in `backend/main.py`. Add new frontend domains there.
 2. On auth state change, frontend calls `POST /api/auth/login` with the session JWT
 3. Backend verifies via `sb.auth.get_user(token)` — **not** python-jose (algorithm-agnostic)
 4. Login endpoint checks `user_whitelist` table; rejects if email not present
-5. Admin email (`leonard.simgt@gmail.com`) bypasses whitelist check always
+5. Admin email (`leonardsim.sm@gmail.com`) bypasses whitelist check always
 6. `user_profiles` row is upserted; role comes from `user_whitelist.role`
 
 ## Admin check
