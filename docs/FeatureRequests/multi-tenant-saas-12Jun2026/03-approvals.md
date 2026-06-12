@@ -43,7 +43,17 @@
 
 ## Gate 3 — Implementation
 
-**Status:** pending
+**Status:** APPROVED (pre-authorised) — 12 Jun 2026
+
+- Backend commit 8fc7812: migration 006, Stripe service, billing/platform/public routes,
+  entitlements, staff auth (owner/support/finance), audit logging, metrics counter.
+  Import sanity check passed with only SUPABASE_URL/SUPABASE_SERVICE_KEY set.
+- Frontend commit 8c46c0d: portal mode switch (VITE_PORTAL_MODE), email/password auth,
+  onboarding, pricing/settings/FAQ pages, entitlement gating, full admin portal
+  (revenue, health, subscribers, pricing manager, FAQ editor, staff manager).
+  `npm run build` passes (tsc strict).
+- Orchestrator fix: AuthContext admin email regression corrected back to
+  leonardsim.sm@gmail.com.
 
 ## Gate 4 — Test
 
