@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 interface Props {
   isAdmin: boolean
+  userRole?: 'owner' | 'support' | 'finance'
 }
 
 const C = {
@@ -139,10 +140,6 @@ export default function UserGuide({ isAdmin }: Props) {
           systematic approach to selling options premium when implied volatility is elevated, and buying when
           it is cheap. The app helps you identify opportunities, understand the reasoning behind each strategy,
           and execute trades with a clear plan.
-        </P>
-        <P>
-          You sign in with your Google account. If you see an "Access denied" message, your email hasn't been
-          added to the system — contact the admin to request access.
         </P>
         <Note>
           <strong>The golden rule:</strong> Every strategy recommendation on this app comes with a plain-English
@@ -311,41 +308,209 @@ export default function UserGuide({ isAdmin }: Props) {
         </div>
       </Section>
 
-      {/* ── ADMIN SECTION ── */}
-      {isAdmin && (
-        <Section title="Admin Panel" badge="Admin Only">
+      {/* ── SIGN UP & PLAN SELECTION ── */}
+      <Section title="Sign-Up and Plan Selection">
+        <P>
+          New visitors can sign up for free without a payment method. You can sign in with <strong>Google</strong> or
+          create an account with your email and password.
+        </P>
+        <P>
+          <strong>Free tier (no card required):</strong> Sign up and go directly to the dashboard. You get access to
+          the Strategy Scanner (10 scans per month) and Options Chain. You can add up to 5 symbols to your watchlist.
+          Paper trading is included.
+        </P>
+        <P>
+          <strong>Paid tiers (Starter, Pro, Enterprise):</strong> Select your plan on the pricing page. You will be
+          redirected to a secure payment form (Stripe) to enter your card details. After your payment is processed,
+          you immediately unlock the features included in your tier. Your first billing cycle starts on the day you
+          subscribe; your renewal date is shown in Settings.
+        </P>
+        <Note color={C.green}>
+          Each plan unlocks different features. The free tier is designed to let you explore the platform risk-free.
+          Upgrade anytime from the Settings page without losing your watchlist or paper trading history.
+        </Note>
+      </Section>
+
+      {/* ── SUBSCRIPTION & BILLING SETTINGS ── */}
+      <Section title="Settings Page — Account, Subscription, and Billing">
+        <P>
+          The <strong>Settings</strong> page is your control center for account management and billing. Access it from
+          the dashboard menu.
+        </P>
+
+        <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Account Tab</div>
+        <Sub>
+          <P><strong>Display Name</strong> — your public profile name. Update it anytime.</P>
+          <P><strong>Email</strong> — shown for reference. If you signed up with Google, email is tied to your Google account and cannot be changed here.</P>
+          <P><strong>Password</strong> — visible only if you created an email/password account. Change it anytime for security.</P>
+          <P><strong>Avatar</strong> — your profile picture. Currently pulled from Google if you signed in with Google.</P>
+        </Sub>
+
+        <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Subscription Tab</div>
+        <Sub>
+          <P><strong>Current Plan</strong> — displays your active tier (Free, Starter, Pro, or Enterprise).</P>
+          <P><strong>Billing Cycle</strong> — shows your next renewal date. Your cycle renews on this date each month.</P>
+          <P><strong>Upgrade</strong> — instantly move to a higher tier. Charges are prorated; you pay only for the remainder of your current billing period at the new tier's rate.</P>
+          <P><strong>Downgrade</strong> — schedule a move to a lower tier. Takes effect at the end of your current billing period; you retain full access until then.</P>
+          <P><strong>Scheduled Changes</strong> — if a downgrade is scheduled, a banner shows the effective date.</P>
+        </Sub>
+
+        <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Billing Tab</div>
+        <Sub>
+          <P><strong>Payment Method</strong> — displays the last four digits, card brand (Visa, Mastercard, etc.), and expiry month/year. No full card number is stored with OptionsDesk.</P>
+          <P><strong>Update Card</strong> — click to securely update your payment method via Stripe. You are redirected to Stripe's secure portal and return automatically.</P>
+          <P><strong>Invoice List</strong> — shows all invoices tied to your account, including date, amount, and status (paid, open, void). Click the PDF link to download the invoice from Stripe.</P>
+        </Sub>
+
+        <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Danger Zone</div>
+        <Sub>
+          <P><strong>Cancel Subscription</strong> — schedules your subscription to cancel at the end of your current billing period. You retain full access until that date. A confirmation step requires you to type "CANCEL" to prevent accidental cancellation.</P>
+          <P><strong>Delete Account</strong> — permanently removes your account, all positions, orders, and P&amp;L history. This cannot be undone. Requires a deliberate confirmation.</P>
+        </Sub>
+
+        <Note color={C.amber}>
+          <strong>Payment Failed?</strong> If your card is declined, a banner appears on login with a direct link to update your payment method. Your access is downgraded to free tier while payment is overdue. Update your card to restore full access within seconds.
+        </Note>
+      </Section>
+
+      {/* ── TIER-GATED FEATURES ── */}
+      <Section title="Tier-Gated Features — What You Unlock">
+        <P>
+          Each subscription tier unlocks different features. Tabs that your tier does not include show a locked
+          placeholder with the minimum tier required and an "Upgrade" button.
+        </P>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginTop: '8px', marginBottom: '8px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Free Tier</div>
+          <P><Label color={C.green}>Included:</Label> Strategy Scanner (10 scans/month, max 5 watchlist symbols), Options Chain.</P>
+          <P><Label color={C.red}>Locked:</Label> Trading Desk (requires Starter+), Positions & P&amp;L (requires Starter+), Risk Monitor (requires Pro+).</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '8px' }}>
+          <div style={{ fontWeight: 700, color: C.blue, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Starter ($9/mo)</div>
+          <P><Label color={C.green}>Included:</Label> Everything in Free tier + Strategy Scanner (100 scans/month, max 15 watchlist symbols) + Positions & P&amp;L tab.</P>
+          <P><Label color={C.red}>Locked:</Label> Trading Desk (requires Pro+), Risk Monitor (requires Pro+).</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '8px' }}>
+          <div style={{ fontWeight: 700, color: C.amber, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Pro ($29/mo)</div>
+          <P><Label color={C.green}>Included:</Label> Everything in Starter tier + Strategy Scanner (unlimited scans, max 50 watchlist symbols) + Trading Desk tab (Reddit buzz feeds, options flow, earnings alerts).</P>
+          <P><Label color={C.red}>Locked:</Label> Risk Monitor (requires Enterprise).</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+          <div style={{ fontWeight: 700, color: C.text, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Enterprise ($99+/mo)</div>
+          <P><Label color={C.green}>Included:</Label> Unlimited everything — unlimited scans, unlimited watchlist symbols, all tabs unlocked including Risk Monitor.</P>
+        </div>
+
+        <Note color={C.blue}>
+          <strong>Watchlist limits:</strong> Each tier has a maximum number of symbols you can add to your watchlist. If you downgrade and exceed your new tier's limit, your list is not automatically trimmed, but you cannot add new symbols until you remove excess ones.
+        </Note>
+      </Section>
+
+      {/* ── FAQ ── */}
+      <Section title="FAQ & Knowledge Base">
+        <P>
+          Visit the <strong>FAQ page</strong> (link in the footer) for answers to common questions about using OptionsDesk,
+          subscribing, managing your account, and trading on the platform. The FAQ is maintained by our support team and
+          updated regularly.
+        </P>
+        <Note>
+          Did not find the answer you were looking for? Check back soon — the FAQ grows as we receive feedback.
+        </Note>
+      </Section>
+
+      {/* ── ADMIN PORTAL (OWNER, SUPPORT, FINANCE) ── */}
+      {userRole === 'owner' && (
+        <Section title="Admin Portal — Owner Guide" badge="Owner Only">
           <P>
-            The <strong>Admin</strong> tab is visible only to users with the admin role.
-            It provides tools for managing who can access the app and monitoring user activity.
+            As an Owner, you have full access to the admin portal at <code>admin.<em>optionsdeskpro.com</em></code>.
+            You can manage subscribers, staff, pricing, revenue, and platform-wide settings.
           </P>
 
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '4px 0 2px' }}>Users Tab</div>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Subscribers Tab</div>
           <Sub>
-            <P>Shows every user who has <strong>logged in at least once</strong>. Columns include: name, email, role, cash balance, last login time, today's login count, and active/inactive status.</P>
-            <P><strong>Add New User:</strong> enter a <code>@gmail.com</code> address (only Google accounts are supported), select the role (User or Admin), and click <strong>+ Add User</strong>. The user will be able to sign in immediately.</P>
-            <P><strong>Change Role:</strong> use the role dropdown on any user row to promote them to Admin or demote them to User. The change takes effect on their next API call.</P>
-            <P><strong>Deactivate:</strong> disables a user's access. They will receive "Access denied" on next sign-in.</P>
+            <P>View all subscribers with their email, tier, subscription status, and last login. Search by email or name. Click a subscriber to view their full profile, billing history, paper trading activity, and support options.</P>
+            <P><strong>Tier Override:</strong> temporarily grant a subscriber a different tier for testing or special circumstances (e.g. trial period). The override takes precedence over their Stripe tier.</P>
+            <P><strong>Deactivate Account:</strong> suspend a subscriber's login access. They receive an error message on next sign-in directing them to contact support. Their data is retained.</P>
+            <P><strong>Support View:</strong> enter a read-only view of their dashboard (same data, fully watermarked). Use this to diagnose issues without asking for screenshots.</P>
           </Sub>
 
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 2px' }}>Whitelist Tab</div>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Pricing Tab</div>
           <Sub>
-            <P>Shows everyone who is <strong>allowed to sign in</strong>, including people who have been invited but haven't logged in yet. Use this to see pending invites or to remove access from someone who hasn't logged in.</P>
-            <P>The Users tab's "Add New User" form writes to both this table and the user profile, so you rarely need to use the Whitelist tab directly.</P>
+            <P>View all subscription tiers and their current prices. Edit prices and feature entitlements (watchlist limit, scan limit, which tabs are unlocked). Changes apply to new subscriptions and renewals immediately; existing subscribers are grandfathered at their current price.</P>
+            <P>Confirmation shows how many active subscribers will be affected on their next renewal.</P>
           </Sub>
 
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 2px' }}>Activity Log Tab</div>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Revenue Tab</div>
           <Sub>
-            <P>Shows today's login activity — who signed in, how many times, when, and from which IP address. Auto-refreshes every 60 seconds.</P>
+            <P>Monitor Monthly Recurring Revenue (MRR), 12-month trend, active subscriber counts by tier, churn, and past-due accounts. Export invoice data as CSV for accounting and analysis.</P>
           </Sub>
 
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 2px' }}>Leaderboard Tab</div>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Health Panel</div>
           <Sub>
-            <P>Ranks all users by total paper-trading P&amp;L using their latest portfolio snapshot. Updates automatically as users trade.</P>
+            <P>System health at a glance: API status, Market Data App credit usage, request counts, and active sessions. Alerts turn amber at 80% credit usage and red at 100%.</P>
+          </Sub>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>FAQ Management</div>
+          <Sub>
+            <P>Create, edit, and publish FAQ articles. Draft articles are visible only to you and Support staff. Publish to make them visible on the public FAQ page.</P>
+          </Sub>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Staff Management</div>
+          <Sub>
+            <P>Invite new platform staff (Owner, Support, Finance roles) by email. View all staff, change roles, and deactivate accounts. The system ensures at least one Owner is always active.</P>
           </Sub>
 
           <Note color={C.amber}>
-            <strong>Role hierarchy:</strong> Admin users have full access to the Admin Panel and can manage other users.
-            Promoting a user to Admin takes effect immediately — they do not need to log out and back in.
+            <strong>Role assignment:</strong> Owners see all tabs and features. Support staff cannot see revenue or edit pricing. Finance staff can only view revenue and export reports. All actions are audit-logged.
+          </Note>
+        </Section>
+      )}
+
+      {userRole === 'support' && (
+        <Section title="Admin Portal — Support Staff Guide" badge="Support">
+          <P>
+            As Support staff, you have access to the admin portal at <code>admin.<em>optionsdeskpro.com</em></code>.
+            You can assist subscribers, manage the FAQ, and view subscriber profiles.
+          </P>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Subscribers Tab</div>
+          <Sub>
+            <P>Search for and view subscriber profiles. You can see their account details, subscription status, billing history, and paper trading activity.</P>
+            <P><strong>Support View:</strong> enter a read-only, fully watermarked view of their dashboard to diagnose issues. You cannot place orders, modify settings, or make any changes.</P>
+          </Sub>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>FAQ Management</div>
+          <Sub>
+            <P>Create, edit, and publish FAQ articles. Publish entries to make them visible on the public FAQ page. Drafts are private.</P>
+          </Sub>
+
+          <Note color={C.blue}>
+            You cannot edit pricing, view revenue, or manage staff accounts. Contact an Owner if you need assistance with those areas.
+          </Note>
+        </Section>
+      )}
+
+      {userRole === 'finance' && (
+        <Section title="Admin Portal — Finance Staff Guide" badge="Finance">
+          <P>
+            As Finance staff, you have read-only access to billing and revenue data in the admin portal at
+            <code>admin.<em>optionsdeskpro.com</em></code>.
+          </P>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Pricing Tab (Read-Only)</div>
+          <Sub>
+            <P>View all subscription tiers and their current prices. You cannot edit prices or entitlements.</P>
+          </Sub>
+
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Revenue Tab</div>
+          <Sub>
+            <P>Monitor MRR, subscriber counts, churn, and past-due amounts. Export invoice data as CSV for accounting and analysis. This is your primary tool for financial reporting.</P>
+          </Sub>
+
+          <Note color={C.blue}>
+            You cannot view subscriber profiles, edit FAQ, manage staff, or view the health panel. Contact an Owner for access to those areas.
           </Note>
         </Section>
       )}
