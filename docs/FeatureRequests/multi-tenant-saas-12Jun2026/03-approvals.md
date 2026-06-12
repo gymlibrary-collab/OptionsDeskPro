@@ -33,7 +33,13 @@
 
 ## Gate 2 — Architecture
 
-**Status:** pending
+**Status:** APPROVED (pre-authorised) — 12 Jun 2026
+
+- Design: 02-design.md; ADRs 0003–0006 in docs/adr/
+- Notable: Stripe Checkout + Customer Portal (hosted redirects, minimal PCI scope);
+  two Railway frontend services differentiated by VITE_PORTAL_MODE; DB-backed plans
+  catalog with 60 s cache and hardcoded fallback; price changes grandfather existing
+  subscribers; migration 006_saas_conversion.sql is additive-only.
 
 ## Gate 3 — Implementation
 
