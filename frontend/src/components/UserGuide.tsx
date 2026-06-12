@@ -120,7 +120,7 @@ function Label({ color, children }: { color: string; children: React.ReactNode }
   )
 }
 
-export default function UserGuide({ isAdmin }: Props) {
+export default function UserGuide({ isAdmin, userRole }: Props) {
   return (
     <div style={{ maxWidth: '820px', margin: '0 auto', fontFamily: font }}>
       <div style={{ marginBottom: '20px' }}>

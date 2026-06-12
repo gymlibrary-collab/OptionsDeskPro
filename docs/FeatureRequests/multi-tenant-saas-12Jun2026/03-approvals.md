@@ -90,4 +90,12 @@ single-worker Railway; must move to shared cache before horizontal scaling.
 
 ## Gate 6 — Release
 
-**Status:** pending
+**Status:** APPROVED (pre-authorised) — 12 Jun 2026
+
+- 06-release-note.md: full migration order (006→007→008), env var matrix, Stripe setup
+  steps, rollback procedure, known limitations accepted for launch.
+- UserGuide.tsx updated with self-signup, settings, tier-gating, FAQ, and role-aware
+  admin portal sections (owner/support/finance). Fixed TS prop destructuring bug.
+- Ops runbook: docs/ops/2026-06-12-saas-launch-runbook.md
+- Nightly CI: .github/workflows/e2e-nightly.yml updated — parallel client + admin portal jobs.
+- All gates complete. Merging to main.
