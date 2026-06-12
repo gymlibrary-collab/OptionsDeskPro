@@ -15,7 +15,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>(null!)
 
-const ADMIN_EMAIL = 'leonard.simgt@gmail.com'
+const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
