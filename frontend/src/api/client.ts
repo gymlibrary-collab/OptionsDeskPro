@@ -402,6 +402,9 @@ export interface Entitlements {
   cancel_at_period_end: boolean
   pending_tier_key: string | null
   payment_failed: boolean
+  // From plans catalog (F-012)
+  display_name?: string
+  price_monthly_usd?: number
 }
 
 export const getEntitlements = (): Promise<Entitlements> =>
@@ -576,6 +579,31 @@ export interface SubscriberListResponse {
   subscribers: SubscriberRow[]
 }
 
+export interface SubscriberPosition {
+  symbol: string
+  quantity: number
+  avg_cost: number
+  strategy: string | null
+  opened_at: string | null
+}
+
+export interface SubscriberOrder {
+  id: string
+  timestamp: string
+  symbol: string
+  action: string
+  quantity: number
+  price: number
+  status: string
+}
+
+export interface SubscriberActivityEntry {
+  id: string
+  action: string
+  created_at: string
+  details: string | null
+}
+
 export interface SubscriberDetailResponse {
   profile: {
     id: string
@@ -598,6 +626,11 @@ export interface SubscriberDetailResponse {
   positions_count: number
   orders_count: number
   invoices: Invoice[]
+  // Support view fields (returned by GET /api/platform/subscribers/{user_id})
+  watchlist_symbols?: string[]
+  positions?: SubscriberPosition[]
+  orders?: SubscriberOrder[]
+  recent_activity?: SubscriberActivityEntry[]
 }
 
 export interface SupportSessionResponse {

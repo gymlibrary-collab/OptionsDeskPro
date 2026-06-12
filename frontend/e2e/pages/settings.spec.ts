@@ -122,7 +122,7 @@ test.describe('Settings page — Subscription tab', () => {
     await expect(authedPage.getByRole('button', { name: /reactivate/i })).toBeVisible({ timeout: 10000 })
   })
 
-  test('Cancel subscription button triggers confirmation dialog (AC7.1)', async ({ authedPage }) => {
+  test('Cancel subscription button shows inline typed-confirmation form (AC7.1)', async ({ authedPage }) => {
     let cancelCalled = false
     await authedPage.route(`${API}billing/cancel`, (route) => {
       cancelCalled = true
@@ -133,9 +133,22 @@ test.describe('Settings page — Subscription tab', () => {
     await authedPage.getByRole('button', { name: /^subscription$/i }).click()
     await expect(authedPage.getByRole('button', { name: /cancel subscription/i })).toBeVisible({ timeout: 10000 })
 
-    // Set up dialog handler to accept the confirm dialog
-    authedPage.on('dialog', dialog => dialog.accept())
+    // Click cancel — shows inline confirmation form (no window.confirm)
     await authedPage.getByRole('button', { name: /cancel subscription/i }).click()
+
+    // Typed confirmation input should appear
+    await expect(authedPage.getByPlaceholder('CANCEL')).toBeVisible({ timeout: 5000 })
+
+    // Confirm button disabled until correct word typed
+    const confirmBtn = authedPage.getByRole('button', { name: /confirm cancellation/i })
+    await expect(confirmBtn).toBeDisabled()
+
+    // Type CANCEL to enable the confirm button
+    await authedPage.getByPlaceholder('CANCEL').fill('CANCEL')
+    await expect(confirmBtn).toBeEnabled()
+
+    // Click to confirm
+    await confirmBtn.click()
 
     // Wait for the cancel API to be called
     await authedPage.waitForTimeout(1000)
@@ -149,8 +162,11 @@ test.describe('Settings page — Subscription tab', () => {
     await openSettings(authedPage)
     await authedPage.getByRole('button', { name: /^subscription$/i }).click()
 
-    authedPage.on('dialog', dialog => dialog.accept())
+    // New inline typed-confirmation flow
     await authedPage.getByRole('button', { name: /cancel subscription/i }).click()
+    await expect(authedPage.getByPlaceholder('CANCEL')).toBeVisible({ timeout: 5000 })
+    await authedPage.getByPlaceholder('CANCEL').fill('CANCEL')
+    await authedPage.getByRole('button', { name: /confirm cancellation/i }).click()
 
     // Should show a success message mentioning the cancellation date
     await expect(authedPage.getByText(/subscription will cancel/i)).toBeVisible({ timeout: 10000 })

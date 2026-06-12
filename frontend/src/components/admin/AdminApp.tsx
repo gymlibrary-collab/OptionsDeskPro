@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { StaffAuthProvider, useStaffAuth } from '../../context/StaffAuthContext'
 import StaffLoginPage from './StaffLoginPage'
 import SubscriberList from './SubscriberList'
@@ -9,6 +9,7 @@ import HealthPanel from './HealthPanel'
 import FaqEditor from './FaqEditor'
 import StaffManager from './StaffManager'
 import { useWindowSize } from '../../hooks/useWindowSize'
+import { getPlatformSettings, patchPlatformSettings, PlatformSettings } from '../../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -22,7 +23,7 @@ const C = {
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
 
-type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff'
+type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff' | 'settings'
 
 function AdminShell() {
   const { staffUser, staffProfile, staffRole, loading, signOut } = useStaffAuth()
@@ -48,11 +49,12 @@ function AdminShell() {
   const allNavItems: NavItem[] = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'subscribers', label: 'Subscribers', roles: ['owner', 'support'] },
-    { key: 'pricing', label: 'Pricing' },
+    { key: 'pricing', label: 'Pricing', roles: ['owner', 'finance'] },
     { key: 'revenue', label: 'Revenue', roles: ['owner', 'finance'] },
     { key: 'health', label: 'Health', roles: ['owner'] },
     { key: 'faq', label: 'FAQ Editor', roles: ['owner', 'support'] },
     { key: 'staff', label: 'Staff', roles: ['owner'] },
+    { key: 'settings', label: 'Settings', roles: ['owner'] },
   ]
   const navItems = allNavItems.filter(item => !item.roles || (staffRole && item.roles.includes(staffRole as 'owner' | 'support' | 'finance')))
 
@@ -156,11 +158,12 @@ function AdminShell() {
               ? <SubscriberDetail userId={selectedSubscriberId} onBack={() => setSelectedSubscriberId(null)} />
               : <SubscriberList onSelectSubscriber={id => setSelectedSubscriberId(id)} />
           )}
-          {activeSection === 'pricing' && <PricingManager />}
+          {activeSection === 'pricing' && <PricingManager staffRole={staffRole} />}
           {activeSection === 'revenue' && <RevenuePanel />}
           {activeSection === 'health' && <HealthPanel />}
           {activeSection === 'faq' && <FaqEditor />}
           {activeSection === 'staff' && <StaffManager />}
+          {activeSection === 'settings' && <PlatformSettingsPanel />}
         </div>
       </div>
     </div>
@@ -177,11 +180,12 @@ function DashboardSection({
   type Shortcut = { key: Section; label: string; desc: string; roles?: string[] }
   const allShortcuts: Shortcut[] = [
     { key: 'subscribers', label: 'Subscribers', desc: 'View and manage subscriber accounts', roles: ['owner', 'support'] },
-    { key: 'pricing', label: 'Pricing', desc: 'View and edit tier prices and entitlements' },
+    { key: 'pricing', label: 'Pricing', desc: 'View and edit tier prices and entitlements', roles: ['owner', 'finance'] },
     { key: 'revenue', label: 'Revenue', desc: 'MRR, subscriber counts, churn', roles: ['owner', 'finance'] },
     { key: 'health', label: 'Health', desc: 'API status, market data credits, active sessions', roles: ['owner'] },
     { key: 'faq', label: 'FAQ Editor', desc: 'Create and publish FAQ articles', roles: ['owner', 'support'] },
     { key: 'staff', label: 'Staff', desc: 'Invite staff, manage roles', roles: ['owner'] },
+    { key: 'settings', label: 'Settings', desc: 'Platform settings: invite-only mode, maintenance mode', roles: ['owner'] },
   ]
   const shortcuts = allShortcuts.filter(s => !s.roles || (staffRole && s.roles.includes(staffRole)))
 
@@ -200,6 +204,131 @@ function DashboardSection({
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ─── Platform Settings Panel ──────────────────────────────────────────────────────────────────────
+
+function PlatformSettingsPanel() {
+  const [settings, setSettings] = useState<PlatformSettings | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getPlatformSettings()
+      setSettings(res)
+    } catch {
+      setError('Failed to load platform settings.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleToggle = async (field: keyof PlatformSettings) => {
+    if (!settings) return
+    const newValue = !settings[field]
+    setSaveError(null)
+    setSaveSuccess(null)
+    setSaving(true)
+    try {
+      await patchPlatformSettings({ [field]: newValue })
+      setSettings(s => s ? { ...s, [field]: newValue } : s)
+      setSaveSuccess(`${field === 'invite_only_mode' ? 'Invite-only mode' : 'Maintenance mode'} ${newValue ? 'enabled' : 'disabled'}.`)
+    } catch {
+      setSaveError('Failed to update settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div style={{ color: C.muted, fontSize: '14px', fontFamily: FONT }}>Loading settings...</div>
+  if (error || !settings) return <div style={{ color: '#ef4444', fontSize: '14px', fontFamily: FONT }}>{error || 'Unable to load settings.'}</div>
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: 700, color: C.text }}>Platform Settings</h2>
+
+      {saveSuccess && (
+        <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#22c55e', marginBottom: '16px' }}>
+          {saveSuccess}
+        </div>
+      )}
+      {saveError && (
+        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#ef4444', marginBottom: '16px' }}>
+          {saveError}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <ToggleSetting
+          label="Invite-only mode"
+          description="When enabled, only whitelisted email addresses can create new accounts. New public sign-ups are blocked."
+          enabled={settings.invite_only_mode}
+          onToggle={() => handleToggle('invite_only_mode')}
+          disabled={saving}
+        />
+        <ToggleSetting
+          label="Maintenance mode"
+          description="When enabled, the client portal displays a maintenance page. Existing sessions are unaffected."
+          enabled={settings.maintenance_mode}
+          onToggle={() => handleToggle('maintenance_mode')}
+          disabled={saving}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ToggleSetting({ label, description, enabled, onToggle, disabled }: {
+  label: string
+  description: string
+  enabled: boolean
+  onToggle: () => void
+  disabled: boolean
+}) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '20px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>{label}</div>
+        <div style={{ fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>{description}</div>
+      </div>
+      <button
+        onClick={onToggle}
+        disabled={disabled}
+        style={{
+          flexShrink: 0,
+          width: '48px',
+          height: '26px',
+          borderRadius: '13px',
+          border: 'none',
+          background: enabled ? '#7c6af7' : '#2d3148',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          position: 'relative',
+          opacity: disabled ? 0.7 : 1,
+          transition: 'background 0.2s',
+        }}
+        aria-label={`${label}: ${enabled ? 'on' : 'off'}`}
+      >
+        <span style={{
+          position: 'absolute',
+          top: '3px',
+          left: enabled ? '25px' : '3px',
+          width: '20px',
+          height: '20px',
+          borderRadius: '50%',
+          background: '#fff',
+          transition: 'left 0.2s',
+        }} />
+      </button>
     </div>
   )
 }

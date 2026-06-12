@@ -21,6 +21,8 @@ const C = {
   error: '#ef4444',
   success: '#22c55e',
   warning: '#f59e0b',
+  supportBanner: '#78350f',
+  supportBannerBorder: '#f59e0b',
 }
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
@@ -41,7 +43,7 @@ interface Props {
 }
 
 export default function SubscriberDetail({ userId, onBack }: Props) {
-  const { staffRole } = useStaffAuth()
+  const { staffProfile, staffRole } = useStaffAuth()
   const [data, setData] = useState<SubscriberDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +59,7 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
   const [sessionLoading, setSessionLoading] = useState(false)
-  const [activeSession, setActiveSession] = useState<string | null>(null)
+  const [activeSession, setActiveSession] = useState<{ id: string; startedAt: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -132,11 +134,12 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
 
   const handleStartSession = async () => {
     setSessionLoading(true)
+    setActionError(null)
     try {
       const res = await startSupportSession(userId)
-      setActiveSession(res.support_session_id)
-      const clientUrl = import.meta.env.VITE_CLIENT_PORTAL_URL || window.location.origin.replace('-admin', '-client')
-      window.open(`${clientUrl}?support_session_id=${res.support_session_id}&subscriber_id=${res.subscriber_id}`, '_blank')
+      setActiveSession({ id: res.support_session_id, startedAt: res.started_at })
+      // Reload to pick up the extended support view fields if available
+      await load()
     } catch {
       setActionError('Failed to start support session.')
     } finally {
@@ -169,6 +172,7 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
 
   const { profile, subscription, positions_count, orders_count, invoices } = data
   const isOwner = staffRole === 'owner'
+  const staffName = staffProfile?.full_name || staffProfile?.email || 'Staff'
 
   return (
     <div style={{ fontFamily: FONT }}>
@@ -182,6 +186,37 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
 
       {actionError && <ErrorMsg msg={actionError} />}
       {actionSuccess && <SuccessMsg msg={actionSuccess} />}
+
+      {/* Support view banner — shown when session is active */}
+      {activeSession && (
+        <div style={{
+          background: 'rgba(245,158,11,0.15)',
+          border: `2px solid ${C.supportBannerBorder}`,
+          borderRadius: '10px',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: C.warning, marginBottom: '2px' }}>
+              SUPPORT VIEW — read only
+            </div>
+            <div style={{ fontSize: '12px', color: C.muted }}>
+              Viewing as {staffName} · Session started {fmtDate(activeSession.startedAt)} · All data is live, read-only
+            </div>
+          </div>
+          <button
+            onClick={handleEndSession}
+            style={{ background: 'rgba(245,158,11,0.2)', border: `1px solid ${C.warning}`, borderRadius: '8px', color: C.warning, padding: '7px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}
+          >
+            End Session
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
 
@@ -213,11 +248,11 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
       {/* Support Session */}
       <Section title="Support session (read-only view)">
         <p style={{ margin: '0 0 12px', fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>
-          Opens the client portal in a new tab with this subscriber's view. All actions are read-only. Session is audit-logged.
+          View this subscriber's data inline below. All data is read-only. Session is audit-logged.
         </p>
         {activeSession ? (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', color: C.success }}>Session active</span>
+            <span style={{ fontSize: '13px', color: C.success }}>Session active — scroll down to view subscriber data</span>
             <button onClick={handleEndSession} style={btnSecondary(false)}>End session</button>
           </div>
         ) : (
@@ -226,6 +261,87 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
           </button>
         )}
       </Section>
+
+      {/* Inline support view — only shown when session is active */}
+      {activeSession && (
+        <>
+          {/* Watchlist */}
+          <Section title="Watchlist symbols">
+            {data.watchlist_symbols && data.watchlist_symbols.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {data.watchlist_symbols.map(sym => (
+                  <span key={sym} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '4px 10px', fontSize: '13px', color: C.text, fontWeight: 600 }}>
+                    {sym}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: C.muted, fontSize: '13px' }}>No watchlist symbols.</div>
+            )}
+          </Section>
+
+          {/* Positions */}
+          <Section title={`Open positions (${positions_count})`}>
+            {data.positions && data.positions.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      {['Symbol', 'Qty', 'Avg Cost', 'Strategy', 'Opened'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', color: C.muted, fontWeight: 600, padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.positions.map((pos, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <td style={{ padding: '8px', color: C.text, fontWeight: 600 }}>{pos.symbol}</td>
+                        <td style={{ padding: '8px', color: C.text }}>{pos.quantity}</td>
+                        <td style={{ padding: '8px', color: C.text }}>{pos.avg_cost != null ? `$${pos.avg_cost.toFixed(2)}` : '—'}</td>
+                        <td style={{ padding: '8px', color: C.muted }}>{pos.strategy || '—'}</td>
+                        <td style={{ padding: '8px', color: C.muted }}>{fmtDate(pos.opened_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ color: C.muted, fontSize: '13px' }}>No open positions.</div>
+            )}
+          </Section>
+
+          {/* Recent orders */}
+          <Section title={`Recent orders (last 20 of ${orders_count})`}>
+            {data.orders && data.orders.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      {['Date', 'Symbol', 'Action', 'Qty', 'Price', 'Status'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', color: C.muted, fontWeight: 600, padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.orders.map(ord => (
+                      <tr key={ord.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <td style={{ padding: '8px', color: C.muted }}>{fmtDate(ord.timestamp)}</td>
+                        <td style={{ padding: '8px', color: C.text, fontWeight: 600 }}>{ord.symbol}</td>
+                        <td style={{ padding: '8px', color: C.text }}>{ord.action}</td>
+                        <td style={{ padding: '8px', color: C.text }}>{ord.quantity}</td>
+                        <td style={{ padding: '8px', color: C.text }}>${ord.price.toFixed(2)}</td>
+                        <td style={{ padding: '8px', color: ord.status === 'filled' ? C.success : C.muted }}>{ord.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ color: C.muted, fontSize: '13px' }}>No recent orders.</div>
+            )}
+          </Section>
+        </>
+      )}
 
       {/* Tier override (owner only) */}
       {isOwner && (

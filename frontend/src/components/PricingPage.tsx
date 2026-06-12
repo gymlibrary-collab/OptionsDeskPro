@@ -204,7 +204,7 @@ function FeatureRow({ label, included }: { label: string; included: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
       <span style={{ color: included ? '#22c55e' : '#475569', fontWeight: 700, flexShrink: 0 }}>
-        {included ? 'Y' : 'N'}
+        {included ? '✓' : '✕'}
       </span>
       <span style={{ color: included ? '#cbd5e1' : '#475569' }}>{label}</span>
     </div>

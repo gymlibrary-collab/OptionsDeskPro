@@ -8,6 +8,7 @@ import {
   createBillingPortalSession,
   cancelSubscription,
   reactivateSubscription,
+  downgradePlan,
   deleteAccount,
   Invoice,
   PaymentMethod,
@@ -36,10 +37,11 @@ interface Props {
   onUpgradeClick?: () => void
 }
 
-const TIER_LABELS: Record<string, string> = {
+// Fallback tier labels used only when entitlements don't supply display_name/price_monthly_usd
+const TIER_LABELS_FALLBACK: Record<string, string> = {
   free: 'Free',
-  starter: 'Starter ($9/mo)',
-  pro: 'Pro ($29/mo)',
+  starter: 'Starter',
+  pro: 'Pro',
   enterprise: 'Enterprise',
 }
 
@@ -188,23 +190,53 @@ function SubscriptionTab({
 }) {
   const [cancelLoading, setCancelLoading] = useState(false)
   const [reactivateLoading, setReactivateLoading] = useState(false)
+  const [downgradeLoading, setDowngradeLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
-  const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel? Your subscription will remain active until the end of the billing period.')) return
+  // Typed-confirmation cancel flow (F-004)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelConfirmText, setCancelConfirmText] = useState('')
+
+  // Downgrade confirmation (F-001)
+  const [showDowngradeConfirm, setShowDowngradeConfirm] = useState(false)
+  const [downgradeConfirmText, setDowngradeConfirmText] = useState('')
+
+  const handleCancelConfirm = async () => {
+    if (cancelConfirmText !== 'CANCEL') return
     setActionError(null)
     setActionSuccess(null)
     setCancelLoading(true)
     try {
       const res = await cancelSubscription('CANCEL')
       setActionSuccess(`Subscription will cancel on ${fmtDate(res.cancels_at)}.`)
+      setShowCancelConfirm(false)
+      setCancelConfirmText('')
       await refreshEntitlements()
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } }
       setActionError(err?.response?.data?.detail || 'Failed to cancel. Please try again.')
     } finally {
       setCancelLoading(false)
+    }
+  }
+
+  const handleDowngrade = async () => {
+    if (downgradeConfirmText !== 'DOWNGRADE') return
+    setActionError(null)
+    setActionSuccess(null)
+    setDowngradeLoading(true)
+    try {
+      const res = await downgradePlan('starter')
+      setActionSuccess(`Downgrade to Starter takes effect on ${fmtDate(res.effective_until)}.`)
+      setShowDowngradeConfirm(false)
+      setDowngradeConfirmText('')
+      await refreshEntitlements()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setActionError(err?.response?.data?.detail || 'Failed to schedule downgrade. Please try again.')
+    } finally {
+      setDowngradeLoading(false)
     }
   }
 
@@ -232,40 +264,59 @@ function SubscriptionTab({
   const status = entitlements.subscription_status
   const cancelAtPeriodEnd = entitlements.cancel_at_period_end
 
+  // F-012: use display_name and price_monthly_usd from entitlements if available
+  const tierLabel = entitlements.display_name
+    ? (entitlements.price_monthly_usd != null && entitlements.price_monthly_usd > 0
+        ? `${entitlements.display_name} ($${entitlements.price_monthly_usd}/mo)`
+        : entitlements.display_name)
+    : (TIER_LABELS_FALLBACK[tier] ?? tier)
+
+  const pendingTierLabel = entitlements.pending_tier_key
+    ? (TIER_LABELS_FALLBACK[entitlements.pending_tier_key] ?? entitlements.pending_tier_key)
+    : null
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {actionError && <ErrorMsg msg={actionError} />}
       {actionSuccess && <SuccessMsg msg={actionSuccess} />}
 
       <Section title="Current subscription">
-        <Field label="Plan" value={TIER_LABELS[tier] ?? tier} />
+        <Field label="Plan" value={tierLabel} />
         <Field label="Status" value={status === 'active' ? (cancelAtPeriodEnd ? 'Cancels at period end' : 'Active') : status} highlight={status === 'past_due' ? 'warning' : undefined} />
         {entitlements.current_period_end && (
           <Field label={cancelAtPeriodEnd ? 'Access until' : 'Next renewal'} value={fmtDate(entitlements.current_period_end)} />
         )}
-        {entitlements.pending_tier_key && (
-          <Field label="Pending downgrade" value={TIER_LABELS[entitlements.pending_tier_key] ?? entitlements.pending_tier_key} highlight="warning" />
+        {entitlements.pending_tier_key && entitlements.current_period_end && (
+          <Field
+            label="Scheduled change"
+            value={`Downgrade to ${pendingTierLabel} on ${fmtDate(entitlements.current_period_end)}`}
+            highlight="warning"
+          />
         )}
         <Field label="Max watchlist symbols" value={entitlements.max_symbols === null ? 'Unlimited' : String(entitlements.max_symbols)} />
         <Field label="Max scans/month" value={entitlements.max_scans_per_month === null ? 'Unlimited' : String(entitlements.max_scans_per_month)} />
       </Section>
 
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        {tier !== 'enterprise' && (
+        {tier !== 'enterprise' && tier !== 'pro' && (
           <button onClick={onUpgradeClick} style={btnPrimary(false)}>
             Upgrade plan
           </button>
         )}
-        {tier !== 'free' && !cancelAtPeriodEnd && (
-          <button
-            onClick={handleCancel}
-            disabled={cancelLoading}
-            style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', color: C.muted, padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: cancelLoading ? 'not-allowed' : 'pointer', fontFamily: FONT }}
-          >
-            {cancelLoading ? 'Cancelling...' : 'Cancel subscription'}
-          </button>
+        {tier === 'pro' && !entitlements.pending_tier_key && (
+          <>
+            <button onClick={onUpgradeClick} style={btnPrimary(false)}>
+              Upgrade plan
+            </button>
+            <button
+              onClick={() => { setShowDowngradeConfirm(true); setDowngradeConfirmText('') }}
+              style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', color: C.muted, padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}
+            >
+              Downgrade to Starter
+            </button>
+          </>
         )}
-        {cancelAtPeriodEnd && (
+        {cancelAtPeriodEnd ? (
           <button
             onClick={handleReactivate}
             disabled={reactivateLoading}
@@ -273,8 +324,107 @@ function SubscriptionTab({
           >
             {reactivateLoading ? 'Reactivating...' : 'Reactivate subscription'}
           </button>
+        ) : (
+          tier !== 'free' && (
+            <button
+              onClick={() => { setShowCancelConfirm(true); setCancelConfirmText('') }}
+              style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', color: C.muted, padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}
+            >
+              Cancel subscription
+            </button>
+          )
         )}
       </div>
+
+      {/* Inline typed-confirmation cancel (F-004) */}
+      {showCancelConfirm && (
+        <Section title="Confirm cancellation">
+          <p style={{ margin: '0 0 14px', fontSize: '13px', color: C.muted, lineHeight: 1.7 }}>
+            Your subscription will remain active until the end of the current billing period.
+            Type <strong style={{ color: C.text }}>CANCEL</strong> to confirm:
+          </p>
+          <input
+            type="text"
+            value={cancelConfirmText}
+            onChange={e => setCancelConfirmText(e.target.value)}
+            placeholder="CANCEL"
+            disabled={cancelLoading}
+            style={{ ...inputStyle, marginBottom: '12px' }}
+          />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleCancelConfirm}
+              disabled={cancelLoading || cancelConfirmText !== 'CANCEL'}
+              style={{
+                background: cancelConfirmText === 'CANCEL' ? C.error : 'rgba(239,68,68,0.3)',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#fff',
+                padding: '9px 18px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: (cancelLoading || cancelConfirmText !== 'CANCEL') ? 'not-allowed' : 'pointer',
+                opacity: cancelConfirmText !== 'CANCEL' ? 0.5 : 1,
+                fontFamily: FONT,
+              }}
+            >
+              {cancelLoading ? 'Cancelling...' : 'Confirm cancellation'}
+            </button>
+            <button
+              onClick={() => { setShowCancelConfirm(false); setCancelConfirmText('') }}
+              disabled={cancelLoading}
+              style={btnSecondary(cancelLoading)}
+            >
+              Back
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {/* Inline typed-confirmation downgrade (F-001) */}
+      {showDowngradeConfirm && (
+        <Section title="Confirm downgrade to Starter">
+          <p style={{ margin: '0 0 14px', fontSize: '13px', color: C.muted, lineHeight: 1.7 }}>
+            You will keep Pro access until {fmtDate(entitlements.current_period_end)}, then switch to Starter.
+            Type <strong style={{ color: C.text }}>DOWNGRADE</strong> to confirm:
+          </p>
+          <input
+            type="text"
+            value={downgradeConfirmText}
+            onChange={e => setDowngradeConfirmText(e.target.value)}
+            placeholder="DOWNGRADE"
+            disabled={downgradeLoading}
+            style={{ ...inputStyle, marginBottom: '12px' }}
+          />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleDowngrade}
+              disabled={downgradeLoading || downgradeConfirmText !== 'DOWNGRADE'}
+              style={{
+                background: C.warning,
+                border: 'none',
+                borderRadius: '8px',
+                color: '#fff',
+                padding: '9px 18px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: (downgradeLoading || downgradeConfirmText !== 'DOWNGRADE') ? 'not-allowed' : 'pointer',
+                opacity: downgradeConfirmText !== 'DOWNGRADE' ? 0.5 : 1,
+                fontFamily: FONT,
+              }}
+            >
+              {downgradeLoading ? 'Scheduling...' : 'Confirm downgrade'}
+            </button>
+            <button
+              onClick={() => { setShowDowngradeConfirm(false); setDowngradeConfirmText('') }}
+              disabled={downgradeLoading}
+              style={btnSecondary(downgradeLoading)}
+            >
+              Back
+            </button>
+          </div>
+        </Section>
+      )}
     </div>
   )
 }

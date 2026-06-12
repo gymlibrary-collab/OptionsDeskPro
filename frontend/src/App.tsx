@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import QuoteBar from './components/QuoteBar'
 import OptionsChain from './components/OptionsChain'
 import TradePanel from './components/TradePanel'
@@ -54,6 +54,16 @@ function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
+
+  // MT-020: on mount, check for /settings or /onboarding paths (Stripe return URLs)
+  useEffect(() => {
+    const path = window.location.pathname
+    if (path === '/settings/billing' || path === '/settings') {
+      setShowSettings(true)
+      // Clean URL without triggering navigation
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
 
   const handleSearch = useCallback(() => {
     const s = inputSymbol.trim().toUpperCase()
@@ -378,14 +388,27 @@ function ClientAppInner() {
 
   // Onboarding routing
   const loginProfile = profile as { onboarding_completed?: boolean; onboarding_step?: string } | null
+  const currentPath = window.location.pathname
+
+  // If user has completed onboarding but landed on /onboarding/complete (Stripe return),
+  // treat as complete and clean URL — let dashboard load.
+  const isOnboardingPath = currentPath.startsWith('/onboarding/')
+
   if (loginProfile && loginProfile.onboarding_completed === false) {
-    const step = (loginProfile.onboarding_step || 'plan_selection') as 'plan_selection' | 'payment' | 'complete'
+    let step: 'plan_selection' | 'payment' | 'complete' = (loginProfile.onboarding_step || 'plan_selection') as 'plan_selection' | 'payment' | 'complete'
+    if (step === 'complete') step = 'plan_selection'
+    // Let OnboardingFlow handle the /onboarding/complete path detection
     return (
       <OnboardingFlow
-        initialStep={step === 'complete' ? 'plan_selection' : step}
+        initialStep={step}
         onComplete={() => window.location.reload()}
       />
     )
+  }
+
+  // Clean up any /onboarding/* paths for users who have already completed onboarding
+  if (isOnboardingPath) {
+    window.history.replaceState({}, '', '/')
   }
 
   return (

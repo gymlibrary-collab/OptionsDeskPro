@@ -1,6 +1,111 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { FaqCategory, getPublicFaq } from '../api/client'
 import { useWindowSize } from '../hooks/useWindowSize'
+
+// ─── Minimal safe markdown renderer ─────────────────────────────────────────────────────────────
+// Supports: **bold**, *italic*, [link](url), unordered lists (- item), paragraphs.
+// Does NOT use dangerouslySetInnerHTML on raw user input.
+
+function renderInline(text: string): ReactNode[] {
+  // Pattern matches **bold**, *italic*, [link](url) in order
+  const parts: ReactNode[] = []
+  let remaining = text
+  let key = 0
+
+  while (remaining.length > 0) {
+    // Try **bold**
+    const boldMatch = remaining.match(/^([\s\S]*?)\*\*([\s\S]+?)\*\*/)
+    // Try *italic* (single asterisk, not double)
+    const italicMatch = remaining.match(/^([\s\S]*?)(?<!\*)\*(?!\*)([\s\S]+?)(?<!\*)\*(?!\*)/)
+    // Try [link](url)
+    const linkMatch = remaining.match(/^([\s\S]*?)\[([^\]]+)\]\(([^)]+)\)/)
+
+    // Find earliest match
+    const candidates: Array<{ index: number; match: RegExpMatchArray; type: string }> = []
+    if (boldMatch) candidates.push({ index: boldMatch[1].length, match: boldMatch, type: 'bold' })
+    if (italicMatch) candidates.push({ index: italicMatch[1].length, match: italicMatch, type: 'italic' })
+    if (linkMatch) candidates.push({ index: linkMatch[1].length, match: linkMatch, type: 'link' })
+
+    if (candidates.length === 0) {
+      parts.push(<span key={key++}>{remaining}</span>)
+      break
+    }
+
+    candidates.sort((a, b) => a.index - b.index)
+    const first = candidates[0]
+
+    // Add text before match
+    if (first.match[1]) {
+      parts.push(<span key={key++}>{first.match[1]}</span>)
+    }
+
+    if (first.type === 'bold') {
+      parts.push(<strong key={key++}>{first.match[2]}</strong>)
+      remaining = remaining.slice(first.match[1].length + first.match[2].length + 4)
+    } else if (first.type === 'italic') {
+      parts.push(<em key={key++}>{first.match[3]}</em>)
+      remaining = remaining.slice(first.match[1].length + first.match[3].length + 2)
+    } else if (first.type === 'link') {
+      const href = first.match[3]
+      // Validate href to only allow http/https/mailto
+      const safeHref = /^(https?:|mailto:)/i.test(href) ? href : '#'
+      parts.push(
+        <a key={key++} href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: '#7c6af7', textDecoration: 'underline' }}>
+          {first.match[2]}
+        </a>
+      )
+      remaining = remaining.slice(first.match[1].length + first.match[2].length + first.match[3].length + 4)
+    }
+  }
+
+  return parts
+}
+
+function MarkdownContent({ markdown, style }: { markdown: string; style?: React.CSSProperties }) {
+  const lines = markdown.split('\n')
+  const elements: ReactNode[] = []
+  let listItems: string[] = []
+  let key = 0
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={key++} style={{ margin: '6px 0', paddingLeft: '20px' }}>
+          {listItems.map((item, i) => (
+            <li key={i} style={{ marginBottom: '2px' }}>{renderInline(item)}</li>
+          ))}
+        </ul>
+      )
+      listItems = []
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const listItemMatch = line.match(/^[-*]\s+(.+)$/)
+    if (listItemMatch) {
+      listItems.push(listItemMatch[1])
+    } else {
+      flushList()
+      const trimmed = line.trim()
+      if (trimmed === '') {
+        // paragraph break — skip blank lines (handled by gap)
+      } else {
+        elements.push(
+          <p key={key++} style={{ margin: '0 0 6px' }}>{renderInline(trimmed)}</p>
+        )
+      }
+    }
+  }
+  flushList()
+
+  return (
+    <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.7, ...style }}>
+      {elements}
+    </div>
+  )
+}
 
 const C = {
   bg: '#0f1117',
@@ -116,10 +221,8 @@ export default function FaqPage({ onClose }: Props) {
                       </span>
                     </button>
                     {expanded === article.id && (
-                      <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${C.border}`, paddingTop: '14px' }}>
-                        <p style={{ margin: 0, fontSize: '13px', color: C.muted, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                          {article.answer_markdown}
-                        </p>
+                      <div style={{ padding: '14px 16px 14px', borderTop: `1px solid ${C.border}` }}>
+                        <MarkdownContent markdown={article.answer_markdown} />
                       </div>
                     )}
                   </div>

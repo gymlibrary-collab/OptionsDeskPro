@@ -24,8 +24,14 @@ interface EditState {
   features: Record<string, boolean>
 }
 
-export default function PricingManager() {
-  const { staffRole } = useStaffAuth()
+interface PricingManagerProps {
+  staffRole?: string | null
+}
+
+export default function PricingManager({ staffRole: staffRoleProp }: PricingManagerProps) {
+  const { staffRole: contextRole } = useStaffAuth()
+  // Accept staffRole from parent (AdminApp passes it) or fall back to context
+  const staffRole = staffRoleProp !== undefined ? staffRoleProp : contextRole
   const [plans, setPlans] = useState<PlatformPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -214,7 +220,7 @@ export default function PricingManager() {
                   <PlanField label="Max symbols" value={plan.max_symbols !== null ? String(plan.max_symbols) : 'Unlimited'} />
                   <PlanField label="Max scans" value={plan.max_scans_per_month !== null ? String(plan.max_scans_per_month) : 'Unlimited'} />
                   {Object.entries(plan.features).map(([k, v]) => (
-                    <PlanField key={k} label={k.replace(/_/g, ' ')} value={v ? 'Yes' : 'No'} />
+                    <PlanField key={k} label={k.replace(/_/g, ' ')} value={v ? '✓' : '—'} />
                   ))}
                   {plan.stripe_price_id && (
                     <PlanField label="Stripe price ID" value={`...${plan.stripe_price_id.slice(-8)}`} />
