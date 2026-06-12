@@ -7,7 +7,7 @@ import os
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-ADMIN_EMAIL = "leonard.simgt@gmail.com"
+ADMIN_EMAIL = "leonardsim.sm@gmail.com"
 
 security = HTTPBearer(auto_error=False)
 
