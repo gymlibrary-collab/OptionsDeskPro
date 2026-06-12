@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BACKEND_URL = 'https://options-backend-production-28c6.up.railway.app'
+const BACKEND_URL = 'https://optionspro-backend-production.up.railway.app'
 
 const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
