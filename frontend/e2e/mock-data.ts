@@ -128,8 +128,20 @@ export const MOCK_SCAN_RESULT = {
   bias: 'BULLISH',
   bias_strength: 'MODERATE',
   rsi14: 58.4,
-  top_strategy: 'Bull Call Spread',
-  scan_narrative: 'AAPL shows moderate IV with a bullish bias. Consider debit spreads.',
+  top_strategy: {
+    key: 'bull_call_spread',
+    name: 'Bull Call Spread',
+    description: 'Debit spread for moderate upside',
+    direction: ['bullish'],
+    iv_environment: ['low', 'medium'],
+    risk_type: 'defined',
+    complexity: 2,
+    dte_target: 30,
+    pop_range: [55, 65] as [number, number],
+    profit_target_pct: 50,
+    fit_score: 0.88,
+  },
+  scan_narrative: { headline: 'AAPL shows moderate IV with a bullish bias. Consider debit spreads.' },
   error: null,
 }
 
@@ -228,3 +240,402 @@ export const MOCK_ADMIN_USERS = [
   { id: 'user-001', email: 'test@example.com', full_name: 'Test User', role: 'user', tier: 'pro', created_at: '2024-01-01T00:00:00Z' },
   { id: 'user-002', email: 'other@example.com', full_name: 'Other User', role: 'user', tier: 'free', created_at: '2024-01-02T00:00:00Z' },
 ]
+
+// ─── New SaaS mock data ──────────────────────────────────────────────────────────────────────────
+
+/** Login response shape from POST /api/auth/login (new format) */
+export const MOCK_LOGIN_RESPONSE = {
+  ok: true,
+  email: MOCK_USER.email,
+  onboarding_completed: true,
+  onboarding_step: 'complete',
+  is_deactivated: false,
+}
+
+/** Login response for a user who has NOT completed onboarding */
+export const MOCK_LOGIN_RESPONSE_ONBOARDING = {
+  ok: true,
+  email: 'newuser@example.com',
+  onboarding_completed: false,
+  onboarding_step: 'plan_selection',
+  is_deactivated: false,
+}
+
+/** Pro-tier entitlements returned by GET /api/auth/entitlements */
+export const MOCK_ENTITLEMENTS_PRO = {
+  effective_tier: 'pro',
+  subscription_status: 'active',
+  stripe_tier: 'pro',
+  admin_override_tier: null,
+  max_symbols: 50,
+  max_scans_per_month: null,
+  features: {
+    trading_desk: true,
+    positions: true,
+    risk_monitor: false,
+  },
+  current_period_end: '2026-07-12T00:00:00Z',
+  cancel_at_period_end: false,
+  pending_tier_key: null,
+  payment_failed: false,
+}
+
+/** Free-tier entitlements — positions and trading_desk locked */
+export const MOCK_ENTITLEMENTS_FREE = {
+  effective_tier: 'free',
+  subscription_status: 'active',
+  stripe_tier: 'free',
+  admin_override_tier: null,
+  max_symbols: 5,
+  max_scans_per_month: 10,
+  features: {
+    trading_desk: false,
+    positions: false,
+    risk_monitor: false,
+  },
+  current_period_end: null,
+  cancel_at_period_end: false,
+  pending_tier_key: null,
+  payment_failed: false,
+}
+
+/** past_due entitlements — payment failed, degraded to free */
+export const MOCK_ENTITLEMENTS_PAST_DUE = {
+  ...MOCK_ENTITLEMENTS_FREE,
+  subscription_status: 'past_due',
+  stripe_tier: 'pro',
+  payment_failed: true,
+}
+
+/** Entitlements with cancel_at_period_end scheduled */
+export const MOCK_ENTITLEMENTS_CANCEL_SCHEDULED = {
+  ...MOCK_ENTITLEMENTS_PRO,
+  cancel_at_period_end: true,
+}
+
+/** Public pricing plans from GET /api/public/pricing */
+export const MOCK_PUBLIC_PRICING = {
+  plans: [
+    {
+      tier_key: 'free',
+      display_name: 'Free',
+      price_monthly_usd: 0,
+      max_symbols: 5,
+      max_scans_per_month: 10,
+      features: { trading_desk: false, positions: false, risk_monitor: false },
+    },
+    {
+      tier_key: 'starter',
+      display_name: 'Starter',
+      price_monthly_usd: 9,
+      max_symbols: 15,
+      max_scans_per_month: 100,
+      features: { trading_desk: false, positions: true, risk_monitor: false },
+    },
+    {
+      tier_key: 'pro',
+      display_name: 'Pro',
+      price_monthly_usd: 29,
+      max_symbols: 50,
+      max_scans_per_month: null,
+      features: { trading_desk: true, positions: true, risk_monitor: false },
+    },
+    {
+      tier_key: 'enterprise',
+      display_name: 'Enterprise',
+      price_monthly_usd: 99,
+      max_symbols: null,
+      max_scans_per_month: null,
+      features: { trading_desk: true, positions: true, risk_monitor: true },
+      contact_us: true,
+    },
+  ],
+}
+
+/** Invoices returned by GET /api/billing/invoices */
+export const MOCK_INVOICES = {
+  invoices: [
+    {
+      id: 'inv-001',
+      stripe_invoice_id: 'in_test_001',
+      amount_paid: 29.00,
+      currency: 'usd',
+      status: 'paid',
+      description: 'Pro subscription',
+      period_start: '2026-06-12T00:00:00Z',
+      period_end: '2026-07-12T00:00:00Z',
+      invoice_pdf: 'https://pay.stripe.com/invoice/test-001',
+      created_at: '2026-06-12T10:00:00Z',
+    },
+    {
+      id: 'inv-002',
+      stripe_invoice_id: 'in_test_002',
+      amount_paid: 29.00,
+      currency: 'usd',
+      status: 'paid',
+      description: 'Pro subscription',
+      period_start: '2026-05-12T00:00:00Z',
+      period_end: '2026-06-12T00:00:00Z',
+      invoice_pdf: 'https://pay.stripe.com/invoice/test-002',
+      created_at: '2026-05-12T10:00:00Z',
+    },
+  ],
+}
+
+/** Payment method from GET /api/billing/payment-method */
+export const MOCK_PAYMENT_METHOD = {
+  brand: 'visa',
+  last4: '4242',
+  exp_month: 12,
+  exp_year: 2028,
+}
+
+/** Public FAQ from GET /api/public/faq */
+export const MOCK_PUBLIC_FAQ = {
+  categories: [
+    {
+      id: 'cat-001',
+      title: 'Getting Started',
+      articles: [
+        {
+          id: 'art-001',
+          question: 'What is OptionsDesk?',
+          answer_markdown: 'OptionsDesk is an AI-powered paper trading options dashboard.',
+          sort_order: 0,
+        },
+        {
+          id: 'art-002',
+          question: 'How do I sign up?',
+          answer_markdown: 'Click Sign Up on the login page and choose a plan.',
+          sort_order: 1,
+        },
+      ],
+    },
+    {
+      id: 'cat-002',
+      title: 'Billing',
+      articles: [
+        {
+          id: 'art-003',
+          question: 'How do I cancel my subscription?',
+          answer_markdown: 'Go to Settings > Danger Zone and click Cancel subscription.',
+          sort_order: 0,
+        },
+      ],
+    },
+  ],
+}
+
+/** Checkout session response from POST /api/billing/checkout-session */
+export const MOCK_CHECKOUT_SESSION = {
+  checkout_url: 'https://checkout.stripe.com/pay/cs_test_mock',
+}
+
+/** Billing portal session response from POST /api/billing/portal */
+export const MOCK_PORTAL_SESSION = {
+  portal_url: 'https://billing.stripe.com/session/test_mock',
+}
+
+/** Cancel subscription response from POST /api/billing/cancel */
+export const MOCK_CANCEL_RESPONSE = {
+  ok: true,
+  cancels_at: '2026-07-12T00:00:00Z',
+}
+
+/** Reactivate response from POST /api/billing/reactivate */
+export const MOCK_REACTIVATE_RESPONSE = {
+  ok: true,
+}
+
+// ─── Admin portal mock data ───────────────────────────────────────────────────────────────────────
+
+/** Staff profile for an owner-role admin */
+export const MOCK_STAFF_ME_OWNER = {
+  id: 'staff-owner-001',
+  email: 'owner@optionsdeskpro.com',
+  full_name: 'Platform Owner',
+  staff_role: 'owner',
+  is_active: true,
+}
+
+/** Staff profile for a support-role staff member */
+export const MOCK_STAFF_ME_SUPPORT = {
+  id: 'staff-support-001',
+  email: 'support@optionsdeskpro.com',
+  full_name: 'Support Staff',
+  staff_role: 'support',
+  is_active: true,
+}
+
+/** Subscriber list from GET /api/platform/subscribers */
+export const MOCK_SUBSCRIBER_LIST = {
+  total: 2,
+  page: 1,
+  page_size: 50,
+  subscribers: [
+    {
+      id: 'sub-user-001',
+      email: 'alice@example.com',
+      full_name: 'Alice Smith',
+      tier_key: 'pro',
+      subscription_status: 'active',
+      stripe_customer_id: 'cus_test_abcd',
+      created_at: '2026-05-01T00:00:00Z',
+      last_seen_at: '2026-06-12T08:30:00Z',
+      is_active: true,
+    },
+    {
+      id: 'sub-user-002',
+      email: 'bob@example.com',
+      full_name: 'Bob Jones',
+      tier_key: 'free',
+      subscription_status: 'active',
+      stripe_customer_id: null,
+      created_at: '2026-06-01T00:00:00Z',
+      last_seen_at: '2026-06-10T14:00:00Z',
+      is_active: true,
+    },
+  ],
+}
+
+/** Subscriber detail from GET /api/platform/subscribers/{id} */
+export const MOCK_SUBSCRIBER_DETAIL = {
+  profile: {
+    id: 'sub-user-001',
+    email: 'alice@example.com',
+    full_name: 'Alice Smith',
+    avatar_url: null,
+    created_at: '2026-05-01T00:00:00Z',
+    last_seen_at: '2026-06-12T08:30:00Z',
+    onboarding_completed: true,
+    is_active: true,
+  },
+  subscription: {
+    tier_key: 'pro',
+    status: 'active',
+    current_period_end: '2026-07-12T00:00:00Z',
+    cancel_at_period_end: false,
+    stripe_customer_id: 'cus_test_abcd',
+    stripe_subscription_id: 'sub_test_001',
+  },
+  positions_count: 3,
+  orders_count: 12,
+  invoices: MOCK_INVOICES.invoices,
+}
+
+/** Platform pricing from GET /api/platform/pricing */
+export const MOCK_PLATFORM_PRICING = {
+  plans: MOCK_PUBLIC_PRICING.plans.map(p => ({
+    ...p,
+    stripe_price_id: p.tier_key !== 'free' && p.tier_key !== 'enterprise' ? `price_test_${p.tier_key}` : null,
+    stripe_product_id: p.tier_key !== 'free' ? `prod_test_${p.tier_key}` : null,
+    is_active: true,
+    sort_order: ['free', 'starter', 'pro', 'enterprise'].indexOf(p.tier_key),
+  })),
+}
+
+/** Revenue metrics from GET /api/platform/revenue */
+export const MOCK_REVENUE_METRICS = {
+  mrr_current_usd: 2523.00,
+  mrr_by_month: [
+    { month: '2026-01', mrr_usd: 1200 },
+    { month: '2026-02', mrr_usd: 1450 },
+    { month: '2026-03', mrr_usd: 1700 },
+    { month: '2026-04', mrr_usd: 2000 },
+    { month: '2026-05', mrr_usd: 2300 },
+    { month: '2026-06', mrr_usd: 2523 },
+  ],
+  active_subscribers_by_tier: { free: 412, starter: 63, pro: 24, enterprise: 2 },
+  new_this_month: 18,
+  churned_this_month: 3,
+  past_due_count: 4,
+  past_due_amount_at_risk_usd: 116.00,
+}
+
+/** Health panel data from GET /api/platform/health */
+export const MOCK_HEALTH_DATA = {
+  api_status: 'ok',
+  market_data_credits: {
+    date: '2026-06-12',
+    calls_today: 43,
+    limit: 100,
+    pct: 43.0,
+    alert_level: 'ok',
+  },
+  requests_last_24h: { strategy_analyze: 312, strategy_scan: 87 },
+  active_sessions_last_15min: 14,
+}
+
+/** Health data with critical credit usage */
+export const MOCK_HEALTH_DATA_CRITICAL = {
+  ...MOCK_HEALTH_DATA,
+  market_data_credits: {
+    date: '2026-06-12',
+    calls_today: 100,
+    limit: 100,
+    pct: 100.0,
+    alert_level: 'critical',
+  },
+}
+
+/** Health data with warning credit usage */
+export const MOCK_HEALTH_DATA_WARNING = {
+  ...MOCK_HEALTH_DATA,
+  market_data_credits: {
+    date: '2026-06-12',
+    calls_today: 85,
+    limit: 100,
+    pct: 85.0,
+    alert_level: 'warning',
+  },
+}
+
+/** Staff list from GET /api/platform/staff */
+export const MOCK_STAFF_LIST = {
+  staff: [
+    {
+      id: 'staff-owner-001',
+      email: 'owner@optionsdeskpro.com',
+      full_name: 'Platform Owner',
+      staff_role: 'owner',
+      is_active: true,
+      last_seen_at: '2026-06-12T09:00:00Z',
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 'staff-support-001',
+      email: 'support@optionsdeskpro.com',
+      full_name: 'Support Staff',
+      staff_role: 'support',
+      is_active: true,
+      last_seen_at: '2026-06-11T16:00:00Z',
+      created_at: '2026-03-01T00:00:00Z',
+    },
+  ],
+}
+
+/** Platform FAQ (admin view, includes drafts) */
+export const MOCK_ADMIN_FAQ = {
+  categories: [
+    {
+      id: 'cat-001',
+      title: 'Getting Started',
+      articles: [
+        {
+          id: 'art-001',
+          question: 'What is OptionsDesk?',
+          answer_markdown: 'OptionsDesk is an AI-powered paper trading options dashboard.',
+          sort_order: 0,
+          is_published: true,
+        },
+        {
+          id: 'art-draft-001',
+          question: 'Draft article',
+          answer_markdown: 'This article is in draft.',
+          sort_order: 1,
+          is_published: false,
+        },
+      ],
+    },
+  ],
+}

@@ -7,9 +7,12 @@ import {
   MOCK_WATCHLIST,
   MOCK_PORTFOLIO,
   MOCK_AI_SETTINGS,
+  MOCK_LOGIN_RESPONSE,
+  MOCK_ENTITLEMENTS_PRO,
 } from './mock-data'
 
-const BACKEND_URL = 'https://options-backend-production-28c6.up.railway.app'
+// Match any backend URL (handles both old and new Railway URLs and localhost)
+const BACKEND_GLOB = '**/api/**'
 
 /**
  * Global setup: creates a reusable authenticated storage state so individual
@@ -29,24 +32,27 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   await page.route('**/auth/v1/token**', (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_SUPABASE_SESSION) })
   })
-  await page.route(`${BACKEND_URL}/api/auth/login`, (route) => {
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', user: MOCK_AUTH_ME }) })
+  await page.route(`${BACKEND_GLOB}auth/login`, (route) => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_LOGIN_RESPONSE) })
   })
-  await page.route(`${BACKEND_URL}/api/auth/me`, (route) => {
+  await page.route(`${BACKEND_GLOB}auth/me`, (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AUTH_ME) })
+  })
+  await page.route(`${BACKEND_GLOB}auth/entitlements`, (route) => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_PRO) })
   })
 
   // Mock the minimum data endpoints needed to load the app shell
-  await page.route(`${BACKEND_URL}/api/watchlist`, (route) => {
+  await page.route(`${BACKEND_GLOB}watchlist`, (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_WATCHLIST) })
   })
-  await page.route(`${BACKEND_URL}/api/portfolio`, (route) => {
+  await page.route(`${BACKEND_GLOB}portfolio`, (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PORTFOLIO) })
   })
-  await page.route(`${BACKEND_URL}/api/ai/settings`, (route) => {
+  await page.route(`${BACKEND_GLOB}ai/settings`, (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) })
   })
-  await page.route(`${BACKEND_URL}/api/options/chain/**`, (route) => {
+  await page.route(`${BACKEND_GLOB}options/chain/**`, (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_OPTIONS_CHAIN) })
   })
 
