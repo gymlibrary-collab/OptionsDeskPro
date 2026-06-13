@@ -388,6 +388,12 @@ export interface EntitlementFeatures {
   trading_desk: boolean
   positions: boolean
   risk_monitor: boolean
+  ai_narrative?: boolean
+  ai_chat?: boolean
+  ai_risk_summary?: boolean
+  ai_strategy_reasoning?: boolean
+  ai_earnings_awareness?: boolean
+  [key: string]: boolean | undefined
 }
 
 export interface Entitlements {

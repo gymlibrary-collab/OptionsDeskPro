@@ -14,10 +14,38 @@ logger = logging.getLogger(__name__)
 
 # ── Hardcoded fallback (kept in sync with the migration seed values) ─────────
 TIER_LIMITS: dict[str, dict] = {
-    'free':       {'max_symbols': 5,    'max_scans_per_month': 10,   'features': {'trading_desk': False, 'positions': False, 'risk_monitor': False}},
-    'starter':    {'max_symbols': 15,   'max_scans_per_month': 100,  'features': {'trading_desk': False, 'positions': True,  'risk_monitor': False}},
-    'pro':        {'max_symbols': 50,   'max_scans_per_month': None, 'features': {'trading_desk': True,  'positions': True,  'risk_monitor': False}},
-    'enterprise': {'max_symbols': None, 'max_scans_per_month': None, 'features': {'trading_desk': True,  'positions': True,  'risk_monitor': True}},
+    'free': {
+        'max_symbols': 5, 'max_scans_per_month': 10,
+        'features': {
+            'trading_desk': False, 'positions': False, 'risk_monitor': False,
+            'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
+            'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
+        },
+    },
+    'starter': {
+        'max_symbols': 15, 'max_scans_per_month': 100,
+        'features': {
+            'trading_desk': False, 'positions': True, 'risk_monitor': False,
+            'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
+            'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
+        },
+    },
+    'pro': {
+        'max_symbols': 50, 'max_scans_per_month': None,
+        'features': {
+            'trading_desk': True, 'positions': True, 'risk_monitor': False,
+            'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
+            'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
+        },
+    },
+    'enterprise': {
+        'max_symbols': None, 'max_scans_per_month': None,
+        'features': {
+            'trading_desk': True, 'positions': True, 'risk_monitor': True,
+            'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
+            'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
+        },
+    },
 }
 
 # ── In-process plans cache ────────────────────────────────────────────────────

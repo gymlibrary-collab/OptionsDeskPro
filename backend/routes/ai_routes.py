@@ -98,9 +98,21 @@ def update_ai_settings(body: AISettingsBody, payload: dict = Depends(verify_toke
     return {"saved": True}
 
 
+def _require_ai_feature(user_id: str, feature_key: str) -> None:
+    """
+    Raise HTTP 403 if the user's effective tier does not include the given AI feature.
+    Import is deferred to avoid module-level get_supabase() calls.
+    """
+    from services.entitlements import compute_entitlements
+    ent = compute_entitlements(user_id)
+    if not ent.get("features", {}).get(feature_key, False):
+        raise HTTPException(status_code=403, detail="This feature requires a Pro plan or higher.")
+
+
 @router.post("/ai/chat")
 def ai_chat(body: ChatRequest, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "ai_chat")
     settings = _get_settings(user_id)
     if not settings.get("chat_enabled"):
         raise HTTPException(status_code=403, detail="AI Chat is disabled. Enable it in AI Settings.")
@@ -137,6 +149,7 @@ def ai_chat(body: ChatRequest, payload: dict = Depends(verify_token)):
 @router.post("/ai/risk-summary")
 def ai_risk_summary(body: RiskSummaryRequest, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "ai_risk_summary")
     settings = _get_settings(user_id)
     if not settings.get("risk_summary_enabled"):
         raise HTTPException(status_code=403, detail="AI Risk Summary is disabled. Enable it in AI Settings.")
@@ -149,6 +162,7 @@ def ai_risk_summary(body: RiskSummaryRequest, payload: dict = Depends(verify_tok
 @router.post("/ai/strategy-reasoning")
 def ai_strategy_reasoning(body: StrategyReasoningRequest, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "ai_strategy_reasoning")
     settings = _get_settings(user_id)
     if not settings.get("strategy_reasoning_enabled"):
         raise HTTPException(status_code=403, detail="AI Strategy Reasoning is disabled. Enable it in AI Settings.")
@@ -163,6 +177,7 @@ def ai_strategy_reasoning(body: StrategyReasoningRequest, payload: dict = Depend
 @router.post("/ai/enhance-narrative")
 def ai_enhance_narrative(body: EnhanceNarrativeRequest, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "ai_narrative")
     settings = _get_settings(user_id)
     if not settings.get("narrative_enabled"):
         raise HTTPException(status_code=403, detail="AI Narrative is disabled. Enable it in AI Settings.")
