@@ -141,7 +141,7 @@ Both frontend services share the same codebase (`frontend/`) and `npm run build`
 _client_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://optionspro-frontend-production.up.railway.app",  # or custom domain
+    "https://optionspro-client-production.up.railway.app",  # or custom domain
 ]
 _admin_origins = [
     o.strip()

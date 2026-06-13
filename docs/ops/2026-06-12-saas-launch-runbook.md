@@ -69,10 +69,10 @@ The self-signup flow uses Supabase email/password in addition to Google OAuth.
 3. Confirm "Confirm email" is set per your preference (recommended: enabled for
    production to reduce spam signups).
 4. Under "URL Configuration", verify "Site URL" is set to the client portal URL
-   (e.g. `https://optionspro-frontend-production.up.railway.app`).
+   (e.g. `https://optionspro-client-production.up.railway.app`).
 5. Under "Redirect URLs", add both the client portal URL and the admin portal URL
    so Supabase OAuth callbacks are accepted:
-   - `https://optionspro-frontend-production.up.railway.app/**`
+   - `https://optionspro-client-production.up.railway.app/**`
    - `https://optionspro-admin-production.up.railway.app/**`
 
 ---
@@ -112,7 +112,7 @@ them to the repository.
 |----------|-------|-------|
 | `STRIPE_SECRET_KEY` | `sk_live_...` (or `sk_test_...` for staging) | Stripe API secret key. Live key for production. |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` | Obtained from the Stripe dashboard after registering the webhook (step 5 below). Complete step 5 first on staging, then update on production. |
-| `CLIENT_PORTAL_URL` | `https://optionspro-frontend-production.up.railway.app` | No trailing slash. Used in Stripe Checkout success_url / cancel_url and Customer Portal return_url. Update if a custom domain is added. |
+| `CLIENT_PORTAL_URL` | `https://optionspro-client-production.up.railway.app` | No trailing slash. Used in Stripe Checkout success_url / cancel_url and Customer Portal return_url. Update if a custom domain is added. |
 | `ADMIN_PORTAL_URL` | `https://optionspro-admin-production.up.railway.app` | No trailing slash. Used in staff invite redirect_to. Update if a custom domain is added. |
 | `ADMIN_PORTAL_ORIGINS` | `https://optionspro-admin-production.up.railway.app` | Comma-separated. Add the custom domain here too once DNS is wired: `https://optionspro-admin-production.up.railway.app,https://admin.optionsdeskpro.com` |
 
@@ -192,7 +192,7 @@ start command accordingly.
 
 ## 7. Update Client Portal Service Variables
 
-On the existing `optionspro-client` (or equivalent) Railway service, add or
+On the `optionspro-client-production.up.railway.app` Railway service, add or
 verify:
 
 | Variable | Value |

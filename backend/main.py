@@ -24,7 +24,7 @@ app = FastAPI(title="Options Trading Dashboard", version="1.0.0")
 _client_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://optionspro-frontend-production.up.railway.app",
+    "https://optionspro-client-production.up.railway.app",
 ]
 _admin_origins = [
     o.strip()
