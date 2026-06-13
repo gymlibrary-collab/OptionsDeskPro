@@ -2,6 +2,32 @@ import { useEffect, useState, useCallback } from 'react'
 import { getPlatformPricing, patchPlatformPricing, PlatformPlan, PricingPatchRequest } from '../../api/client'
 import { useStaffAuth } from '../../context/StaffAuthContext'
 
+const PLATFORM_FEATURE_LABELS: Record<string, string> = {
+  trading_desk: 'Trading Desk',
+  positions: 'Positions & P&L',
+  risk_monitor: 'Risk Monitor',
+}
+
+const AI_FEATURE_LABELS: Record<string, string> = {
+  ai_narrative: 'Strategy Narrative',
+  ai_chat: 'Portfolio Chat',
+  ai_risk_summary: 'AI Risk Summary',
+  ai_strategy_reasoning: 'Strategy Reasoning',
+  ai_earnings_awareness: 'Earnings Awareness',
+  trade_journal: 'Trade Journal Review',
+  roll_advisor: 'Roll / Adjustment Advisor',
+  greeks_coaching: 'Portfolio Greeks Coaching',
+}
+
+const ALL_FEATURE_KEYS = [
+  ...Object.keys(PLATFORM_FEATURE_LABELS),
+  ...Object.keys(AI_FEATURE_LABELS),
+]
+
+function featureLabel(key: string): string {
+  return PLATFORM_FEATURE_LABELS[key] ?? AI_FEATURE_LABELS[key] ?? key.replace(/_/g, ' ')
+}
+
 const C = {
   bg: '#0f1117',
   surface: '#1a1d27',
@@ -62,11 +88,22 @@ export default function PricingManager({ staffRole: staffRoleProp }: PricingMana
 
   const startEdit = (plan: PlatformPlan) => {
     setEditingTier(plan.tier_key)
+    // Merge backend features with all known feature keys (AI keys may be absent in older plans)
+    const mergedFeatures: Record<string, boolean> = {}
+    for (const key of ALL_FEATURE_KEYS) {
+      mergedFeatures[key] = (plan.features as Record<string, boolean>)[key] ?? false
+    }
+    // Also preserve any unknown keys from the backend
+    for (const [key, val] of Object.entries(plan.features)) {
+      if (!(key in mergedFeatures)) {
+        mergedFeatures[key] = val as boolean
+      }
+    }
     setEditState({
       price_monthly_usd: String(plan.price_monthly_usd),
       max_symbols: plan.max_symbols !== null ? String(plan.max_symbols) : '',
       max_scans_per_month: plan.max_scans_per_month !== null ? String(plan.max_scans_per_month) : '',
-      features: { ...plan.features },
+      features: mergedFeatures,
     })
     setSaveError(null)
     setSaveSuccess(null)
@@ -185,17 +222,55 @@ export default function PricingManager({ staffRole: staffRoleProp }: PricingMana
                     style={inputStyle}
                     placeholder="unlimited"
                   />
-                  <label style={{ fontSize: '12px', color: C.muted }}>Features</label>
-                  {Object.entries(editState.features).map(([key, val]) => (
-                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.text, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={val}
-                        onChange={e => setEditState(s => s ? { ...s, features: { ...s.features, [key]: e.target.checked } } : s)}
-                      />
-                      {key.replace(/_/g, ' ')}
-                    </label>
-                  ))}
+                  {/* Platform Features group */}
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '4px' }}>
+                    Platform Features
+                  </div>
+                  {Object.keys(PLATFORM_FEATURE_LABELS).map(key => {
+                    const val = editState.features[key] ?? false
+                    return (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.text, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={val}
+                          onChange={e => setEditState(s => s ? { ...s, features: { ...s.features, [key]: e.target.checked } } : s)}
+                        />
+                        {PLATFORM_FEATURE_LABELS[key]}
+                      </label>
+                    )
+                  })}
+
+                  {/* AI Features group */}
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '8px' }}>
+                    AI Features
+                  </div>
+                  {Object.keys(AI_FEATURE_LABELS).map(key => {
+                    const val = editState.features[key] ?? false
+                    return (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.text, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={val}
+                          onChange={e => setEditState(s => s ? { ...s, features: { ...s.features, [key]: e.target.checked } } : s)}
+                        />
+                        {AI_FEATURE_LABELS[key]}
+                      </label>
+                    )
+                  })}
+
+                  {/* Any remaining unknown feature keys */}
+                  {Object.entries(editState.features)
+                    .filter(([key]) => !ALL_FEATURE_KEYS.includes(key))
+                    .map(([key, val]) => (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.text, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={val}
+                          onChange={e => setEditState(s => s ? { ...s, features: { ...s.features, [key]: e.target.checked } } : s)}
+                        />
+                        {key.replace(/_/g, ' ')}
+                      </label>
+                    ))}
 
                   {affectedCount !== null && affectedCount > 0 && (
                     <div style={{ background: 'rgba(245,158,11,0.1)', border: `1px solid ${C.warning}`, borderRadius: '8px', padding: '10px', fontSize: '13px', color: C.warning }}>
@@ -219,9 +294,23 @@ export default function PricingManager({ staffRole: staffRoleProp }: PricingMana
                   <PlanField label="Price" value={`$${plan.price_monthly_usd}/mo`} />
                   <PlanField label="Max symbols" value={plan.max_symbols !== null ? String(plan.max_symbols) : 'Unlimited'} />
                   <PlanField label="Max scans" value={plan.max_scans_per_month !== null ? String(plan.max_scans_per_month) : 'Unlimited'} />
-                  {Object.entries(plan.features).map(([k, v]) => (
-                    <PlanField key={k} label={k.replace(/_/g, ' ')} value={v ? '✓' : '—'} />
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '4px 0 2px' }}>
+                    Platform
+                  </div>
+                  {Object.keys(PLATFORM_FEATURE_LABELS).map(k => (
+                    <PlanField key={k} label={PLATFORM_FEATURE_LABELS[k]} value={(plan.features as Record<string, boolean>)[k] ? '✓' : '—'} />
                   ))}
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '4px 0 2px' }}>
+                    AI Features
+                  </div>
+                  {Object.keys(AI_FEATURE_LABELS).map(k => (
+                    <PlanField key={k} label={AI_FEATURE_LABELS[k]} value={(plan.features as Record<string, boolean>)[k] ? '✓' : '—'} />
+                  ))}
+                  {Object.entries(plan.features)
+                    .filter(([k]) => !ALL_FEATURE_KEYS.includes(k))
+                    .map(([k, v]) => (
+                      <PlanField key={k} label={featureLabel(k)} value={v ? '✓' : '—'} />
+                    ))}
                   {plan.stripe_price_id && (
                     <PlanField label="Stripe price ID" value={`...${plan.stripe_price_id.slice(-8)}`} />
                   )}
