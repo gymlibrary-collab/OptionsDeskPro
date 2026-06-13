@@ -20,6 +20,7 @@ TIER_LIMITS: dict[str, dict] = {
             'trading_desk': False, 'positions': False, 'risk_monitor': False,
             'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
             'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
+            'trade_journal': False, 'roll_advisor': False, 'greeks_coaching': False,
         },
     },
     'starter': {
@@ -28,6 +29,7 @@ TIER_LIMITS: dict[str, dict] = {
             'trading_desk': False, 'positions': True, 'risk_monitor': False,
             'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
             'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
+            'trade_journal': False, 'roll_advisor': False, 'greeks_coaching': False,
         },
     },
     'pro': {
@@ -36,6 +38,7 @@ TIER_LIMITS: dict[str, dict] = {
             'trading_desk': True, 'positions': True, 'risk_monitor': False,
             'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
             'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
+            'trade_journal': True, 'roll_advisor': True, 'greeks_coaching': True,
         },
     },
     'enterprise': {
@@ -44,6 +47,7 @@ TIER_LIMITS: dict[str, dict] = {
             'trading_desk': True, 'positions': True, 'risk_monitor': True,
             'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
             'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
+            'trade_journal': True, 'roll_advisor': True, 'greeks_coaching': True,
         },
     },
 }
