@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
-from services.strategy_engine import recommend_strategies, recommend_by_category, build_trade, STRATEGIES
+from services.strategy_engine import recommend_by_category, build_trade, build_comparison_matrix, get_strategy_count, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
@@ -24,29 +24,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-def _build_scan_headline(symbol: str, iv_data: dict, bias_data: dict, top_rec: dict) -> str:
-    """Generate a plain-English headline from IV + bias data without needing a full trade."""
-    ivr = iv_data.get("iv_rank", 50.0)
-    iv_env = iv_data.get("iv_environment", "MEDIUM")
-    bias = bias_data.get("bias", "NEUTRAL")
-    strategy_name = top_rec.get("name", "options strategy")
-
-    iv_phrase = {
-        "HIGH": f"options on {symbol} are expensive (IVR {ivr:.0f}) — sellers have an edge",
-        "MEDIUM": f"options on {symbol} are fairly priced (IVR {ivr:.0f})",
-        "LOW": f"options on {symbol} are cheap (IVR {ivr:.0f}) — buyers have an edge",
-    }.get(iv_env, f"IVR is {ivr:.0f}")
-
-    bias_phrase = {
-        "BULLISH": "the trend is bullish",
-        "BEARISH": "the trend is bearish",
-        "NEUTRAL": "the stock looks range-bound",
-        "NEUTRAL_BULLISH": "the stock leans bullish",
-        "NEUTRAL_BEARISH": "the stock leans bearish",
-    }.get(bias, "momentum is mixed")
-
-    return f"{iv_phrase.capitalize()}, and {bias_phrase} — suggesting a {strategy_name}."
 
 
 def _enrich_chain_with_greeks(chain: dict, spot_price: float) -> dict:
@@ -228,32 +205,15 @@ async def analyze_symbol(
         for cat, strats in recommendations_by_category.items()
     }
 
-    # E8 — AI Strategy Comparison (gated by ai_strategy_comparison entitlement)
-    ai_recommendation: dict = {"recommended_key": "", "recommended_name": "", "reasoning": ""}
-    if _user_features.get("ai_strategy_comparison"):
-        try:
-            from services import ai_service as _ai
-            seen_keys: dict[str, dict] = {}
-            for strats in recommendations_by_category.values():
-                for rec in strats:
-                    key = rec.get("key", "")
-                    if key and (key not in seen_keys or rec.get("fit_score", 0) > seen_keys[key].get("fit_score", 0)):
-                        seen_keys[key] = rec
-            top_strats = sorted(seen_keys.values(), key=lambda r: r.get("fit_score", 0), reverse=True)[:5]
-            if top_strats:
-                compare_input = [
-                    {
-                        "key": r.get("key", ""),
-                        "name": r.get("name", ""),
-                        "fit_score": r.get("fit_score", 0),
-                        "description": r.get("description", ""),
-                    }
-                    for r in top_strats
-                ]
-                ai_recommendation = _ai.compare_and_recommend(symbol, compare_input, iv_env, bias)
-        except Exception as _e:
-            logger.debug(f"AI strategy comparison failed for {symbol}: {_e}")
-
+    comparison_matrix = build_comparison_matrix(
+        symbol=symbol,
+        iv_env=iv_env,
+        current_bias=bias,
+        options_chain=enriched_chain,
+        spot_price=spot,
+        earnings_data=earnings_data,
+        trades_by_key=trades_by_key,
+    )
 
     # Increment request counter for health panel (ADR-0006)
     _metrics.increment("strategy_analyze")
@@ -265,7 +225,7 @@ async def analyze_symbol(
         "detected_bias": bias,
         "recommendations_by_category": result_categories,
         "news_sentiment": news_sentiment,
-        "ai_recommendation": ai_recommendation,
+        "comparison_matrix": comparison_matrix,
     }
 
 
@@ -337,18 +297,6 @@ async def scan_watchlist(
 
             iv_env = iv_data.get("iv_environment", "MEDIUM")
             bias = bias_data.get("bias", "NEUTRAL")
-            recs = recommend_strategies(iv_env, bias)
-            top_rec = recs[0] if recs else None
-
-            scan_narrative = None
-            if top_rec:
-                try:
-                    scan_narrative = {
-                        "headline": _build_scan_headline(symbol, iv_data, bias_data, top_rec),
-                        "confirmation_summary": "",
-                    }
-                except Exception as e:
-                    logger.debug(f"Scan narrative failed for {symbol}: {e}")
 
             return {
                 "symbol": symbol,
@@ -360,8 +308,7 @@ async def scan_watchlist(
                 "bias": bias,
                 "bias_strength": bias_data.get("strength", "MODERATE"),
                 "rsi14": bias_data.get("rsi14", 50.0),
-                "top_strategy": top_rec,
-                "scan_narrative": scan_narrative,
+                "strategy_count": get_strategy_count(iv_env),
                 "error": iv_data.get("error") or bias_data.get("error"),
             }
         except Exception as e:
@@ -376,8 +323,7 @@ async def scan_watchlist(
                 "bias": "NEUTRAL",
                 "bias_strength": "MODERATE",
                 "rsi14": 50.0,
-                "top_strategy": None,
-                "scan_narrative": None,
+                "strategy_count": get_strategy_count("MEDIUM"),
                 "error": str(e),
             }
 
