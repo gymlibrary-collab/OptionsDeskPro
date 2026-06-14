@@ -614,6 +614,54 @@ export const MOCK_STAFF_LIST = {
   ],
 }
 
+// ─── Legal Terms Acknowledgment mock data ─────────────────────────────────────
+
+export const MOCK_LEGAL_VERSION = {
+  id: 'ver-uuid-1',
+  version_number: '1.0',
+  title: 'Risk Disclosure & Indemnification Agreement',
+  content_markdown: 'MOCK LEGAL CONTENT\n\nThis is a mock legal document for testing purposes only.\n\nSection 1: Test content here.\n\nSection 2: More test content here.\n\nSection 3: Final test content here.',
+  content_hash: 'abc123hash',
+  effective_date: '2026-06-14',
+  published_at: '2026-06-14T00:00:00Z',
+  is_active: true,
+}
+
+export const MOCK_LEGAL_HISTORY = [
+  {
+    id: 'ack-uuid-1',
+    version_number: '1.0',
+    title: 'Risk Disclosure & Indemnification Agreement',
+    effective_date: '2026-06-14',
+    content_hash: 'abc123hash',
+    acknowledged_at: '2026-06-14T03:00:00Z',
+    ip_address: '203.0.113.42',
+  },
+]
+
+export const MOCK_LEGAL_PENDING_COUNT = { pending_count: 3, current_version_number: '1.0' }
+export const MOCK_LEGAL_VERSIONS_LIST = { versions: [MOCK_LEGAL_VERSION] }
+
+/** Login response for a user who has completed onboarding but has a pending legal acknowledgment */
+export const MOCK_LOGIN_RESPONSE_PENDING_LEGAL = {
+  ok: true,
+  email: 'test@example.com',
+  onboarding_completed: true,
+  onboarding_step: 'complete',
+  is_deactivated: false,
+  pending_legal_acknowledgment: true,
+}
+
+/** Login response for onboarding user at the legal_acknowledgment step */
+export const MOCK_LOGIN_RESPONSE_LEGAL_ONBOARDING = {
+  ok: true,
+  email: 'newuser@example.com',
+  onboarding_completed: false,
+  onboarding_step: 'legal_acknowledgment',
+  is_deactivated: false,
+  pending_legal_acknowledgment: false,
+}
+
 /** Platform FAQ (admin view, includes drafts) */
 export const MOCK_ADMIN_FAQ = {
   categories: [
