@@ -8,5 +8,7 @@
 -- Ref: PostgreSQL docs § "Writing SECURITY DEFINER Functions Safely"
 -- Security finding: F-04 from Gate 5 review (legal-terms-acknowledgment-14Jun2026)
 
-ALTER FUNCTION public.publish_legal_version()
-  SET search_path = public;
+ALTER FUNCTION public.publish_legal_version(
+    text, text, text, text, date, uuid
+)
+SET search_path = public;
