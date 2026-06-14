@@ -454,6 +454,9 @@ export interface EntitlementFeatures {
   trade_journal?: boolean
   roll_advisor?: boolean
   greeks_coaching?: boolean
+  news_sentiment?: boolean
+  morning_briefing?: boolean
+  ai_strategy_comparison?: boolean
   [key: string]: boolean | undefined
 }
 

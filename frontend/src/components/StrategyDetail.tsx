@@ -8,6 +8,7 @@ import {
   NewsSentiment,
 } from '../api/client'
 import StrategyNarrative from './StrategyNarrative'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 interface Props {
   symbol: string
@@ -464,6 +465,7 @@ function CategorySection({ category, recs, symbol, onSelectTrade, newsSentiment 
 }
 
 export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
+  const { entitlements } = useEntitlements()
   const [data, setData] = useState<AnalyzeSymbolResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -484,11 +486,13 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
   if (!data) return null
 
   const { iv_analysis: iv, bias_analysis: bias, detected_bias, recommendations_by_category, ai_recommendation, news_sentiment } = data
+  const showAiComparison = entitlements?.features?.ai_strategy_comparison ?? false
+  const showNewsSentiment = entitlements?.features?.news_sentiment ?? false
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* E8 — AI Strategy Recommendation banner */}
-      {ai_recommendation && (
+      {showAiComparison && ai_recommendation && (
         <div style={{
           background: '#0a1628',
           border: `1px solid #3b82f688`,
@@ -574,7 +578,7 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
               recs={recs}
               symbol={data.symbol}
               onSelectTrade={onSelectTrade}
-              newsSentiment={news_sentiment}
+              newsSentiment={showNewsSentiment ? news_sentiment : undefined}
             />
           )
         })}

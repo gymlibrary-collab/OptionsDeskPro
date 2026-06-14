@@ -21,6 +21,7 @@ TIER_LIMITS: dict[str, dict] = {
             'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
             'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
             'trade_journal': False, 'roll_advisor': False, 'greeks_coaching': False,
+            'news_sentiment': False, 'morning_briefing': False, 'ai_strategy_comparison': False,
         },
     },
     'starter': {
@@ -30,6 +31,7 @@ TIER_LIMITS: dict[str, dict] = {
             'ai_narrative': False, 'ai_chat': False, 'ai_risk_summary': False,
             'ai_strategy_reasoning': False, 'ai_earnings_awareness': False,
             'trade_journal': False, 'roll_advisor': False, 'greeks_coaching': False,
+            'news_sentiment': False, 'morning_briefing': False, 'ai_strategy_comparison': False,
         },
     },
     'pro': {
@@ -39,6 +41,7 @@ TIER_LIMITS: dict[str, dict] = {
             'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
             'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
             'trade_journal': True, 'roll_advisor': True, 'greeks_coaching': True,
+            'news_sentiment': True, 'morning_briefing': True, 'ai_strategy_comparison': True,
         },
     },
     'enterprise': {
@@ -48,6 +51,7 @@ TIER_LIMITS: dict[str, dict] = {
             'ai_narrative': True, 'ai_chat': True, 'ai_risk_summary': True,
             'ai_strategy_reasoning': True, 'ai_earnings_awareness': True,
             'trade_journal': True, 'roll_advisor': True, 'greeks_coaching': True,
+            'news_sentiment': True, 'morning_briefing': True, 'ai_strategy_comparison': True,
         },
     },
 }

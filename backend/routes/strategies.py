@@ -149,33 +149,46 @@ async def analyze_symbol(
         logger.warning(f"market_context failed for {symbol}: {e}")
         market_ctx = {}
 
-    # E2 — News Sentiment Digest (free for all, no entitlement check)
+    # Resolve user identity and entitlements once for all per-user AI gates
+    _user_id: str | None = None
+    _user_features: dict = {}
+    if credentials:
+        try:
+            from services.db import get_supabase as _get_sb
+            _sb = _get_sb()
+            _result = _sb.auth.get_user(credentials.credentials)
+            if _result.user:
+                _user_id = _result.user.id
+                from services.entitlements import compute_entitlements as _ce
+                _user_features = _ce(_user_id).get("features", {})
+        except Exception:
+            pass
+
+    # E2 — News Sentiment Digest (gated by news_sentiment entitlement)
     news_sentiment: dict = {
         "sentiment": "NEUTRAL",
         "confidence": 0.0,
         "digest": "No recent news available.",
     }
-    try:
-        from services import ai_service as _ai
-        raw_news = market_ctx.get("news") or []
-        headlines = [item.get("title", "") for item in raw_news if item.get("title")]
-        if headlines:
-            news_sentiment = _ai.classify_news_sentiment(symbol, headlines)
-    except Exception as _e:
-        logger.debug(f"News sentiment failed for {symbol}: {_e}")
+    if _user_features.get("news_sentiment"):
+        try:
+            from services import ai_service as _ai
+            raw_news = market_ctx.get("news") or []
+            headlines = [item.get("title", "") for item in raw_news if item.get("title")]
+            if headlines:
+                news_sentiment = _ai.classify_news_sentiment(symbol, headlines)
+        except Exception as _e:
+            logger.debug(f"News sentiment failed for {symbol}: {_e}")
 
     # Check earnings awareness setting for authenticated users
     earnings_data: dict | None = None
-    if credentials:
+    if _user_id:
         try:
             from services.db import get_supabase
             sb = get_supabase()
-            result = sb.auth.get_user(credentials.credentials)
-            if result.user:
-                user_id = result.user.id
-                s = sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", user_id).execute()
-                if s.data and s.data[0].get("earnings_awareness_enabled"):
-                    earnings_data = (market_ctx or {}).get("earnings") or {}
+            s = sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", _user_id).execute()
+            if s.data and s.data[0].get("earnings_awareness_enabled"):
+                earnings_data = (market_ctx or {}).get("earnings") or {}
         except Exception:
             pass
 
@@ -214,32 +227,31 @@ async def analyze_symbol(
         for cat, strats in recommendations_by_category.items()
     }
 
-    # E8 — AI Strategy Comparison (free for all, no entitlement check)
-    # Collect the top strategies across all categories for comparison.
+    # E8 — AI Strategy Comparison (gated by ai_strategy_comparison entitlement)
     ai_recommendation: dict = {"recommended_key": "", "recommended_name": "", "reasoning": ""}
-    try:
-        from services import ai_service as _ai
-        # Flatten all recommendations and deduplicate by key, keeping highest fit_score
-        seen_keys: dict[str, dict] = {}
-        for strats in recommendations_by_category.values():
-            for rec in strats:
-                key = rec.get("key", "")
-                if key and (key not in seen_keys or rec.get("fit_score", 0) > seen_keys[key].get("fit_score", 0)):
-                    seen_keys[key] = rec
-        top_strats = sorted(seen_keys.values(), key=lambda r: r.get("fit_score", 0), reverse=True)[:5]
-        if top_strats:
-            compare_input = [
-                {
-                    "key": r.get("key", ""),
-                    "name": r.get("name", ""),
-                    "fit_score": r.get("fit_score", 0),
-                    "description": r.get("description", ""),
-                }
-                for r in top_strats
-            ]
-            ai_recommendation = _ai.compare_and_recommend(symbol, compare_input, iv_env, bias)
-    except Exception as _e:
-        logger.debug(f"AI strategy comparison failed for {symbol}: {_e}")
+    if _user_features.get("ai_strategy_comparison"):
+        try:
+            from services import ai_service as _ai
+            seen_keys: dict[str, dict] = {}
+            for strats in recommendations_by_category.values():
+                for rec in strats:
+                    key = rec.get("key", "")
+                    if key and (key not in seen_keys or rec.get("fit_score", 0) > seen_keys[key].get("fit_score", 0)):
+                        seen_keys[key] = rec
+            top_strats = sorted(seen_keys.values(), key=lambda r: r.get("fit_score", 0), reverse=True)[:5]
+            if top_strats:
+                compare_input = [
+                    {
+                        "key": r.get("key", ""),
+                        "name": r.get("name", ""),
+                        "fit_score": r.get("fit_score", 0),
+                        "description": r.get("description", ""),
+                    }
+                    for r in top_strats
+                ]
+                ai_recommendation = _ai.compare_and_recommend(symbol, compare_input, iv_env, bias)
+        except Exception as _e:
+            logger.debug(f"AI strategy comparison failed for {symbol}: {_e}")
 
 
     # Increment request counter for health panel (ADR-0006)

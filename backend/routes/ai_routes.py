@@ -207,6 +207,7 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
     Response: {"briefing": "...", "date": "2026-06-13", "symbols": [...], "cached": true|false}
     """
     user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "morning_briefing")
     sb = get_supabase()
     today = date.today().isoformat()
 

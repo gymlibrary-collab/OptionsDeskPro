@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { scanWatchlist, getWatchlist, saveWatchlist, ScanResult, TradeStructure, WatchlistState } from '../api/client'
 import StrategyDetail from './StrategyDetail'
 import DailyBriefingCard from './DailyBriefingCard'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 interface Props {
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
@@ -231,6 +232,8 @@ function WatchlistEditor({
 }
 
 export default function StrategyScanner({ onSelectTrade }: Props) {
+  const { entitlements } = useEntitlements()
+  const briefingUnlocked = entitlements?.features?.morning_briefing ?? false
   const [symbols, setSymbols] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(LS_KEY)
@@ -317,7 +320,7 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
       {/* E4 — Daily Morning Briefing */}
-      <DailyBriefingCard />
+      <DailyBriefingCard unlocked={briefingUnlocked} />
 
       {/* Watchlist editor card */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

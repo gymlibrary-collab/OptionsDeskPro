@@ -27,15 +27,16 @@ function fmt(date: string): string {
   }
 }
 
-export default function DailyBriefingCard() {
+export default function DailyBriefingCard({ unlocked = true }: { unlocked?: boolean }) {
   const { isMobile } = useWindowSize()
   const [data, setData] = useState<MorningBriefingResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(unlocked)
   const [error, setError] = useState<string | null>(null)
   // Collapsed by default on mobile, expanded on desktop
   const [expanded, setExpanded] = useState(!isMobile)
 
   useEffect(() => {
+    if (!unlocked) return
     getMorningBriefing()
       .then(setData)
       .catch(e => {
@@ -43,7 +44,7 @@ export default function DailyBriefingCard() {
         setError(typeof detail === 'string' ? detail : 'Could not load morning briefing.')
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [unlocked])
 
   return (
     <div style={{
@@ -95,13 +96,18 @@ export default function DailyBriefingCard() {
       {/* Body */}
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px' }}>
-          {loading && (
+          {!unlocked && (
+            <div style={{ fontSize: '13px', color: C.muted, textAlign: 'center', padding: '8px 0' }}>
+              🔒 Upgrade to Pro to unlock your Daily Morning Briefing.
+            </div>
+          )}
+          {unlocked && loading && (
             <div style={{ color: C.muted, fontSize: '13px', textAlign: 'center', padding: '12px 0' }}>
               Generating your morning briefing…
             </div>
           )}
 
-          {!loading && error && (
+          {unlocked && !loading && error && (
             <div style={{
               background: '#2d0f0f',
               border: `1px solid ${C.red}44`,
@@ -114,7 +120,7 @@ export default function DailyBriefingCard() {
             </div>
           )}
 
-          {!loading && !error && data && (
+          {unlocked && !loading && !error && data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Briefing text */}
               <div style={{

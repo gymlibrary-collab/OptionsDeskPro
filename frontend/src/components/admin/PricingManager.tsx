@@ -17,6 +17,9 @@ const AI_FEATURE_LABELS: Record<string, string> = {
   trade_journal: 'Trade Journal Review',
   roll_advisor: 'Roll / Adjustment Advisor',
   greeks_coaching: 'Portfolio Greeks Coaching',
+  news_sentiment: 'News Sentiment Digest',
+  morning_briefing: 'Daily Morning Briefing',
+  ai_strategy_comparison: 'AI Strategy Comparison',
 }
 
 const ALL_FEATURE_KEYS = [
