@@ -308,6 +308,27 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </div>
       </Section>
 
+      {/* ── LEGAL TERMS ACKNOWLEDGMENT ── */}
+      <Section title="Legal Terms Acknowledgment">
+        <P>
+          Before you can access the platform, you must read and agree to the <strong>Risk Disclosure &amp; Indemnification Agreement</strong>.
+          This is a one-time requirement that protects both you and the platform.
+        </P>
+        <P>
+          After you sign in, you will see a full-screen modal displaying the complete terms of service. You must scroll through
+          the entire document until you reach the bottom. Once you have scrolled to the end, the acknowledgment checkbox will unlock,
+          and you can check it and click <strong>I Agree &amp; Continue</strong> to proceed.
+        </P>
+        <Note color={C.amber}>
+          <strong>Important:</strong> The terms cover critical disclaimers about paper trading, AI-generated content, market data accuracy,
+          trading risks, and limitations of liability. Do not skip reading them — they explain what OptionsDesk is and is not.
+        </Note>
+        <Sub>
+          <P><strong>What if the terms change?</strong> If the platform administrators publish updated terms, you will be prompted to acknowledge the new version before you can continue using the platform. You will need to scroll through and agree again.</P>
+          <P><strong>Admin users</strong> can skip the legal gate and proceed directly to the platform; the gate is shown with an admin badge for transparency.</P>
+        </Sub>
+      </Section>
+
       {/* ── SIGN UP & PLAN SELECTION ── */}
       <Section title="Sign-Up and Plan Selection">
         <P>
@@ -462,8 +483,14 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             <P>Invite new platform staff (Owner, Support, Finance roles) by email. View all staff, change roles, and deactivate accounts. The system ensures at least one Owner is always active.</P>
           </Sub>
 
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Legal Management</div>
+          <Sub>
+            <P>Create and publish versioned legal documents (Terms of Service, Risk Disclosure agreements, etc.). Each published version becomes immediately active and requires all subscribers to acknowledge before accessing the platform. View publication history and acknowledgment counts per version.</P>
+            <P><strong>Publishing a new version:</strong> Write or paste your legal document, set the effective date, and click Publish. The system automatically deactivates the previous version. All subscribers will be prompted to acknowledge the new version on next login.</P>
+          </Sub>
+
           <Note color={C.amber}>
-            <strong>Role assignment:</strong> Owners see all tabs and features. Support staff cannot see revenue or edit pricing. Finance staff can only view revenue and export reports. All actions are audit-logged.
+            <strong>Role assignment:</strong> Owners see all tabs and features. Support staff cannot see revenue or edit pricing, and cannot publish legal documents. Finance staff can only view revenue and export reports. All actions are audit-logged.
           </Note>
         </Section>
       )}
