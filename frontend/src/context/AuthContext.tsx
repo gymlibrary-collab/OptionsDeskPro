@@ -9,6 +9,7 @@ interface LoginResponse {
   onboarding_completed: boolean
   onboarding_step: string
   is_deactivated: boolean
+  pending_legal_acknowledgment?: boolean
 }
 
 interface AuthContextType {
@@ -18,11 +19,13 @@ interface AuthContextType {
   isAdmin: boolean
   loading: boolean
   entitlements: Entitlements | null
+  pendingLegalAcknowledgment: boolean
   signInWithGoogle: () => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   refreshEntitlements: () => Promise<void>
+  clearLegalAcknowledgmentPending: () => void
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -35,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<LoginResponse | null>(null)
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pendingLegalAcknowledgment, setPendingLegalAcknowledgment] = useState(false)
 
   const fetchEntitlements = useCallback(async () => {
     try {
@@ -50,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.post<LoginResponse>('/auth/login')
       setProfile(data)
+      setPendingLegalAcknowledgment(data.pending_legal_acknowledgment === true)
       if (data.is_deactivated) {
         await supabase.auth.signOut()
         delete api.defaults.headers.common['Authorization']
@@ -118,7 +123,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     delete api.defaults.headers.common['Authorization']
     setProfile(null)
     setEntitlements(null)
+    setPendingLegalAcknowledgment(false)
   }
+
+  const clearLegalAcknowledgmentPending = useCallback(() => {
+    setPendingLegalAcknowledgment(false)
+  }, [])
 
   const refreshEntitlements = useCallback(async () => {
     await fetchEntitlements()
@@ -135,11 +145,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         loading,
         entitlements,
+        pendingLegalAcknowledgment,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
         signOut,
         refreshEntitlements,
+        clearLegalAcknowledgmentPending,
       }}
     >
       {children}

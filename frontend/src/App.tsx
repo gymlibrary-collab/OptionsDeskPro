@@ -17,6 +17,7 @@ import FaqPage from './components/FaqPage'
 import LockedTabPlaceholder from './components/LockedTabPlaceholder'
 import PaymentFailedBanner from './components/PaymentFailedBanner'
 import AdminApp from './components/admin/AdminApp'
+import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
@@ -374,8 +375,10 @@ function Dashboard() {
   )
 }
 
+const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
+
 function ClientAppInner() {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, pendingLegalAcknowledgment } = useAuth()
 
   if (loading) {
     return (
@@ -395,7 +398,7 @@ function ClientAppInner() {
   const isOnboardingPath = currentPath.startsWith('/onboarding/')
 
   if (loginProfile && loginProfile.onboarding_completed === false) {
-    let step: 'plan_selection' | 'payment' | 'complete' = (loginProfile.onboarding_step || 'plan_selection') as 'plan_selection' | 'payment' | 'complete'
+    let step: 'plan_selection' | 'legal_acknowledgment' | 'payment' | 'complete' = (loginProfile.onboarding_step || 'plan_selection') as 'plan_selection' | 'legal_acknowledgment' | 'payment' | 'complete'
     if (step === 'complete') step = 'plan_selection'
     // Let OnboardingFlow handle the /onboarding/complete path detection
     return (
@@ -411,9 +414,12 @@ function ClientAppInner() {
     window.history.replaceState({}, '', '/')
   }
 
+  const showLegalGate = pendingLegalAcknowledgment && user.email !== ADMIN_EMAIL
+
   return (
     <EntitlementsProvider>
       <Dashboard />
+      {showLegalGate && <LegalAcknowledgmentGate />}
     </EntitlementsProvider>
   )
 }
