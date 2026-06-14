@@ -2,10 +2,11 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from models import OrderRequest, TradeRecordRequest
 from services.auth_utils import verify_token, get_user_id
+from services.legal_service import legal_gate_dep
 from services import user_portfolio
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 
 
 @router.post("/orders")

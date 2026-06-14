@@ -10,6 +10,7 @@ Never call get_supabase() at module level.
 import logging
 import time
 from typing import Optional
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,58 @@ def invalidate_legal_version_cache() -> None:
     _active_version_cache_ts = 0.0
 
 
+async def require_legal_acknowledgment(user_id: str, email: str) -> None:
+    """
+    Raise HTTP 451 if the user has not acknowledged the currently active legal version.
+
+    Called as a FastAPI dependency on every business-logic route.
+
+    Bypass rules (applied in order):
+    - Admin email always passes.
+    - No active version published yet → passes (fail-open, nothing to gate on).
+
+    Fail-open on DB errors: any exception is logged at ERROR level and the
+    request is allowed through so a legal-DB hiccup does not lock out users.
+    HTTP 451 = "Unavailable For Legal Reasons" (RFC 7725).
+    """
+    from fastapi import HTTPException
+    from services.auth_utils import ADMIN_EMAIL
+
+    if email == ADMIN_EMAIL:
+        return
+
+    try:
+        active = get_active_version()
+        if not active:
+            return
+
+        version_id = active["id"]
+
+        from services.db import get_supabase
+        sb = get_supabase()
+        ack = (
+            sb.table("legal_acknowledgments")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("version_id", version_id)
+            .maybe_single()
+            .execute()
+        )
+        if ack.data is None:
+            raise HTTPException(
+                status_code=451,
+                detail="Legal acknowledgment required",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "legal_service: require_legal_acknowledgment DB error for user %s — failing open: %s",
+            user_id, e,
+        )
+        return
+
+
 def get_pending_legal_acknowledgment(user_id: str, email: str) -> bool:
     """
     Return True if the user has not acknowledged the current active version.
@@ -111,3 +164,34 @@ def get_pending_legal_acknowledgment(user_id: str, email: str) -> bool:
             user_id, e,
         )
         return False
+
+
+def _make_legal_gate_dep():
+    """
+    Factory that constructs the legal_gate_dep FastAPI dependency after module
+    load, deferring the import of verify_token to avoid any circular-import
+    risk at startup.
+
+    Returns an async callable suitable for use with Depends().
+    """
+    from services.auth_utils import verify_token
+
+    async def _legal_gate_dep(payload: dict = Depends(verify_token)) -> None:
+        """
+        FastAPI dependency — enforces legal acknowledgment on every business-logic route.
+
+        Piggybacks on the existing verify_token dependency so that Supabase Auth is
+        called only once per request (FastAPI deduplicates identical Depends instances).
+        Raises HTTP 451 when the authenticated user has not acknowledged the current
+        legal version. Fails open on DB errors (logged at ERROR level).
+        """
+        user_id: str = payload.get("sub", "")
+        email: str = payload.get("email", "") or ""
+        await require_legal_acknowledgment(user_id, email)
+
+    return _legal_gate_dep
+
+
+# Instantiate once at import time — safe because _make_legal_gate_dep() only
+# imports verify_token, which has no dependency on legal_service.
+legal_gate_dep = _make_legal_gate_dep()

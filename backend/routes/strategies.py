@@ -15,6 +15,7 @@ from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
 from services.auth_utils import verify_token, security as bearer_security
 from services.db import get_supabase
+from services.legal_service import legal_gate_dep
 from services.tier_limits import get_user_tier, get_limits
 from services.entitlements import compute_entitlements
 import services.metrics as _metrics
@@ -268,7 +269,7 @@ async def analyze_symbol(
     }
 
 
-@router.get("/strategies/scan")
+@router.get("/strategies/scan", dependencies=[Depends(legal_gate_dep)])
 async def scan_watchlist(
     symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT",
     payload: dict = Depends(verify_token),

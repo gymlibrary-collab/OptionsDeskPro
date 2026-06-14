@@ -4,10 +4,11 @@ from pydantic import BaseModel
 
 from services.auth_utils import verify_token
 from services.db import get_supabase
+from services.legal_service import legal_gate_dep
 from services.tier_limits import get_user_tier, get_limits
 from services.entitlements import compute_entitlements
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 
 
 class WatchlistSaveRequest(BaseModel):

@@ -5,8 +5,9 @@ Subscriber-facing endpoints for the legal acknowledgment gate.
 All DB writes use the service role (via get_supabase()).
 """
 import logging
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.auth_utils import verify_token, get_user_id
 from services.db import get_supabase
@@ -36,8 +37,8 @@ async def get_current_version(payload: dict = Depends(verify_token)):
 # ── POST /legal/acknowledge ──────────────────────────────────────────────────
 
 class AcknowledgeRequest(BaseModel):
-    version_id: str
-    content_hash: str
+    version_id: uuid.UUID
+    content_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
 
 
 @router.post("/legal/acknowledge")
@@ -74,7 +75,7 @@ async def acknowledge_legal(
 
     # Race-condition guard: reject if version_id has changed since the
     # subscriber loaded the form (e.g., owner published a new version mid-flow).
-    if body.version_id != active["id"]:
+    if str(body.version_id) != active["id"]:
         raise HTTPException(
             status_code=409,
             detail="Legal document version has changed. Please reload and re-read the updated terms.",

@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from services.auth_utils import verify_token, get_user_id
 from services.db import get_supabase
+from services.legal_service import legal_gate_dep
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 logger = logging.getLogger(__name__)
 
 
