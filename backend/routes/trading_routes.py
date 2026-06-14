@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from services.auth_utils import verify_token
+from services.legal_service import legal_gate_dep
 from services import reddit
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 
 
 @router.get("/trading/buzz/earnings")

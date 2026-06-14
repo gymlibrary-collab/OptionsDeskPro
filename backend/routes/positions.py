@@ -3,11 +3,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from fastapi import APIRouter, Depends
 from services.auth_utils import verify_token, get_user_id
+from services.legal_service import legal_gate_dep
 from services import user_portfolio
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import STRATEGIES
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 
 
 @router.get("/positions")
