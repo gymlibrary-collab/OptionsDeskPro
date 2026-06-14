@@ -855,9 +855,9 @@ export const patchPlatformSettings = (req: Partial<PlatformSettings>): Promise<{
 export interface LegalVersion {
   id: string
   version_number: string
-  display_name: string
-  full_text: string
-  text_hash: string
+  title: string
+  content_markdown: string
+  content_hash: string
   effective_date: string
   published_at: string
   is_active?: boolean
@@ -866,20 +866,24 @@ export interface LegalVersion {
 
 export interface AcknowledgeRequest {
   version_id: string
+  content_hash: string
 }
 
 export interface AcknowledgeResponse {
-  ok: boolean
+  acknowledged: boolean
   version_number: string
+  acknowledged_at?: string
+  already_acknowledged?: boolean
 }
 
 export interface LegalAcknowledgmentHistory {
   id: string
   version_number: string
-  document_text_hash: string
+  title: string
+  effective_date: string
+  content_hash: string
   acknowledged_at: string
   ip_address: string | null
-  user_agent: string | null
 }
 
 // Subscriber (auth required)
@@ -895,10 +899,10 @@ export const getPlatformLegalVersions = (): Promise<{ versions: LegalVersion[] }
 
 export const postPlatformLegalVersion = (body: {
   version_number: string
-  display_name: string
-  full_text: string
+  title: string
+  content_markdown: string
   effective_date: string
-}): Promise<{ ok: boolean; id: string; version_number: string; text_hash: string }> =>
+}): Promise<{ id: string; version_number: string; content_hash: string }> =>
   api.post('/platform/legal/versions', body).then(r => r.data)
 
 export const getSubscriberLegalHistory = (userId: string): Promise<{ history: LegalAcknowledgmentHistory[] }> =>

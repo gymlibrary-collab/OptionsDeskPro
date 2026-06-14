@@ -155,8 +155,8 @@ export default function LegalVersionManager({ staffRole }: Props) {
     try {
       await postPlatformLegalVersion({
         version_number: publishVersionNumber.trim(),
-        display_name: publishTitle.trim(),
-        full_text: publishContent,
+        title: publishTitle.trim(),
+        content_markdown: publishContent,
         effective_date: publishEffectiveDate,
       })
       setPublishSuccess(`Version ${publishVersionNumber} published successfully.`)
@@ -253,10 +253,10 @@ export default function LegalVersionManager({ staffRole }: Props) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <FieldRow label="Version" value={`v${activeVersion.version_number}`} />
-            <FieldRow label="Title" value={activeVersion.display_name} />
+            <FieldRow label="Title" value={activeVersion.title} />
             <FieldRow label="Effective date" value={fmtDate(activeVersion.effective_date)} />
             <FieldRow label="Published at" value={fmtDateTime(activeVersion.published_at)} />
-            <FieldRow label="SHA-256 hash" value={activeVersion.text_hash} mono />
+            <FieldRow label="SHA-256 hash" value={activeVersion.content_hash} mono />
           </div>
         )}
       </SectionCard>
@@ -378,7 +378,7 @@ export default function LegalVersionManager({ staffRole }: Props) {
                 {versions.map(v => (
                   <tr key={v.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                     <td style={{ padding: '8px', color: C.text, fontWeight: 600 }}>v{v.version_number}</td>
-                    <td style={{ padding: '8px', color: C.muted }}>{v.display_name}</td>
+                    <td style={{ padding: '8px', color: C.muted }}>{v.title}</td>
                     <td style={{ padding: '8px', color: C.muted, whiteSpace: 'nowrap' }}>{fmtDate(v.effective_date)}</td>
                     <td style={{ padding: '8px', color: C.muted, whiteSpace: 'nowrap' }}>{fmtDateTime(v.published_at)}</td>
                     <td style={{ padding: '8px' }}>

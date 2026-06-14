@@ -71,7 +71,7 @@ function LegalAcknowledgmentStep({ onAcknowledged, selectedTier }: LegalAcknowle
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await postLegalAcknowledge({ version_id: version.id })
+      await postLegalAcknowledge({ version_id: version.id, content_hash: version.content_hash })
       onAcknowledged(selectedTier)
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } }
@@ -100,7 +100,7 @@ function LegalAcknowledgmentStep({ onAcknowledged, selectedTier }: LegalAcknowle
           </h2>
           {version && !fetchLoading && (
             <p style={{ margin: 0, fontSize: '13px', color: C.muted }}>
-              {version.display_name} &mdash; Effective {version.effective_date}
+              {version.title} &mdash; Effective {version.effective_date}
             </p>
           )}
         </div>
@@ -147,7 +147,7 @@ function LegalAcknowledgmentStep({ onAcknowledged, selectedTier }: LegalAcknowle
                   wordBreak: 'break-word',
                 }}
               >
-                {version.full_text}
+                {version.content_markdown}
               </pre>
             </div>
 
@@ -181,7 +181,7 @@ function LegalAcknowledgmentStep({ onAcknowledged, selectedTier }: LegalAcknowle
                   style={{ marginTop: '2px', flexShrink: 0, accentColor: C.accent, width: '16px', height: '16px', cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed' }}
                 />
                 <span style={{ fontSize: '13px', color: C.text, lineHeight: 1.5 }}>
-                  I have read and agree to the {version.display_name} (v{version.version_number})
+                  I have read and agree to the {version.title} (v{version.version_number})
                 </span>
               </label>
               <button
