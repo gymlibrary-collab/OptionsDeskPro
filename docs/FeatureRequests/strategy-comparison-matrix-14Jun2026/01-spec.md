@@ -81,6 +81,7 @@ PRD-01 removes all fit-scoring and ranking logic from the backend and replaces t
 - [ ] AC-1.6: The IV Environment Fit cell for each row uses the phrase "Performs well in [ENV]" or equivalent factual language — the words "recommended", "best", or "ideal" do not appear in this cell.
 - [ ] AC-1.7: The `fit_score` field does not appear in the API response body when inspected via browser DevTools (Network tab → `/api/strategies/analyze/AAPL` → response JSON).
 - [ ] AC-1.8: The `ai_recommendation` field does not appear in the API response body.
+- [ ] AC-1.9: The matrix displays a Condition Fit column showing IV and direction alignment indicators per strategy row. Each indicator is labelled "Condition Fit" (not "Recommended", "Score", or any ranking term). An educational explanation is available when the indicator is expanded or hovered.
 
 ### Story 2 — Subscriber uses the Strategy Scanner to survey watchlist
 
@@ -122,6 +123,20 @@ PRD-01 removes all fit-scoring and ranking logic from the backend and replaces t
 - [ ] AC-5.2: `GET /api/strategies/scan?symbols=AAPL` without a JWT returns HTTP 401 or 403.
 - [ ] AC-5.3: The frontend redirects unauthenticated users to the login page before rendering the Scanner tab.
 
+### Story 6 — Subscriber understands why conditions matter for a strategy
+
+**As a** paper trader (any authenticated tier), **I want** each strategy row in the comparison matrix to show whether the current ticker's market conditions align with the strategy's textbook-defined mechanical design criteria **so that** I can learn which conditions each strategy is built for and make a more informed decision about which one to paper-trade.
+
+**Acceptance Criteria:**
+- [ ] AC-6.1: Each matrix row displays an IV condition indicator using a visual symbol (✓ / ✗ / ~) based on factual comparison of the current ticker's IV rank against the strategy's `designed_for_iv` value. The indicator appears in a column labelled "Condition Fit" — not "Recommended", "Score", "AI Fit", or any other ranking term.
+- [ ] AC-6.2: Each matrix row displays a direction condition indicator using the same visual symbol approach, based on factual comparison of the current ticker's directional bias against the strategy's `designed_for_direction` value.
+- [ ] AC-6.3: Clicking or expanding a condition indicator (or a detail affordance on the same row) displays the `condition_explanation` string for that strategy — a single educational sentence describing why the strategy's textbook-defined conditions do or do not align with current market data.
+- [ ] AC-6.4: No strategy row is ranked above another as a result of the condition fit indicators. The indicators are informational; they do not sort the table by default and do not apply any visual accent (colour weight, border, badge) that implies a recommendation hierarchy.
+- [ ] AC-6.5: A user may sort or filter the matrix by condition fit (e.g. "show only rows where both IV and direction conditions match") using a table control. This is a user-initiated action; the table does not pre-filter or pre-sort by condition fit on load.
+- [ ] AC-6.6: Inspect the API response for `/api/strategies/analyze/AAPL` via browser DevTools. Each `MatrixRow` object contains `designed_for_iv`, `designed_for_direction`, `iv_condition_match`, `direction_condition_match`, and `condition_explanation` fields.
+- [ ] AC-6.7: The `condition_explanation` string for each strategy is identical across two separate requests for different tickers with the same IV environment and directional bias — confirming the text is hardcoded per strategy catalog entry, not dynamically AI-generated per request.
+- [ ] AC-6.8: Searching the rendered Condition Fit column for the strings "recommended", "AI recommends", "best fit", "top pick", or "score" returns no matches.
+
 ---
 
 ## 5. Out of Scope
@@ -136,6 +151,7 @@ The following items are explicitly excluded from PRD-01. Raising any of them dur
 - **Changes to the `TradePanel` or `OrderEntry` components**: These are not affected by removing fit scoring.
 - **New market data calls for matrix metrics**: Delta, theta, and vega values in the matrix come from existing `build_trade()` leg output and catalog data — no new Market Data App credits are consumed.
 - **Mobile layout optimisation of the matrix table**: The table must be horizontally scrollable on mobile but specific mobile breakpoint design is an implementation concern, not a spec requirement.
+- **Dynamic AI-generated fit scoring**: Condition alignment is based on static, textbook-defined mechanical criteria per strategy — the same criteria published in any options education textbook. It is not a recommendation engine. Any dynamic AI scoring of strategy suitability is out of scope for this PRD and for any future feature that must remain regulatory-compliant under this framing.
 - **Changes to the `UserGuide` component**: User-facing documentation updates are Gate 6 scope (technical-writer agent).
 - **Changes to the `AdminPanel`**: No admin-facing changes are required by this PRD.
 
@@ -216,6 +232,33 @@ MatrixRow {
   net_theta: number              // sum of signed leg thetas (daily)
   net_vega: number               // sum of signed leg vegas
   pop_range: [number, number]    // probability of profit range from catalog
+
+  // Condition alignment fields — factual comparison of current market data against
+  // each strategy's textbook-defined mechanical design criteria
+  designed_for_iv: "high" | "low" | "any"
+    // The IV environment this strategy is mechanically designed for, as defined in
+    // any standard options education textbook. This is a static catalog property,
+    // not a dynamic AI opinion.
+  designed_for_direction: "bullish" | "bearish" | "neutral" | "volatile" | "any"
+    // The directional bias this strategy is mechanically designed for.
+    // Static catalog property.
+  iv_condition_match: boolean
+    // True if the current ticker's IV rank falls within the range that
+    // designed_for_iv describes. Computed in the backend by comparing
+    // the IV analysis result to the strategy's designed_for_iv value.
+    // This is a factual data comparison, not a recommendation.
+  direction_condition_match: boolean
+    // True if the current ticker's directional bias (from market_context.py)
+    // matches designed_for_direction. Computed in the backend.
+    // This is a factual data comparison, not a recommendation.
+  condition_explanation: string
+    // One educational sentence explaining why the strategy's textbook-defined
+    // conditions do or do not align with current market data. Phrased as factual
+    // educational content. Example:
+    // "Covered calls collect more premium when implied volatility is elevated;
+    //  current IV rank of 72 is above the 60-point threshold typically considered high."
+    // Hardcoded per strategy in strategy_engine.py — not AI-generated.
+
   _synthetic: boolean            // true if trade data is from synthetic chain
 }
 ```
@@ -224,7 +267,9 @@ Notes:
 - `net_delta`, `net_theta`, and `net_vega` are derived from the existing greek fields already present on each leg returned by `build_trade()`. No new greek calculations are required.
 - `credit_or_debit` is derived from the sign of `estimated_credit_or_debit`: `>= 0` is "credit", `< 0` is "debit".
 - `iv_fit_label` is a backend-generated string using a fixed format: `"Performs well in {ENV} IV"` where ENV is each value in `iv_environment_fit`. This label is factual and non-evaluative.
-- For strategies where `build_trade()` returns an error, `max_profit`, `max_loss`, `breakeven_low`, `breakeven_high`, `net_delta`, `net_theta`, and `net_vega` shall all be `null`.
+- `designed_for_iv`, `designed_for_direction`, and `condition_explanation` are static catalog properties hardcoded in `strategy_engine.py` — one set of values per strategy across all 31 catalog entries. They are textbook facts, not outputs of any AI or scoring model.
+- `iv_condition_match` and `direction_condition_match` are computed by the backend at analysis time by comparing the current ticker's IV rank and directional bias against the strategy's `designed_for_iv` and `designed_for_direction` values. The comparison is a simple equality or threshold check — it is factual, not evaluative.
+- For strategies where `build_trade()` returns an error, `max_profit`, `max_loss`, `breakeven_low`, `breakeven_high`, `net_delta`, `net_theta`, and `net_vega` shall all be `null`. The condition alignment fields (`designed_for_iv`, `designed_for_direction`, `iv_condition_match`, `direction_condition_match`, `condition_explanation`) are derived from the catalog, not from `build_trade()`, and shall always be populated regardless of trade build errors.
 
 ---
 
@@ -265,6 +310,7 @@ Revenue impact: removing a pro/enterprise-tier feature (`ai_strategy_comparison`
 | OQ-3 | The `StrategyNarrative` section 3 ("Why This Strategy") was generated in the context of a ranked recommendation. After ranking is removed, the narrative is still generated per-strategy when a user expands a card. Does the narrative generator (`interpreter.py`) contain any language that references "this is the recommended strategy" or "the top pick"? A content audit of `interpreter.py` is flagged for PRD-05 but may surface high-severity findings that need to be addressed in this PRD. | BA / Security Reviewer | Gate 5 |
 | OQ-4 | The `ai_strategy_comparison` entitlement flag is left in the system after this PRD. Is there a planned future use for this flag, or should it be scheduled for removal in PRD-06 / housekeeping sprint? | Product Owner | Post-Gate 1 |
 | OQ-5 | Net theta and vega per strategy leg are not currently returned by `build_trade()` — the leg objects include `delta` but not `theta` or `vega` explicitly (they flow through the greek enrichment but are not aggregated). The architect must confirm whether aggregated greeks can be added to the `build_trade()` return value or if the matrix must compute them from per-leg data on the frontend. | Architect | Gate 2 |
+| OQ-6 | Should `condition_explanation` strings be hardcoded per strategy in `strategy_engine.py` (31 static strings) or generated dynamically by `interpreter.py` at analysis time? Hardcoding is more defensible from a regulatory standpoint: the content is fixed textbook fact that does not vary by ticker, cannot be construed as a personalised AI opinion, and is auditable without running the Claude API. Dynamic generation via `interpreter.py` introduces variability, consumes API tokens, and risks the text drifting toward directive language. Recommendation: hardcode all 31 strings in `strategy_engine.py`. Confirm with architect before Gate 2. | Architect | Gate 2 |
 
 ---
 
@@ -291,6 +337,7 @@ _Filled in by the product-owner agent._
 | Story 3 — Expand strategy card | | |
 | Story 4 — Admin verification | | |
 | Story 5 — Auth wall unchanged | | |
+| Story 6 — Condition Fit indicators | | |
 
 **MVP boundary:** [Stories in v1]
 
