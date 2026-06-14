@@ -27,6 +27,8 @@ import { bypassAuth } from '../fixtures/auth'
 import {
   MOCK_USER,
   MOCK_ADMIN_USER,
+  MOCK_SUPABASE_SESSION,
+  MOCK_AUTH_ME,
   MOCK_LOGIN_RESPONSE,
   MOCK_LOGIN_RESPONSE_PENDING_LEGAL,
   MOCK_LOGIN_RESPONSE_LEGAL_ONBOARDING,
@@ -79,28 +81,49 @@ async function mockLegalRoutes(page: import('@playwright/test').Page) {
 }
 
 /**
- * Scroll the scrollable content area to the bottom so the component registers
- * hasScrolledToBottom = true. The scrollable div is the element that has
- * overflowY: scroll and holds the <pre> with the agreement text.
+ * Trigger the component's scroll-to-bottom detection so that hasScrolledToBottom
+ * becomes true and the checkbox is enabled.
+ *
+ * The components (LegalAcknowledgmentGate and LegalAcknowledgmentStep) use an
+ * overflowY: 'scroll' div with an onScroll handler that checks:
+ *   el.scrollTop + el.clientHeight >= el.scrollHeight - 10
+ *
+ * In headless Chromium the mock content is too short to overflow the container,
+ * so no natural scroll event fires. We force-trigger the condition by temporarily
+ * overriding scrollHeight via Object.defineProperty and then dispatching a scroll
+ * event, which causes React's handler to see the condition as satisfied.
  */
 async function scrollContentToBottom(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
-    // Find the scrollable container inside the legal gate / onboarding step.
-    // The component sets overflowY: 'scroll' on the content div.
+    // All scrollable containers in the legal components use overflowY: 'scroll'.
     const scrollables = Array.from(document.querySelectorAll('div'))
       .filter(el => {
         const style = window.getComputedStyle(el)
-        return style.overflowY === 'scroll' && el.scrollHeight > el.clientHeight
+        return style.overflowY === 'scroll'
       })
-    // Use the innermost scrollable that has meaningful content
+    if (scrollables.length === 0) return
+
+    // Use the last scrollable div (innermost / deepest), which is the content area.
     const target = scrollables[scrollables.length - 1]
-    if (target) {
-      target.scrollTop = target.scrollHeight
-      target.dispatchEvent(new Event('scroll', { bubbles: true }))
-    }
+
+    // Override scrollHeight so the condition scrollTop + clientHeight >= scrollHeight - 10
+    // is satisfied. We make scrollHeight equal to clientHeight + scrollTop (i.e., already
+    // at the bottom).
+    const clientHeight = target.clientHeight || 400
+    Object.defineProperty(target, 'scrollHeight', {
+      get: () => clientHeight,
+      configurable: true,
+    })
+    Object.defineProperty(target, 'scrollTop', {
+      get: () => 0,
+      configurable: true,
+    })
+
+    // Dispatch the scroll event to trigger the React onScroll handler.
+    target.dispatchEvent(new Event('scroll', { bubbles: true }))
   })
-  // Give React state update time to propagate
-  await page.waitForTimeout(200)
+  // Allow React to process the state update (two animation frames).
+  await page.waitForTimeout(300)
 }
 
 // ─── Group: Re-acknowledgment gate (existing subscriber) ─────────────────────
@@ -122,8 +145,10 @@ test.describe('Re-acknowledgment gate — existing subscriber', () => {
   })
 
   test('AC3.2: modal displays the document title from the active version', async ({ page }) => {
-    // MOCK_LEGAL_VERSION.title = 'Risk Disclosure & Indemnification Agreement'
-    await expect(page.getByText(/risk disclosure/i)).toBeVisible({ timeout: 10000 })
+    // The title is shown as a <p> subtitle beneath the "Updated Legal Terms" heading.
+    // Use .first() to avoid strict-mode errors since the title text can appear in
+    // multiple places (subtitle, checkbox label, content body).
+    await expect(page.getByText(/risk disclosure/i).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('AC3.5 / AC2.3: I Agree checkbox is disabled (HTML attribute) before scrolling to bottom', async ({ page }) => {
@@ -206,20 +231,61 @@ test.describe('Re-acknowledgment gate — existing subscriber', () => {
 
 test.describe('Admin email bypasses legal gate', () => {
   test('AC edge-case: modal does NOT appear for admin email even with pending_legal_acknowledgment true', async ({ page }) => {
-    // Wire as admin email (leonardsim.sm@gmail.com) with pending = true in login response
-    await bypassAuth(
-      page,
-      { ...MOCK_ADMIN_USER, email: 'leonardsim.sm@gmail.com' },
-      { ...MOCK_LOGIN_RESPONSE_PENDING_LEGAL, email: 'leonardsim.sm@gmail.com' },
-      MOCK_ENTITLEMENTS_PRO,
-    )
+    // App.tsx hardcodes ADMIN_EMAIL = 'leonardsim.sm@gmail.com'.
+    // showLegalGate = pendingLegalAcknowledgment && user.email !== ADMIN_EMAIL
+    // The Supabase JS client sets user.email from the stored session in localStorage.
+    // We must inject a session with the admin email into localStorage directly,
+    // bypassing the default MOCK_SUPABASE_SESSION which uses 'test@example.com'.
+    const ADMIN_EMAIL_EXACT = 'leonardsim.sm@gmail.com'
+
+    const adminSession = {
+      ...MOCK_SUPABASE_SESSION,
+      user: {
+        ...MOCK_USER,
+        email: ADMIN_EMAIL_EXACT,
+        app_metadata: { role: 'admin' },
+      },
+    }
+
+    // Inject admin session into localStorage before any JS runs
+    await page.addInitScript((session) => {
+      const mockToken = JSON.stringify({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_in: session.expires_in,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: session.user,
+      })
+      localStorage.setItem('sb-mock-auth-token', mockToken)
+      localStorage.setItem('supabase.auth.token', mockToken)
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.setItem(key, mockToken)
+        }
+      }
+    }, adminSession)
+
+    // Wire Supabase auth API to return the admin user
+    await page.route('**/auth/v1/user', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(adminSession.user) }))
+    await page.route('**/auth/v1/token**', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(adminSession) }))
+    // Login response with pending = true
+    await page.route(`${API}auth/login`, (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...MOCK_LOGIN_RESPONSE_PENDING_LEGAL, email: ADMIN_EMAIL_EXACT }) }))
+    await page.route(`${API}auth/me`, (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...MOCK_AUTH_ME, email: ADMIN_EMAIL_EXACT }) }))
+    await page.route(`${API}auth/entitlements`, (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_PRO) }))
     await mockDashboard(page)
     await mockLegalRoutes(page)
+
     await page.goto('http://localhost:5173/')
     await page.waitForLoadState('networkidle')
 
-    // The App.tsx guard: showLegalGate = pendingLegalAcknowledgment && user.email !== ADMIN_EMAIL
-    // So the modal must NOT render for the admin email.
+    // The admin bypass in App.tsx: showLegalGate = pendingLegalAcknowledgment && user.email !== ADMIN_EMAIL
+    // With user.email === 'leonardsim.sm@gmail.com', the gate is suppressed.
     await expect(page.getByText(/updated legal terms/i)).not.toBeVisible({ timeout: 5000 })
   })
 })
@@ -236,45 +302,40 @@ test.describe('Onboarding — legal_acknowledgment step', () => {
   })
 
   test('AC1.2: legal document content visible during onboarding legal step', async ({ page }) => {
-    // OnboardingFlow renders LegalAcknowledgmentStep which shows the agreement heading
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    // OnboardingFlow renders LegalAcknowledgmentStep with an <h2> heading.
+    // Use heading role to avoid strict-mode issues from multiple text matches.
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     // The full content from MOCK_LEGAL_VERSION.content_markdown is rendered in a <pre>
     await expect(page.getByText(/mock legal content/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('AC1.3: checkbox disabled before scrolling in onboarding legal step', async ({ page }) => {
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     const checkbox = page.locator('input[type="checkbox"]').first()
     await expect(checkbox).toBeDisabled()
   })
 
   test('AC1.4: I Agree & Continue button disabled when checkbox is unchecked', async ({ page }) => {
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     const btn = page.getByRole('button', { name: /i agree.*continue/i })
     await expect(btn).toBeDisabled()
   })
 
   test('AC1.7: no Skip, Later, or Close button visible on the legal onboarding step', async ({ page }) => {
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: /^skip$/i })).not.toBeVisible()
     await expect(page.getByRole('button', { name: /^later$/i })).not.toBeVisible()
     await expect(page.getByRole('button', { name: /^close$/i })).not.toBeVisible()
   })
 
   test('step indicator is rendered in the onboarding flow', async ({ page }) => {
-    // OnboardingFlow renders numbered step indicators (1, 2, 3, 4 circles)
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
-    // The step indicator renders step number circles; check at least two are present
-    const stepDots = page.locator('div').filter({
-      has: page.locator(':text("2")'),
-    })
-    // Existence of the step indicator section is confirmed by the onboarding container itself
-    // We assert the onboarding header is shown
+    // OnboardingFlow renders numbered step indicators and the "Welcome to OptionsDesk" header.
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/welcome to optionsdesk/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('AC1.5: successful acknowledgment during onboarding advances to complete step', async ({ page }) => {
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     await scrollContentToBottom(page)
     const checkbox = page.locator('input[type="checkbox"]').first()
     await expect(checkbox).toBeEnabled({ timeout: 5000 })
@@ -296,7 +357,7 @@ test.describe('Onboarding — legal_acknowledgment step', () => {
         body: JSON.stringify({ detail: 'Version mismatch' }),
       }))
 
-    await expect(page.getByText(/risk disclosure.*indemnification agreement/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
     await scrollContentToBottom(page)
     const checkbox = page.locator('input[type="checkbox"]').first()
     await expect(checkbox).toBeEnabled({ timeout: 5000 })
