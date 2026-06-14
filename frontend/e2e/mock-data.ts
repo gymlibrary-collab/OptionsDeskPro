@@ -662,6 +662,222 @@ export const MOCK_LOGIN_RESPONSE_LEGAL_ONBOARDING = {
   pending_legal_acknowledgment: false,
 }
 
+// ─── Strategy Comparison Matrix mock data (PRD-01) ───────────────────────────
+
+/**
+ * MatrixRow where BOTH iv_condition_match and direction_condition_match are true.
+ * Represents an Iron Condor in a HIGH IV, NEUTRAL environment.
+ * max_loss is a defined number; max_profit is also defined.
+ */
+export const MOCK_MATRIX_ROW_BOTH_MATCH = {
+  key: 'iron_condor',
+  name: 'Iron Condor',
+  direction: ['NEUTRAL'],
+  credit_or_debit: 'credit' as const,
+  risk_type: 'DEFINED' as const,
+  complexity: 2,
+  iv_environment_fit: ['HIGH'],
+  iv_fit_label: 'Performs well in HIGH IV',
+  dte_target: 45,
+  max_profit: 1.85,
+  max_loss: 3.15,
+  breakeven_low: 168.15,
+  breakeven_high: 201.85,
+  net_delta: 0.02,
+  net_theta: 0.12,
+  net_vega: -0.22,
+  pop_range: [60, 70] as [number, number],
+  designed_for_iv: 'high' as const,
+  designed_for_direction: 'neutral' as const,
+  iv_condition_match: true,
+  direction_condition_match: true,
+  condition_explanation:
+    'Iron Condors are designed for HIGH IV environments where elevated option premiums increase the credit collected on both spread legs. The current ticker IV rank of 72 exceeds the 60-point threshold typically considered high. The strategy is mechanically designed for a NEUTRAL directional outlook, matching the current neutral bias.',
+  _synthetic: false,
+}
+
+/**
+ * MatrixRow where only iv_condition_match is true, direction_condition_match is false.
+ * Represents a Covered Call in a HIGH IV environment with NEUTRAL (not BULLISH) bias.
+ * max_loss is null — undefined risk (own shares can fall to zero).
+ */
+export const MOCK_MATRIX_ROW_IV_ONLY_MATCH = {
+  key: 'covered_call',
+  name: 'Covered Call',
+  direction: ['BULLISH'],
+  credit_or_debit: 'credit' as const,
+  risk_type: 'UNDEFINED' as const,
+  complexity: 1,
+  iv_environment_fit: ['HIGH'],
+  iv_fit_label: 'Performs well in HIGH IV',
+  dte_target: 45,
+  max_profit: 1.42,
+  max_loss: null,
+  breakeven_low: null,
+  breakeven_high: null,
+  net_delta: 0.30,
+  net_theta: 0.04,
+  net_vega: -0.08,
+  pop_range: [50, 70] as [number, number],
+  designed_for_iv: 'high' as const,
+  designed_for_direction: 'bullish' as const,
+  iv_condition_match: true,
+  direction_condition_match: false,
+  condition_explanation:
+    'Covered calls collect premium by selling a call against owned shares; this strategy is designed for HIGH IV environments where elevated option premiums increase income. The current IV rank of 72 satisfies that criterion. However, the strategy is mechanically designed for a BULLISH directional view — the current bias is NEUTRAL, which does not fully match the bullish design intent.',
+  _synthetic: false,
+}
+
+/**
+ * MatrixRow where NEITHER iv_condition_match nor direction_condition_match is true.
+ * Represents a Long Call in a HIGH IV environment with NEUTRAL bias.
+ * max_profit is null — unlimited upside.
+ * net_theta is null — greek data unavailable.
+ */
+export const MOCK_MATRIX_ROW_NO_MATCH = {
+  key: 'long_call',
+  name: 'Long Call',
+  direction: ['BULLISH'],
+  credit_or_debit: 'debit' as const,
+  risk_type: 'DEFINED' as const,
+  complexity: 1,
+  iv_environment_fit: ['LOW', 'MEDIUM'],
+  iv_fit_label: 'Performs well in LOW IV',
+  dte_target: 30,
+  max_profit: null,
+  max_loss: 2.10,
+  breakeven_low: 187.10,
+  breakeven_high: null,
+  net_delta: 0.45,
+  net_theta: null,
+  net_vega: 0.18,
+  pop_range: [35, 50] as [number, number],
+  designed_for_iv: 'low' as const,
+  designed_for_direction: 'bullish' as const,
+  iv_condition_match: false,
+  direction_condition_match: false,
+  condition_explanation:
+    'Long Calls are designed for LOW IV environments where option premiums are cheaper, reducing the cost of the long premium position. The current IV rank of 72 is HIGH, which makes buying options more expensive than the textbook design criterion specifies. The strategy is also designed for a BULLISH directional view; the current bias is NEUTRAL.',
+  _synthetic: false,
+}
+
+/** Full comparison_matrix array used in analyze response mocks */
+export const MOCK_COMPARISON_MATRIX = [
+  MOCK_MATRIX_ROW_BOTH_MATCH,
+  MOCK_MATRIX_ROW_IV_ONLY_MATCH,
+  MOCK_MATRIX_ROW_NO_MATCH,
+]
+
+/**
+ * Updated MOCK_ANALYZE_RESPONSE shaped for PRD-01:
+ * - ai_recommendation field is absent
+ * - comparison_matrix field is present
+ * - fit_score is absent from each StrategyRecommendation
+ */
+export const MOCK_ANALYZE_RESPONSE_V2 = {
+  symbol: 'AAPL',
+  iv_analysis: {
+    symbol: 'AAPL',
+    current_iv: 0.38,
+    iv_rank: 72,
+    hv_30d: 0.28,
+    hv_52wk_high: 0.52,
+    hv_52wk_low: 0.18,
+    iv_environment: 'HIGH',
+    percentile_label: 'IVR 72 — High IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'AAPL',
+    price: 185.5,
+    sma20: 182.3,
+    sma50: 178.6,
+    rsi14: 55.1,
+    bias: 'NEUTRAL',
+    strength: 'MODERATE',
+    error: null,
+  },
+  detected_bias: 'NEUTRAL',
+  recommendations_by_category: {
+    NEUTRAL: [
+      {
+        key: 'iron_condor',
+        name: 'Iron Condor',
+        description: 'Sell an OTM call spread and an OTM put spread simultaneously.',
+        direction: ['NEUTRAL'],
+        iv_environment: ['HIGH'],
+        risk_type: 'DEFINED',
+        complexity: 2,
+        dte_target: 45,
+        pop_range: [60, 70] as [number, number],
+        profit_target_pct: 50,
+        trade: null,
+      },
+    ],
+    BULLISH: [],
+    BEARISH: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+}
+
+/**
+ * Alternate analyze response for a DIFFERENT ticker (MSFT) with the SAME iv_environment
+ * and bias as AAPL — used to verify condition_explanation strings are identical
+ * across tickers with the same environment (AC-6.7).
+ */
+export const MOCK_ANALYZE_RESPONSE_V2_MSFT = {
+  ...MOCK_ANALYZE_RESPONSE_V2,
+  symbol: 'MSFT',
+  iv_analysis: {
+    ...MOCK_ANALYZE_RESPONSE_V2.iv_analysis,
+    symbol: 'MSFT',
+  },
+  bias_analysis: {
+    ...MOCK_ANALYZE_RESPONSE_V2.bias_analysis,
+    symbol: 'MSFT',
+  },
+  // comparison_matrix rows carry identical condition_explanation strings — same IV env + bias
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+}
+
+/**
+ * Updated MOCK_SCAN_RESULT shaped for PRD-01:
+ * - top_strategy field is absent
+ * - scan_narrative field is absent
+ * - strategy_count field is present
+ * - condition_matches field is present
+ */
+export const MOCK_SCAN_RESULT_V2 = {
+  symbol: 'AAPL',
+  price: 185.5,
+  iv_rank: 72,
+  current_iv: 0.38,
+  iv_environment: 'HIGH',
+  percentile_label: 'IVR 72 — High IV',
+  bias: 'NEUTRAL',
+  bias_strength: 'MODERATE',
+  rsi14: 55.1,
+  strategy_count: 14,
+  condition_matches: 8,
+  error: null,
+}
+
+/** A second scan result row for MSFT — used alongside AAPL in scan table tests */
+export const MOCK_SCAN_RESULT_V2_MSFT = {
+  symbol: 'MSFT',
+  price: 421.30,
+  iv_rank: 38,
+  current_iv: 0.29,
+  iv_environment: 'MEDIUM',
+  percentile_label: 'IVR 38 — Medium IV',
+  bias: 'BULLISH',
+  bias_strength: 'MODERATE',
+  rsi14: 61.4,
+  strategy_count: 11,
+  condition_matches: 5,
+  error: null,
+}
+
 /** Platform FAQ (admin view, includes drafts) */
 export const MOCK_ADMIN_FAQ = {
   categories: [
