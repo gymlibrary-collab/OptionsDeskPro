@@ -130,3 +130,73 @@ All tiers are gated. Admin accounts bypass the gate entirely.
 - **Fail-open logging**:
   - Monitor application logs for `legal_service: require_legal_acknowledgment DB error` at ERROR level.
   - If errors spike, the legal-DB path is experiencing issues and the gate will allow subscribers through (verify this is acceptable per risk policy).
+
+---
+
+## Deployment & Ops
+
+_Added by DevOps Engineer — Gate 6._
+
+### Deployment order
+
+Execute these steps in order. Do not deploy the frontend before the backend, and do not deploy the backend before both migrations are confirmed applied.
+
+1. **Apply Supabase migration 012** (`backend/migrations/012_legal_acknowledgments.sql`) in the Supabase SQL Editor.
+   Creates `legal_document_versions`, `legal_acknowledgments`, immutability triggers, RLS policies, indexes, and the `publish_legal_version()` SECURITY DEFINER RPC function. Verify by running `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('legal_document_versions', 'legal_acknowledgments')` — both rows must appear before proceeding.
+
+2. **Apply Supabase migration 013** (`backend/migrations/013_legal_function_search_path.sql`) in the Supabase SQL Editor.
+   Hardens `publish_legal_version()` by adding `SET search_path = public`. Must be applied after 012 because it references the function created in 012. Verify by running `SELECT proconfig FROM pg_proc WHERE proname = 'publish_legal_version'` — the result must contain `search_path=public`.
+
+3. **Deploy backend** (Railway auto-deploys from `main` after merge). New routes `/api/legal/*` and `/api/platform/legal/*` become live. Confirm the health endpoint returns 200: `GET https://<backend-url>/api/health`.
+
+4. **Deploy frontend** (Railway builds from `dist/` after merge). The legal acknowledgment gate and onboarding step become active for subscribers. Deploy only after the backend is confirmed healthy and at least one active legal version exists (see pre-deployment checklist below).
+
+### Pre-deployment checklist
+
+- [ ] Migration 012 applied — both `legal_document_versions` and `legal_acknowledgments` exist in `information_schema.tables`.
+- [ ] Migration 013 applied — `SELECT proconfig FROM pg_proc WHERE proname = 'publish_legal_version'` contains `search_path=public`.
+- [ ] At least one active legal version exists before the frontend is deployed. Check: `SELECT version_number, is_active FROM legal_document_versions WHERE is_active = true`. If no row is returned, sign in to the admin portal as the Owner and publish v1.0 before deploying the frontend. Without an active version the modal shows an error state for any subscriber flagged as pending.
+- [ ] `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` are set on the backend Railway service.
+- [ ] The published legal document text contains no placeholder values (`[COMPANY NAME]`, `[STATE]`, `[TBD]`, `Lorem ipsum`, or equivalent).
+- [ ] E2E nightly workflow run manually via `workflow_dispatch` against the feature branch — all jobs pass. The new `frontend/e2e/pages/legal-acknowledgment.spec.ts` is automatically included in both client and admin portal Playwright jobs; no workflow file changes are required.
+
+### Post-deployment verification
+
+- **Admin logs in** → Legal tab visible in Admin Panel → can view version history, pending count, and (as Owner) publish a new version.
+- **Subscriber logs in** → if `pending_legal_acknowledgment: true` in login response → full-screen blocking modal appears → subscriber can scroll, check checkbox, and acknowledge → dashboard becomes accessible.
+- **After acknowledgment** → full app access restored; no modal on subsequent logins until a new version is published.
+- **API call without acknowledgment** → authenticated subscriber with no current acknowledgment record calling a gated route (e.g. `GET /api/strategies/scan`) → HTTP 451 returned.
+- **Admin user** → `leonardsim.sm@gmail.com` login response shows `pending_legal_acknowledgment: false` → no gate, no modal, full dashboard access immediately.
+
+### Rollback procedure
+
+**Code rollback (primary path):**
+
+1. In the Railway dashboard, navigate to the backend service Deployments tab. Select the most recent successful pre-feature deployment and click Redeploy. Railway instant rollback takes effect within approximately 30 seconds.
+2. Repeat for the frontend service.
+3. No migration rollback is needed. Migrations 012 and 013 are fully additive — no existing columns are dropped, no existing tables are modified, and no existing data is deleted. The new tables and RPC function remain in the database; they are inert when the rolled-back backend does not reference them.
+
+**Emergency gate disable (without code rollback):**
+
+If the modal causes widespread subscriber access issues and a code rollback is not immediately feasible, apply the following to Supabase SQL Editor using the service role:
+
+```sql
+-- Deactivate all legal versions.
+-- With no active version, pending_legal_acknowledgment returns false for all
+-- subscribers and the gate is not shown (fail-open behaviour per design).
+UPDATE legal_document_versions SET is_active = false WHERE is_active = true;
+```
+
+This takes effect on the next login for each subscriber (the in-process cache TTL is 60 seconds). Re-enable the gate by publishing a new active version from the admin portal once the underlying bug is resolved.
+
+**Do not** run `DROP TABLE legal_document_versions` or `DROP TABLE legal_acknowledgments` as part of a rollback. These tables contain the audit trail and dropping them destroys compliance records.
+
+### Monitoring
+
+Watch the Railway log stream for the backend service immediately after the frontend deploy goes live.
+
+- **HTTP 451 spike** — expected in the first one to two hours post-deploy as existing subscribers log in and are shown the gate. The count should taper toward zero as subscribers complete acknowledgment. A sustained 451 rate after several hours indicates subscribers are not completing the flow — investigate the gate UI.
+- **HTTP 409 on `/api/legal/acknowledge`** — indicates a version was published while a subscriber was reading the gate (race condition). Should be very rare in practice. A sustained stream of 409s would indicate a bug in the cache invalidation path following a publish.
+- **HTTP 500 on `/api/legal/acknowledge`** — means the acknowledgment write to Supabase failed. Subscribers cannot proceed past the gate. Investigate Supabase connectivity immediately if 5xx counts are elevated.
+- **`legal_acknowledgments` row count** — should grow monotonically as subscribers log in and acknowledge. Query: `SELECT COUNT(*) FROM legal_acknowledgments`. A flat count after the first hour of normal login traffic suggests the gate may not be recording acknowledgments correctly.
+- **Fail-open log entries** — the backend logs at `ERROR` level when `get_pending_legal_acknowledgment` fails open due to a DB error. A spike in these log lines means the gate is silently disabled for affected users. Treat as an incident requiring immediate investigation.
