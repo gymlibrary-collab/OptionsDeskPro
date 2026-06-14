@@ -8,6 +8,7 @@ import RevenuePanel from './RevenuePanel'
 import HealthPanel from './HealthPanel'
 import FaqEditor from './FaqEditor'
 import StaffManager from './StaffManager'
+import LegalVersionManager from './LegalVersionManager'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { getPlatformSettings, patchPlatformSettings, PlatformSettings } from '../../api/client'
 
@@ -23,7 +24,7 @@ const C = {
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
 
-type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff' | 'settings'
+type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff' | 'settings' | 'legal'
 
 function AdminShell() {
   const { staffUser, staffProfile, staffRole, loading, signOut } = useStaffAuth()
@@ -53,6 +54,7 @@ function AdminShell() {
     { key: 'revenue', label: 'Revenue', roles: ['owner', 'finance'] },
     { key: 'health', label: 'Health', roles: ['owner'] },
     { key: 'faq', label: 'FAQ Editor', roles: ['owner', 'support'] },
+    { key: 'legal', label: 'Legal', roles: ['owner', 'support', 'finance'] },
     { key: 'staff', label: 'Staff', roles: ['owner'] },
     { key: 'settings', label: 'Settings', roles: ['owner'] },
   ]
@@ -162,6 +164,7 @@ function AdminShell() {
           {activeSection === 'revenue' && <RevenuePanel />}
           {activeSection === 'health' && <HealthPanel />}
           {activeSection === 'faq' && <FaqEditor />}
+          {activeSection === 'legal' && <LegalVersionManager staffRole={staffRole} />}
           {activeSection === 'staff' && <StaffManager />}
           {activeSection === 'settings' && <PlatformSettingsPanel />}
         </div>
@@ -184,6 +187,7 @@ function DashboardSection({
     { key: 'revenue', label: 'Revenue', desc: 'MRR, subscriber counts, churn', roles: ['owner', 'finance'] },
     { key: 'health', label: 'Health', desc: 'API status, market data credits, active sessions', roles: ['owner'] },
     { key: 'faq', label: 'FAQ Editor', desc: 'Create and publish FAQ articles', roles: ['owner', 'support'] },
+    { key: 'legal', label: 'Legal', desc: 'Manage legal document versions and view subscriber acknowledgment history', roles: ['owner', 'support', 'finance'] },
     { key: 'staff', label: 'Staff', desc: 'Invite staff, manage roles', roles: ['owner'] },
     { key: 'settings', label: 'Settings', desc: 'Platform settings: invite-only mode, maintenance mode', roles: ['owner'] },
   ]

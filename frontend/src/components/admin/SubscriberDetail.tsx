@@ -7,6 +7,8 @@ import {
   reactivateSubscriber,
   startSupportSession,
   endSupportSession,
+  getSubscriberLegalHistory,
+  LegalAcknowledgmentHistory,
 } from '../../api/client'
 import { useStaffAuth } from '../../context/StaffAuthContext'
 
@@ -48,6 +50,11 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [legalHistory, setLegalHistory] = useState<LegalAcknowledgmentHistory[]>([])
+  const [legalLoading, setLegalLoading] = useState(false)
+  const [legalError, setLegalError] = useState<string | null>(null)
+  const [legalLoaded, setLegalLoaded] = useState(false)
+
   const [overrideTier, setOverrideTier] = useState('')
   const [overrideReason, setOverrideReason] = useState('')
   const [overrideLoading, setOverrideLoading] = useState(false)
@@ -71,6 +78,20 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
       setError('Failed to load subscriber details.')
     } finally {
       setLoading(false)
+    }
+  }, [userId])
+
+  const loadLegalHistory = useCallback(async () => {
+    setLegalLoading(true)
+    setLegalError(null)
+    try {
+      const res = await getSubscriberLegalHistory(userId)
+      setLegalHistory(res.history)
+      setLegalLoaded(true)
+    } catch {
+      setLegalError('Failed to load legal acknowledgment history.')
+    } finally {
+      setLegalLoading(false)
     }
   }, [userId])
 
@@ -430,6 +451,57 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
                     <td style={{ padding: '8px' }}>
                       {inv.invoice_pdf && <a href={inv.invoice_pdf} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: 'none', fontSize: '12px' }}>PDF</a>}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
+      {/* Legal History */}
+      <Section title="Legal Acknowledgment History">
+        {!legalLoaded ? (
+          <div>
+            <p style={{ margin: '0 0 12px', fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>
+              View the complete acknowledgment history for this subscriber.
+            </p>
+            <button
+              onClick={loadLegalHistory}
+              disabled={legalLoading}
+              style={btnPrimary(legalLoading)}
+            >
+              {legalLoading ? 'Loading...' : 'Load legal history'}
+            </button>
+          </div>
+        ) : legalError ? (
+          <div>
+            <ErrorMsg msg={legalError} />
+            <button onClick={loadLegalHistory} disabled={legalLoading} style={btnSecondary(legalLoading)}>Retry</button>
+          </div>
+        ) : legalHistory.length === 0 ? (
+          <div style={{ color: C.muted, fontSize: '13px' }}>No acknowledgments on record.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  {['Version', 'Acknowledged At', 'IP Address'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', color: C.muted, fontWeight: 600, padding: '6px 8px', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {legalHistory.map(row => (
+                  <tr key={row.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '8px', color: C.text, fontWeight: 600 }}>v{row.version_number}</td>
+                    <td style={{ padding: '8px', color: C.muted, whiteSpace: 'nowrap' }}>
+                      {new Date(row.acknowledged_at).toLocaleString(undefined, {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+                      })}
+                    </td>
+                    <td style={{ padding: '8px', color: C.muted }}>{row.ip_address || '—'}</td>
                   </tr>
                 ))}
               </tbody>

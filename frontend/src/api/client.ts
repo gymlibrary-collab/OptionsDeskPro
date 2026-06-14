@@ -850,4 +850,61 @@ export const getPlatformSettings = (): Promise<PlatformSettings> =>
 export const patchPlatformSettings = (req: Partial<PlatformSettings>): Promise<{ ok: boolean }> =>
   api.patch('/platform/settings', req).then(r => r.data)
 
+// ─── Legal Terms Acknowledgment ──────────────────────────────────────────────
+
+export interface LegalVersion {
+  id: string
+  version_number: string
+  display_name: string
+  full_text: string
+  text_hash: string
+  effective_date: string
+  published_at: string
+  is_active?: boolean
+  published_by?: string
+}
+
+export interface AcknowledgeRequest {
+  version_id: string
+}
+
+export interface AcknowledgeResponse {
+  ok: boolean
+  version_number: string
+}
+
+export interface LegalAcknowledgmentHistory {
+  id: string
+  version_number: string
+  document_text_hash: string
+  acknowledged_at: string
+  ip_address: string | null
+  user_agent: string | null
+}
+
+// Subscriber (auth required)
+export const getLegalCurrentVersion = (): Promise<LegalVersion> =>
+  api.get('/legal/current-version').then(r => r.data)
+
+export const postLegalAcknowledge = (body: AcknowledgeRequest): Promise<AcknowledgeResponse> =>
+  api.post('/legal/acknowledge', body).then(r => r.data)
+
+// Admin/staff routes
+export const getPlatformLegalVersions = (): Promise<{ versions: LegalVersion[] }> =>
+  api.get('/platform/legal/versions').then(r => r.data)
+
+export const postPlatformLegalVersion = (body: {
+  version_number: string
+  display_name: string
+  full_text: string
+  effective_date: string
+}): Promise<{ ok: boolean; id: string; version_number: string; text_hash: string }> =>
+  api.post('/platform/legal/versions', body).then(r => r.data)
+
+export const getSubscriberLegalHistory = (userId: string): Promise<{ history: LegalAcknowledgmentHistory[] }> =>
+  api.get(`/platform/legal/subscribers/${userId}/history`).then(r => r.data)
+
+export const getPlatformLegalPendingCount = (): Promise<{ pending_count: number; current_version_number: string | null }> =>
+  api.get('/platform/legal/pending-count').then(r => r.data)
+
 export default api
