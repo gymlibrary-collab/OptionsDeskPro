@@ -15,6 +15,8 @@ from routes.ai_routes import router as ai_router
 from routes.billing_routes import router as billing_router
 from routes.platform_routes import router as platform_router
 from routes.public_routes import router as public_router
+from routes.legal_routes import router as legal_router
+from routes.platform_legal_routes import router as platform_legal_router
 
 app = FastAPI(title="Options Trading Dashboard", version="1.0.0")
 
@@ -55,6 +57,8 @@ app.include_router(ai_router, prefix="/api")
 app.include_router(billing_router, prefix="/api")
 app.include_router(platform_router, prefix="/api")
 app.include_router(public_router, prefix="/api")
+app.include_router(legal_router, prefix="/api")
+app.include_router(platform_legal_router, prefix="/api")
 
 
 @app.get("/api/health")

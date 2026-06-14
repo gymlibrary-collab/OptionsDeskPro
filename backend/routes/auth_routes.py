@@ -107,6 +107,20 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         onboarding_completed = profile_result.data.get("onboarding_completed", False)
         onboarding_step = profile_result.data.get("onboarding_step", "plan_selection")
 
+    # ── Legal acknowledgment gate ─────────────────────────────────────────────
+    # Fail-open: if the DB check fails, return False so a legal DB hiccup does
+    # not lock everyone out (same pattern as _is_deactivated() in auth_utils.py).
+    pending_legal_acknowledgment = False
+    try:
+        from services.legal_service import get_pending_legal_acknowledgment
+        pending_legal_acknowledgment = get_pending_legal_acknowledgment(user_id, email)
+    except Exception as _legal_exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "auth/login: legal acknowledgment check failed for user %s — failing open: %s",
+            user_id, _legal_exc,
+        )
+
     return {
         "ok": True,
         "role": role,
@@ -114,6 +128,7 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         "onboarding_completed": onboarding_completed,
         "onboarding_step": onboarding_step,
         "is_deactivated": False,
+        "pending_legal_acknowledgment": pending_legal_acknowledgment,
     }
 
 
