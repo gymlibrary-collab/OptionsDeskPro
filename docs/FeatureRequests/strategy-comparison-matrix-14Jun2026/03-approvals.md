@@ -22,9 +22,9 @@
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | Pending |
+| **Date** | 14Jun2026 |
+| **Notes** | Design complete. Key decisions: no DB migration required; condition_explanation strings hardcoded (ADR-0008); net theta/vega recomputed in build_comparison_matrix() without modifying build_trade(); OQ-3 (directive language in interpreter.py _why_this_strategy) flagged as PRD-05 scope; all 6 open questions resolved. Awaiting user approval. |
 
 ☐ Approved &nbsp; ☐ Changes Requested
 
