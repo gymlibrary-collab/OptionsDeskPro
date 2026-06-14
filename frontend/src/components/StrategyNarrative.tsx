@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { NewsSentiment } from '../api/client'
 
 export interface Narrative {
   headline: string
@@ -16,6 +17,7 @@ export interface Narrative {
 
 interface Props {
   narrative: Narrative
+  newsSentiment?: NewsSentiment
 }
 
 const C = {
@@ -89,7 +91,55 @@ function Panel({
   )
 }
 
-export default function StrategyNarrative({ narrative }: Props) {
+function NewsSentimentPanel({ sentiment }: { sentiment: NewsSentiment }) {
+  const sentimentConfig = {
+    BULLISH: { border: C.green, bg: '#0f2d1a', label: 'BULLISH', labelColor: C.green },
+    BEARISH: { border: C.red, bg: '#2d0f0f', label: 'BEARISH', labelColor: C.red },
+    NEUTRAL: { border: C.amber, bg: '#2d1f0a', label: 'NEUTRAL', labelColor: C.amber },
+  }
+  const cfg = sentimentConfig[sentiment.sentiment] ?? sentimentConfig.NEUTRAL
+  const confidencePct = Math.round(sentiment.confidence * 100)
+
+  return (
+    <div style={{
+      background: cfg.bg,
+      border: `1px solid ${cfg.border}55`,
+      borderLeft: `3px solid ${cfg.border}`,
+      borderRadius: '8px',
+      padding: '12px 16px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      marginBottom: '4px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '10px', fontWeight: 700, color: cfg.labelColor, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          News Sentiment
+        </span>
+        <span style={{
+          background: `${cfg.border}22`,
+          border: `1px solid ${cfg.border}55`,
+          borderRadius: '4px',
+          padding: '2px 8px',
+          fontSize: '11px',
+          fontWeight: 700,
+          color: cfg.labelColor,
+          letterSpacing: '0.05em',
+        }}>
+          {cfg.label}
+        </span>
+        <span style={{ fontSize: '11px', color: C.muted }}>
+          Confidence: <span style={{ color: cfg.labelColor, fontWeight: 700 }}>{confidencePct}%</span>
+        </span>
+      </div>
+      <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
+        {sentiment.digest}
+      </div>
+    </div>
+  )
+}
+
+export default function StrategyNarrative({ narrative, newsSentiment }: Props) {
   const [copied, setCopied] = useState(false)
 
   const handleCopyChecklist = () => {
@@ -111,6 +161,9 @@ export default function StrategyNarrative({ narrative }: Props) {
         marginTop: '14px',
       }}
     >
+      {/* News Sentiment — free for all, only rendered when present */}
+      {newsSentiment && <NewsSentimentPanel sentiment={newsSentiment} />}
+
       {/* Headline */}
       <div
         style={{

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary } from '../api/client'
+import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getRollAdvisor, RollAdvisorResponse } from '../api/client'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 const C = {
   bg: '#0f1117',
@@ -107,8 +108,77 @@ function CloseInstructions({ pos }: { pos: PositionRisk }) {
   )
 }
 
-function PositionCard({ pos }: { pos: PositionRisk }) {
+function RollAdvisorPanel({ suggestions, summary }: RollAdvisorResponse) {
+  const urgencyColor = (u: string) => {
+    if (u === 'HIGH') return C.red
+    if (u === 'MEDIUM') return C.yellow
+    return C.green
+  }
+  return (
+    <div style={{
+      background: '#0d1a2d',
+      border: `1px solid #3b82f644`,
+      borderRadius: '8px',
+      padding: '12px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      marginTop: '6px',
+    }}>
+      <div style={{ fontSize: '10px', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        Roll / Adjustment Suggestions
+      </div>
+      {suggestions.map((s, i) => (
+        <div key={i} style={{
+          background: '#0f1117',
+          border: `1px solid ${urgencyColor(s.urgency)}33`,
+          borderLeft: `3px solid ${urgencyColor(s.urgency)}`,
+          borderRadius: '6px',
+          padding: '8px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{s.action}</span>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: urgencyColor(s.urgency),
+              background: `${urgencyColor(s.urgency)}22`,
+              border: `1px solid ${urgencyColor(s.urgency)}44`,
+              borderRadius: '3px',
+              padding: '1px 5px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              {s.urgency}
+            </span>
+          </div>
+          <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.55 }}>{s.rationale}</div>
+        </div>
+      ))}
+      {summary && (
+        <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.6, borderTop: `1px solid ${C.border}`, paddingTop: '8px' }}>
+          {summary}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }: {
+  pos: PositionRisk
+  rollAdvisorEnabled: boolean
+  sessionClicks: number
+  onSessionClick: () => void
+}) {
   const [expanded, setExpanded] = useState(false)
+  const [rollData, setRollData] = useState<RollAdvisorResponse | null>(null)
+  const [rollLoading, setRollLoading] = useState(false)
+  const [rollError, setRollError] = useState<string | null>(null)
+  const [rollOpen, setRollOpen] = useState(false)
+
   const borderColor = riskColor(pos.risk_level)
   const bgColor = riskBg(pos.risk_level)
   const entryAction = (pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
@@ -120,6 +190,29 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
   const yellowSignals = pos.signals.filter(s => s.level === 'yellow')
   const greenSignals = pos.signals.filter(s => s.level === 'green')
   const urgentSignals = [...redSignals, ...yellowSignals]
+
+  const isUrgent = pos.risk_level === 'red' || pos.risk_level === 'yellow'
+  const sessionCapped = sessionClicks >= 5
+
+  const handleRollAdvisor = async () => {
+    if (rollOpen) { setRollOpen(false); return }
+    if (rollData) { setRollOpen(true); return }
+    onSessionClick()
+    setRollOpen(true)
+    setRollLoading(true)
+    setRollError(null)
+    try {
+      const posId = `${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}`
+      const result = await getRollAdvisor(posId)
+      setRollData(result)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setRollError(err?.response?.data?.detail || 'Could not load suggestions.')
+      setRollOpen(false)
+    } finally {
+      setRollLoading(false)
+    }
+  }
 
   return (
     <div style={{ background: bgColor, border: `1px solid ${borderColor}44`, borderLeft: `3px solid ${borderColor}`, borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -154,6 +247,51 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
       </div>
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
       {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
+
+      {/* E5 — Roll / Adjustment Advisor (red or yellow positions only) */}
+      {isUrgent && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {rollAdvisorEnabled ? (
+            <button
+              onClick={handleRollAdvisor}
+              disabled={rollLoading || (sessionCapped && !rollOpen && !rollData)}
+              title={sessionCapped && !rollData ? 'Session limit reached (5 uses)' : undefined}
+              style={{
+                background: rollOpen ? `#3b82f622` : 'transparent',
+                border: `1px solid #3b82f666`,
+                borderRadius: '6px',
+                color: '#3b82f6',
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: (rollLoading || (sessionCapped && !rollOpen && !rollData)) ? 'not-allowed' : 'pointer',
+                opacity: (sessionCapped && !rollOpen && !rollData) ? 0.5 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ fontSize: '13px' }}>⚙</span>
+              {rollLoading ? 'Fetching suggestions…' : rollOpen ? 'Hide suggestions' : 'Suggest adjustment'}
+            </button>
+          ) : (
+            <span
+              title="Requires Pro"
+              style={{ fontSize: '12px', color: C.muted, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'default' }}
+            >
+              🔒 <span>Suggest adjustment — Requires Pro</span>
+            </span>
+          )}
+          {rollAdvisorEnabled && sessionCapped && !rollData && (
+            <span style={{ fontSize: '11px', color: C.muted }}>Session limit reached</span>
+          )}
+        </div>
+      )}
+      {rollError && (
+        <div style={{ fontSize: '12px', color: C.red }}>{rollError}</div>
+      )}
+      {rollOpen && rollData && <RollAdvisorPanel suggestions={rollData.suggestions} summary={rollData.summary} />}
+
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {greenSignals.map((s, i) => <SignalRow key={i} signal={s} />)}
@@ -171,6 +309,7 @@ function PositionCard({ pos }: { pos: PositionRisk }) {
 }
 
 export default function RiskMonitor() {
+  const { entitlements } = useEntitlements()
   const [data, setData] = useState<PositionRisk[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -180,6 +319,10 @@ export default function RiskMonitor() {
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  // E5: session-level roll advisor click counter (max 5)
+  const [rollSessionClicks, setRollSessionClicks] = useState(0)
+
+  const rollAdvisorEnabled = entitlements?.features?.roll_advisor ?? false
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
@@ -242,7 +385,15 @@ export default function RiskMonitor() {
         {!loading && data.length > 0 && (
           [...data]
             .sort((a, b) => { const rank: Record<string, number> = { red: 0, yellow: 1, green: 2 }; return rank[a.risk_level] - rank[b.risk_level] })
-            .map((pos, i) => <PositionCard key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`} pos={pos} />)
+            .map((pos, i) => (
+              <PositionCard
+                key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+                pos={pos}
+                rollAdvisorEnabled={rollAdvisorEnabled}
+                sessionClicks={rollSessionClicks}
+                onSessionClick={() => setRollSessionClicks(n => n + 1)}
+              />
+            ))
         )}
         {!loading && data.length > 0 && aiEnabled && (
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>

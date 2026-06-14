@@ -5,6 +5,7 @@ import {
   TradeStructure,
   TradeLeg,
   StrategyRecommendation,
+  NewsSentiment,
 } from '../api/client'
 import StrategyNarrative from './StrategyNarrative'
 
@@ -284,10 +285,11 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
   )
 }
 
-function TradeCard({ rec, symbol, onSelectTrade }: {
+function TradeCard({ rec, symbol, onSelectTrade, newsSentiment }: {
   rec: StrategyRecommendation
   symbol: string
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
+  newsSentiment?: NewsSentiment
 }) {
   const trade = rec.trade
   if (!trade) return <div style={{ color: C.muted, fontSize: '12px', padding: '8px' }}>No trade structure available.</div>
@@ -300,7 +302,7 @@ function TradeCard({ rec, symbol, onSelectTrade }: {
         <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '6px', padding: '10px 12px', fontSize: '12px', color: C.red }}>
           Live options data unavailable ({trade.error}) — analysis below is based on IV and price action only.
         </div>
-        {trade.narrative && <StrategyNarrative narrative={trade.narrative} />}
+        {trade.narrative && <StrategyNarrative narrative={trade.narrative} newsSentiment={newsSentiment} />}
       </div>
     )
   }
@@ -367,15 +369,16 @@ function TradeCard({ rec, symbol, onSelectTrade }: {
           Record Trade →
         </button>
       )}
-      {trade.narrative && <StrategyNarrative narrative={trade.narrative} />}
+      {trade.narrative && <StrategyNarrative narrative={trade.narrative} newsSentiment={newsSentiment} />}
     </div>
   )
 }
 
-function StrategyCard({ rec, symbol, onSelectTrade }: {
+function StrategyCard({ rec, symbol, onSelectTrade, newsSentiment }: {
   rec: StrategyRecommendation
   symbol: string
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
+  newsSentiment?: NewsSentiment
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -399,18 +402,19 @@ function StrategyCard({ rec, symbol, onSelectTrade }: {
       </div>
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '12px 16px', background: C.bg }}>
-          <TradeCard rec={rec} symbol={symbol} onSelectTrade={onSelectTrade} />
+          <TradeCard rec={rec} symbol={symbol} onSelectTrade={onSelectTrade} newsSentiment={newsSentiment} />
         </div>
       )}
     </div>
   )
 }
 
-function CategorySection({ category, recs, symbol, onSelectTrade }: {
+function CategorySection({ category, recs, symbol, onSelectTrade, newsSentiment }: {
   category: string
   recs: StrategyRecommendation[]
   symbol: string
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
+  newsSentiment?: NewsSentiment
 }) {
   const [open, setOpen] = useState(false)
   const meta = CATEGORY_META[category] || { label: category, color: C.muted, icon: '●', subtitle: '' }
@@ -450,7 +454,7 @@ function CategorySection({ category, recs, symbol, onSelectTrade }: {
             </div>
           ) : (
             recs.map(rec => (
-              <StrategyCard key={rec.key} rec={rec} symbol={symbol} onSelectTrade={onSelectTrade} />
+              <StrategyCard key={rec.key} rec={rec} symbol={symbol} onSelectTrade={onSelectTrade} newsSentiment={newsSentiment} />
             ))
           )}
         </div>
@@ -479,10 +483,37 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
   if (error) return <div style={{ padding: '16px', color: C.red, background: '#2d0f0f', borderRadius: '8px', margin: '16px' }}>{error}</div>
   if (!data) return null
 
-  const { iv_analysis: iv, bias_analysis: bias, detected_bias, recommendations_by_category } = data
+  const { iv_analysis: iv, bias_analysis: bias, detected_bias, recommendations_by_category, ai_recommendation, news_sentiment } = data
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* E8 — AI Strategy Recommendation banner */}
+      {ai_recommendation && (
+        <div style={{
+          background: '#0a1628',
+          border: `1px solid #3b82f688`,
+          borderLeft: `3px solid #3b82f6`,
+          borderRadius: '8px',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+        }}>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>✦</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              AI Pick:{' '}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>
+              {ai_recommendation.recommended_name}
+            </span>
+            {ai_recommendation.reasoning && (
+              <span style={{ fontSize: '13px', color: C.muted }}> — {ai_recommendation.reasoning}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px',
@@ -543,6 +574,7 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
               recs={recs}
               symbol={data.symbol}
               onSelectTrade={onSelectTrade}
+              newsSentiment={news_sentiment}
             />
           )
         })}

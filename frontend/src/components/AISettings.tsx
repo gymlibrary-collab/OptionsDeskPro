@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { getAISettings, updateAISettings, aiChat, AISettings as AISettingsType } from '../api/client'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 const C = {
   bg: '#0f1117',
@@ -14,43 +15,58 @@ const C = {
   purple: '#a78bfa',
 }
 
-const FEATURES: { key: keyof AISettingsType; label: string; description: string; badge?: string }[] = [
+const FEATURES: {
+  key: keyof AISettingsType
+  entitlementKey: string
+  label: string
+  description: string
+  badge?: string
+}[] = [
   {
     key: 'narrative_enabled',
+    entitlementKey: 'ai_narrative',
     label: 'AI Narrative Enhancement',
     description: 'Adds a Claude-written coaching paragraph to each strategy setup — explains the specific IV/bias edge, exact numbers, and what has to go wrong for the trade to lose.',
   },
   {
     key: 'chat_enabled',
+    entitlementKey: 'ai_chat',
     label: 'Portfolio Chat',
     description: 'Ask plain-English questions about your open positions. Claude answers using your real portfolio data — P&L, strikes, expiry, and strategy context.',
     badge: 'Chat',
   },
   {
     key: 'risk_summary_enabled',
+    entitlementKey: 'ai_risk_summary',
     label: 'AI Risk Summary',
     description: 'One-paragraph portfolio health overview from Claude — most urgent action needed, things to watch, and a concrete recommendation. Appears in the Risk Monitor.',
   },
   {
     key: 'strategy_reasoning_enabled',
+    entitlementKey: 'ai_strategy_reasoning',
     label: 'Strategy Reasoning',
     description: 'Explains in 3–4 sentences why the top-ranked strategy is the best fit right now — the specific IV+bias combination, one concrete edge, and what has to go wrong.',
   },
   {
     key: 'earnings_awareness_enabled',
+    entitlementKey: 'ai_earnings_awareness',
     label: 'Earnings Awareness',
     description: 'Adjusts recommended expiry cycles around upcoming earnings. Premium sellers are routed to pre-earnings expiries; buyers to post-earnings. The narrative explains the adjustment.',
     badge: 'Smart',
   },
 ]
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
-      onClick={() => onChange(!on)}
+      onClick={() => { if (!disabled) onChange(!on) }}
+      disabled={disabled}
       style={{
-        width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-        background: on ? C.accent : '#3a3f5c', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+        width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: disabled ? '#2a2d3e' : on ? C.accent : '#3a3f5c',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <span style={{
@@ -143,6 +159,7 @@ function ChatPanel() {
 }
 
 export default function AISettings() {
+  const { entitlements } = useEntitlements()
   const [settings, setSettings] = useState<AISettingsType>({
     narrative_enabled: false,
     chat_enabled: false,
@@ -153,6 +170,11 @@ export default function AISettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<keyof AISettingsType | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const isFeatureUnlocked = (entitlementKey: string): boolean => {
+    if (!entitlements) return false
+    return (entitlements.features as unknown as Record<string, boolean | undefined>)[entitlementKey] ?? false
+  }
 
   useEffect(() => {
     getAISettings()
@@ -200,29 +222,47 @@ export default function AISettings() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {FEATURES.map(f => (
-          <div key={f.key} style={{ background: C.surface, border: `1px solid ${settings[f.key] ? C.accent : C.border}`, borderRadius: '10px', padding: '16px 20px', transition: 'border-color 0.2s' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 600, color: C.text }}>{f.label}</span>
-                  {f.badge && (
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: C.accent + '33', color: C.purple, letterSpacing: '0.05em' }}>
-                      {f.badge}
-                    </span>
-                  )}
-                  {saving === f.key && (
-                    <span style={{ fontSize: '11px', color: C.muted }}>saving…</span>
-                  )}
+        {FEATURES.map(f => {
+          const unlocked = isFeatureUnlocked(f.entitlementKey)
+          return (
+            <div
+              key={f.key}
+              style={{
+                background: C.surface,
+                border: `1px solid ${!unlocked ? C.border : settings[f.key] ? C.accent : C.border}`,
+                borderRadius: '10px',
+                padding: '16px 20px',
+                transition: 'border-color 0.2s',
+                opacity: unlocked ? 1 : 0.5,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: C.text }}>{f.label}</span>
+                    {f.badge && (
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: C.accent + '33', color: C.purple, letterSpacing: '0.05em' }}>
+                        {f.badge}
+                      </span>
+                    )}
+                    {!unlocked && (
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#7c6af722', color: C.purple, letterSpacing: '0.05em', border: `1px solid ${C.purple}44` }}>
+                        Requires Pro
+                      </span>
+                    )}
+                    {saving === f.key && (
+                      <span style={{ fontSize: '11px', color: C.muted }}>saving…</span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: C.muted, lineHeight: 1.55 }}>{f.description}</p>
                 </div>
-                <p style={{ margin: 0, fontSize: '13px', color: C.muted, lineHeight: 1.55 }}>{f.description}</p>
+                <Toggle on={settings[f.key]} onChange={() => toggle(f.key)} disabled={!unlocked} />
               </div>
-              <Toggle on={settings[f.key]} onChange={() => toggle(f.key)} />
-            </div>
 
-            {f.key === 'chat_enabled' && settings.chat_enabled && <ChatPanel />}
-          </div>
-        ))}
+              {f.key === 'chat_enabled' && settings.chat_enabled && unlocked && <ChatPanel />}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -228,12 +228,26 @@ export interface BiasAnalysis {
   error?: string
 }
 
+export interface NewsSentiment {
+  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+  confidence: number
+  digest: string
+}
+
+export interface AIRecommendation {
+  recommended_key: string
+  recommended_name: string
+  reasoning: string
+}
+
 export interface AnalyzeSymbolResponse {
   symbol: string
   iv_analysis: IVAnalysis
   bias_analysis: BiasAnalysis
   detected_bias: string
   recommendations_by_category: Record<string, StrategyRecommendation[]>
+  news_sentiment?: NewsSentiment
+  ai_recommendation?: AIRecommendation
 }
 
 export interface ScanResult {
@@ -366,6 +380,50 @@ export const aiEnhanceNarrative = (
 ): Promise<{ insight: string | null }> =>
   api.post('/ai/enhance-narrative', { symbol, iv_analysis, bias_analysis, strategy, trade }, { timeout: 30000 }).then(r => r.data)
 
+export interface MorningBriefingResponse {
+  briefing: string
+  date: string
+  symbols: string[]
+  cached: boolean
+}
+
+export const getMorningBriefing = (): Promise<MorningBriefingResponse> =>
+  api.get('/ai/morning-briefing', { timeout: 30000 }).then(r => r.data)
+
+export interface TradeJournalReview {
+  entry_consistency: string
+  rule_adherence: string
+  behavioural_patterns: string
+  overall_grade: string
+}
+
+export const getTradeJournalReview = (orderId: string): Promise<TradeJournalReview> =>
+  api.post('/ai/trade-journal/review', { order_id: orderId }, { timeout: 30000 }).then(r => r.data)
+
+export interface RollAdvisorSuggestion {
+  action: string
+  rationale: string
+  urgency: string
+}
+
+export interface RollAdvisorResponse {
+  suggestions: RollAdvisorSuggestion[]
+  summary: string
+}
+
+export const getRollAdvisor = (positionId: string): Promise<RollAdvisorResponse> =>
+  api.post('/ai/roll-advisor', { position_id: positionId }, { timeout: 30000 }).then(r => r.data)
+
+export interface GreeksCoachingResponse {
+  coaching: string
+  net_delta: number
+  net_theta: number
+  net_vega: number
+}
+
+export const getGreeksCoaching = (): Promise<GreeksCoachingResponse> =>
+  api.post('/ai/portfolio-greeks-coaching', {}, { timeout: 30000 }).then(r => r.data)
+
 // ─── Watchlist ───────────────────────────────────────────────────────────────────────────────────────
 
 export interface WatchlistState {
@@ -388,6 +446,15 @@ export interface EntitlementFeatures {
   trading_desk: boolean
   positions: boolean
   risk_monitor: boolean
+  ai_narrative?: boolean
+  ai_chat?: boolean
+  ai_risk_summary?: boolean
+  ai_strategy_reasoning?: boolean
+  ai_earnings_awareness?: boolean
+  trade_journal?: boolean
+  roll_advisor?: boolean
+  greeks_coaching?: boolean
+  [key: string]: boolean | undefined
 }
 
 export interface Entitlements {

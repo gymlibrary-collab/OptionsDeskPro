@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { scanWatchlist, getWatchlist, saveWatchlist, ScanResult, TradeStructure, WatchlistState } from '../api/client'
 import StrategyDetail from './StrategyDetail'
+import DailyBriefingCard from './DailyBriefingCard'
 
 interface Props {
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
@@ -315,6 +316,9 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
+      {/* E4 — Daily Morning Briefing */}
+      <DailyBriefingCard />
+
       {/* Watchlist editor card */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 

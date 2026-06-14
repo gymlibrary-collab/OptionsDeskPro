@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote } from '../api/client'
+import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse } from '../api/client'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -148,7 +149,146 @@ function TargetBar({ pos }: { pos: Position }) {
   )
 }
 
+function PortfolioGreeksStrip({ entitledToCoaching }: { entitledToCoaching: boolean }) {
+  const [coaching, setCoaching] = useState<GreeksCoachingResponse | null>(null)
+  const [coachingText, setCoachingText] = useState<string | null>(null)
+  const [coachingLoading, setCoachingLoading] = useState(false)
+  const [coachingError, setCoachingError] = useState<string | null>(null)
+  const [greeksLoading, setGreeksLoading] = useState(true)
+  const [greeksError, setGreeksError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getGreeksCoaching()
+      .then(data => { setCoaching(data) })
+      .catch(e => {
+        const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        setGreeksError(typeof detail === 'string' ? detail : 'Could not load portfolio greeks.')
+      })
+      .finally(() => setGreeksLoading(false))
+  }, [])
+
+  const handleGetCoaching = async () => {
+    if (!coaching) return
+    setCoachingLoading(true)
+    setCoachingError(null)
+    try {
+      const data = await getGreeksCoaching()
+      setCoaching(data)
+      setCoachingText(data.coaching)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setCoachingError(err?.response?.data?.detail || 'Could not load coaching.')
+    } finally {
+      setCoachingLoading(false)
+    }
+  }
+
+  function fmtGreek(n: number, d = 2) {
+    return (n >= 0 ? '+' : '') + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+  }
+
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: '8px',
+      padding: '14px 18px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+    }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        Portfolio Greeks
+      </div>
+
+      {greeksLoading && (
+        <div style={{ fontSize: '13px', color: C.muted }}>Loading greeks…</div>
+      )}
+
+      {!greeksLoading && greeksError && (
+        <div style={{ fontSize: '13px', color: C.red }}>{greeksError}</div>
+      )}
+
+      {!greeksLoading && !greeksError && coaching && (
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Net Delta</span>
+            <span style={{ ...styles.cardValue, fontSize: '18px', color: coaching.net_delta >= 0 ? C.green : C.red }}>
+              {fmtGreek(coaching.net_delta, 1)}
+            </span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Net Theta</span>
+            <span style={{ ...styles.cardValue, fontSize: '18px', color: coaching.net_theta >= 0 ? C.green : C.red }}>
+              {fmtGreek(coaching.net_theta, 2)}
+            </span>
+          </div>
+          <div style={styles.card}>
+            <span style={styles.cardLabel}>Net Vega</span>
+            <span style={{ ...styles.cardValue, fontSize: '18px', color: coaching.net_vega >= 0 ? C.green : C.red }}>
+              {fmtGreek(coaching.net_vega, 2)}
+            </span>
+          </div>
+
+          {entitledToCoaching ? (
+            <button
+              onClick={handleGetCoaching}
+              disabled={coachingLoading}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${C.accent}`,
+                borderRadius: '6px',
+                color: C.accent,
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: coachingLoading ? 'default' : 'pointer',
+                opacity: coachingLoading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ fontSize: '14px' }}>✦</span>
+              {coachingLoading ? 'Loading coaching…' : 'Get coaching'}
+            </button>
+          ) : (
+            <span
+              title="Requires Pro"
+              style={{ fontSize: '12px', color: C.muted, display: 'flex', alignItems: 'center', gap: '5px' }}
+            >
+              🔒 Get coaching — Requires Pro
+            </span>
+          )}
+        </div>
+      )}
+
+      {coachingError && (
+        <div style={{ fontSize: '12px', color: C.red }}>{coachingError}</div>
+      )}
+
+      {coachingText && (
+        <div style={{
+          background: '#1a1440',
+          border: `1px solid ${C.accent}44`,
+          borderRadius: '8px',
+          padding: '12px 14px',
+          fontSize: '13px',
+          color: C.text,
+          lineHeight: 1.7,
+        }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+            ✦ Greeks Coaching
+          </div>
+          {coachingText}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Positions() {
+  const { entitlements } = useEntitlements()
   const [positions, setPositions] = useState<Position[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -157,6 +297,8 @@ export default function Positions() {
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
   const [stockPrices, setStockPrices] = useState<Record<string, Quote>>({})
+
+  const greeksCoachingEnabled = entitlements?.features?.greeks_coaching ?? false
 
   const load = useCallback(() => {
     setLoading(true)
@@ -331,6 +473,9 @@ export default function Positions() {
           <span style={{ fontSize: '10px', color: C.muted }}>Auto-refreshes every 2 min · Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
       </div>
+
+      {/* E6 — Portfolio Greeks strip (always visible when positions exist, coaching gated) */}
+      {positions.length > 0 && <PortfolioGreeksStrip entitledToCoaching={greeksCoachingEnabled} />}
 
       {/* Positions table */}
       {positions.length === 0 ? (
