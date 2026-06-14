@@ -157,8 +157,33 @@ export interface StrategyRecommendation {
   dte_target: number
   pop_range: [number, number]
   profit_target_pct: number
-  fit_score?: number
   trade?: TradeStructure
+}
+
+export interface MatrixRow {
+  key: string
+  name: string
+  direction: string[]
+  credit_or_debit: 'credit' | 'debit'
+  risk_type: 'DEFINED' | 'UNDEFINED'
+  complexity: 1 | 2 | 3
+  iv_environment_fit: string[]
+  iv_fit_label: string
+  dte_target: number
+  max_profit: number | null
+  max_loss: number | null
+  breakeven_low: number | null
+  breakeven_high: number | null
+  net_delta: number | null
+  net_theta: number | null
+  net_vega: number | null
+  pop_range: [number, number]
+  designed_for_iv: 'high' | 'low' | 'any'
+  designed_for_direction: 'bullish' | 'bearish' | 'neutral' | 'volatile' | 'any'
+  iv_condition_match: boolean
+  direction_condition_match: boolean
+  condition_explanation: string
+  _synthetic: boolean
 }
 
 export interface TradeLeg {
@@ -234,12 +259,6 @@ export interface NewsSentiment {
   digest: string
 }
 
-export interface AIRecommendation {
-  recommended_key: string
-  recommended_name: string
-  reasoning: string
-}
-
 export interface AnalyzeSymbolResponse {
   symbol: string
   iv_analysis: IVAnalysis
@@ -247,7 +266,7 @@ export interface AnalyzeSymbolResponse {
   detected_bias: string
   recommendations_by_category: Record<string, StrategyRecommendation[]>
   news_sentiment?: NewsSentiment
-  ai_recommendation?: AIRecommendation
+  comparison_matrix: MatrixRow[]
 }
 
 export interface ScanResult {
@@ -260,8 +279,8 @@ export interface ScanResult {
   bias: string
   bias_strength: string
   rsi14: number
-  top_strategy: StrategyRecommendation | null
-  scan_narrative?: { headline: string; confirmation_summary: string } | null
+  strategy_count: number
+  condition_matches: number
   error?: string
 }
 

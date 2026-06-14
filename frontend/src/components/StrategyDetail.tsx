@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   analyzeSymbol,
   AnalyzeSymbolResponse,
@@ -6,6 +6,7 @@ import {
   TradeLeg,
   StrategyRecommendation,
   NewsSentiment,
+  MatrixRow,
 } from '../api/client'
 import StrategyNarrative from './StrategyNarrative'
 import { useEntitlements } from '../context/EntitlementsContext'
@@ -464,6 +465,287 @@ function CategorySection({ category, recs, symbol, onSelectTrade, newsSentiment 
   )
 }
 
+type SortKey = 'name' | 'credit_or_debit' | 'direction' | 'risk_type' | 'max_profit' | 'max_loss' | 'net_delta' | 'net_theta' | 'net_vega' | 'pop_range' | 'condition_fit'
+type SortDir = 'asc' | 'desc'
+
+function ConditionIndicator({ match, label }: { match: boolean | 'any'; label: string }) {
+  const isAny = match === 'any'
+  const symbol = isAny ? '~' : match ? '✓' : '✗'
+  const color = isAny ? C.yellow : match ? C.green : C.red
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '2px',
+      fontSize: '11px', color, fontWeight: 700,
+    }}>
+      <span style={{ fontSize: '10px', color: C.muted }}>{label}</span>
+      {symbol}
+    </span>
+  )
+}
+
+function CreditDebitBadge({ value }: { value: 'credit' | 'debit' }) {
+  const isCredit = value === 'credit'
+  return (
+    <span style={{
+      background: isCredit ? '#0f2d1a' : '#2d0f0f',
+      color: isCredit ? C.green : C.red,
+      border: `1px solid ${isCredit ? C.green : C.red}44`,
+      borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: 700,
+      textTransform: 'capitalize' as const,
+    }}>
+      {value}
+    </span>
+  )
+}
+
+function fmtCurrency(n: number | null, isLoss = false): string {
+  if (n == null) return isLoss ? 'Undefined' : 'Unlimited'
+  const sign = n < 0 ? '-' : ''
+  return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+function fmtGreek(n: number | null): string {
+  if (n == null) return '—'
+  return n.toFixed(2)
+}
+
+function ComparisonMatrix({ rows, symbol, ivEnv }: { rows: MatrixRow[]; symbol: string; ivEnv: string }) {
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [filterBothMatch, setFilterBothMatch] = useState(false)
+  const [filterDirection, setFilterDirection] = useState('All')
+  const [filterType, setFilterType] = useState('All')
+  const [filterRisk, setFilterRisk] = useState('All')
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  const hasSynthetic = rows.some(r => r._synthetic)
+
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return key
+      }
+      setSortDir('asc')
+      return key
+    })
+  }, [])
+
+  const filtered = rows.filter(r => {
+    if (filterBothMatch && !(r.iv_condition_match && r.direction_condition_match)) return false
+    if (filterDirection !== 'All' && !r.direction.includes(filterDirection)) return false
+    if (filterType !== 'All' && r.credit_or_debit !== filterType.toLowerCase()) return false
+    if (filterRisk !== 'All' && r.risk_type !== filterRisk) return false
+    return true
+  })
+
+  const sorted = sortKey == null ? filtered : [...filtered].sort((a, b) => {
+    let av: number | string = 0
+    let bv: number | string = 0
+    if (sortKey === 'name') { av = a.name; bv = b.name }
+    else if (sortKey === 'credit_or_debit') { av = a.credit_or_debit; bv = b.credit_or_debit }
+    else if (sortKey === 'direction') { av = a.direction[0] ?? ''; bv = b.direction[0] ?? '' }
+    else if (sortKey === 'risk_type') { av = a.risk_type; bv = b.risk_type }
+    else if (sortKey === 'max_profit') { av = a.max_profit ?? Infinity; bv = b.max_profit ?? Infinity }
+    else if (sortKey === 'max_loss') { av = a.max_loss ?? Infinity; bv = b.max_loss ?? Infinity }
+    else if (sortKey === 'net_delta') { av = a.net_delta ?? 0; bv = b.net_delta ?? 0 }
+    else if (sortKey === 'net_theta') { av = a.net_theta ?? 0; bv = b.net_theta ?? 0 }
+    else if (sortKey === 'net_vega') { av = a.net_vega ?? 0; bv = b.net_vega ?? 0 }
+    else if (sortKey === 'pop_range') { av = a.pop_range[0]; bv = b.pop_range[0] }
+    else if (sortKey === 'condition_fit') {
+      av = (a.iv_condition_match ? 1 : 0) + (a.direction_condition_match ? 1 : 0)
+      bv = (b.iv_condition_match ? 1 : 0) + (b.direction_condition_match ? 1 : 0)
+    }
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    }
+    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number)
+  })
+
+  const thStyle: React.CSSProperties = {
+    textAlign: 'left', padding: '8px 10px', color: C.muted, fontWeight: 600,
+    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em',
+    borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap',
+    cursor: 'pointer', userSelect: 'none',
+  }
+
+  const SortTh = ({ label, colKey }: { label: string; colKey: SortKey }) => (
+    <th style={thStyle} onClick={() => handleSort(colKey)}>
+      {label}{sortKey === colKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+    </th>
+  )
+
+  const directions = ['All', ...Array.from(new Set(rows.flatMap(r => r.direction))).sort()]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {hasSynthetic && (
+        <div style={{ padding: '8px 12px', background: '#2d1f0f', border: `1px solid ${C.yellow}44`, borderRadius: '6px', fontSize: '12px', color: C.yellow }}>
+          Trade data is synthetic — live options chain unavailable.
+        </div>
+      )}
+
+      {/* Disclaimer */}
+      <div style={{ padding: '10px 14px', background: '#0d1220', border: `1px solid ${C.accent}33`, borderRadius: '6px', fontSize: '11px', color: C.muted, lineHeight: 1.5 }}>
+        This table shows mathematical strategy properties. It does not constitute investment advice or a recommendation to trade any specific strategy.
+      </div>
+
+      {/* Filter controls */}
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', padding: '8px 0' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.muted, cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={filterBothMatch}
+            onChange={e => setFilterBothMatch(e.target.checked)}
+            style={{ accentColor: C.accent }}
+          />
+          Both conditions match
+        </label>
+        <select
+          value={filterDirection}
+          onChange={e => setFilterDirection(e.target.value)}
+          style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, borderRadius: '5px', padding: '4px 8px', fontSize: '11px' }}
+        >
+          {directions.map(d => <option key={d} value={d}>{d === 'All' ? 'All Directions' : d.replace('_', ' ')}</option>)}
+        </select>
+        <select
+          value={filterType}
+          onChange={e => setFilterType(e.target.value)}
+          style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, borderRadius: '5px', padding: '4px 8px', fontSize: '11px' }}
+        >
+          {['All', 'Credit', 'Debit'].map(t => <option key={t} value={t}>{t === 'All' ? 'All Types' : t}</option>)}
+        </select>
+        <select
+          value={filterRisk}
+          onChange={e => setFilterRisk(e.target.value)}
+          style={{ background: C.surface2, border: `1px solid ${C.border}`, color: C.text, borderRadius: '5px', padding: '4px 8px', fontSize: '11px' }}
+        >
+          {['All', 'DEFINED', 'UNDEFINED'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Risk Types' : r}</option>)}
+        </select>
+        <span style={{ fontSize: '11px', color: C.muted, marginLeft: 'auto' }}>
+          {sorted.length} of {rows.length} strategies · {symbol} · {ivEnv} IV
+        </span>
+      </div>
+
+      {/* Matrix table */}
+      <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' }}>
+          <thead>
+            <tr style={{ background: C.surface2 }}>
+              <SortTh label="Strategy" colKey="name" />
+              <SortTh label="Type" colKey="credit_or_debit" />
+              <SortTh label="Direction" colKey="direction" />
+              <SortTh label="Risk" colKey="risk_type" />
+              <SortTh label="Max Profit" colKey="max_profit" />
+              <SortTh label="Max Loss" colKey="max_loss" />
+              <th style={thStyle}>Breakevens</th>
+              <SortTh label="Delta" colKey="net_delta" />
+              <SortTh label="Theta" colKey="net_theta" />
+              <SortTh label="Vega" colKey="net_vega" />
+              <SortTh label="PoP" colKey="pop_range" />
+              <th
+                style={{ ...thStyle, cursor: 'pointer' }}
+                onClick={() => handleSort('condition_fit')}
+                title="Factual comparison of current market data against each strategy's textbook design criteria. Not a recommendation."
+              >
+                Condition Fit{sortKey === 'condition_fit' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={12} style={{ padding: '24px', textAlign: 'center', color: C.muted, fontSize: '13px' }}>
+                  No strategies match the current filters.
+                </td>
+              </tr>
+            ) : (
+              sorted.map(row => {
+                const isExpanded = expandedRow === row.key
+                const ivMatch = row.iv_condition_match
+                const dirMatch = row.direction_condition_match
+
+                return (
+                  <>
+                    <tr
+                      key={row.key}
+                      style={{
+                        borderBottom: `1px solid ${C.border}22`,
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = C.surface2)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <td style={{ padding: '9px 10px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, color: C.text }}>{row.name}</span>
+                          <ComplexityDots level={row.complexity} />
+                        </div>
+                        <div style={{ fontSize: '10px', color: C.muted, marginTop: '2px' }}>{row.iv_fit_label}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px' }}>
+                        <CreditDebitBadge value={row.credit_or_debit} />
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.muted, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                        {row.direction.map(d => d.replace('_', ' ')).join(', ')}
+                      </td>
+                      <td style={{ padding: '9px 10px' }}>
+                        <RiskBadge type={row.risk_type} />
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.green, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmtCurrency(row.max_profit, false)}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: row.max_loss == null ? C.yellow : C.red, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmtCurrency(row.max_loss, true)}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.muted, fontVariantNumeric: 'tabular-nums', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                        {row.breakeven_low != null && row.breakeven_high != null
+                          ? `$${fmt(row.breakeven_low)} – $${fmt(row.breakeven_high)}`
+                          : row.breakeven_low != null
+                            ? `$${fmt(row.breakeven_low)}`
+                            : '—'}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.text, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                        {fmtGreek(row.net_delta)}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.text, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                        {fmtGreek(row.net_theta)}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.text, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                        {fmtGreek(row.net_vega)}
+                      </td>
+                      <td style={{ padding: '9px 10px', color: C.accent, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {row.pop_range[0]}–{row.pop_range[1]}%
+                      </td>
+                      <td
+                        style={{ padding: '9px 10px', cursor: 'pointer' }}
+                        onClick={() => setExpandedRow(isExpanded ? null : row.key)}
+                      >
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <ConditionIndicator match={ivMatch} label="IV" />
+                          <ConditionIndicator match={dirMatch} label="Dir" />
+                          <span style={{ fontSize: '10px', color: C.muted }}>{isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${row.key}-exp`} style={{ background: '#0d1220' }}>
+                        <td colSpan={12} style={{ padding: '10px 14px', fontSize: '11px', color: C.muted, lineHeight: 1.6, borderBottom: `1px solid ${C.border}22` }}>
+                          {row.condition_explanation}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
   const { entitlements } = useEntitlements()
   const [data, setData] = useState<AnalyzeSymbolResponse | null>(null)
@@ -485,39 +767,11 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
   if (error) return <div style={{ padding: '16px', color: C.red, background: '#2d0f0f', borderRadius: '8px', margin: '16px' }}>{error}</div>
   if (!data) return null
 
-  const { iv_analysis: iv, bias_analysis: bias, detected_bias, recommendations_by_category, ai_recommendation, news_sentiment } = data
-  const showAiComparison = entitlements?.features?.ai_strategy_comparison ?? false
+  const { iv_analysis: iv, bias_analysis: bias, detected_bias, recommendations_by_category, comparison_matrix, news_sentiment } = data
   const showNewsSentiment = entitlements?.features?.news_sentiment ?? false
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* E8 — AI Strategy Recommendation banner */}
-      {showAiComparison && ai_recommendation && (
-        <div style={{
-          background: '#0a1628',
-          border: `1px solid #3b82f688`,
-          borderLeft: `3px solid #3b82f6`,
-          borderRadius: '8px',
-          padding: '12px 16px',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '10px',
-        }}>
-          <span style={{ fontSize: '16px', flexShrink: 0 }}>✦</span>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              AI Pick:{' '}
-            </span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>
-              {ai_recommendation.recommended_name}
-            </span>
-            {ai_recommendation.reasoning && (
-              <span style={{ fontSize: '13px', color: C.muted }}> — {ai_recommendation.reasoning}</span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div style={{
         background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px',
@@ -556,6 +810,9 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
         </div>
       </div>
 
+      {/* Comparison Matrix */}
+      <ComparisonMatrix rows={comparison_matrix} symbol={data.symbol} ivEnv={iv.iv_environment} />
+
       {/* Direction guide */}
       <div style={{
         background: '#0d1220', border: `1px solid ${C.accent}33`, borderRadius: '8px',
@@ -563,8 +820,7 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
       }}>
         <span style={{ color: C.accent, fontWeight: 700 }}>Pick your view: </span>
         The app detects a <strong style={{ color: C.text }}>{detected_bias.replace('_', '-')}</strong> bias,
-        but each section below shows the best strategies for that direction regardless of our signal.
-        Open the section that matches your own market view and expand any strategy for the full trade structure.
+        but each section below shows the full strategy list for that direction — expand any strategy for the full trade structure.
       </div>
 
       {/* Category sections */}

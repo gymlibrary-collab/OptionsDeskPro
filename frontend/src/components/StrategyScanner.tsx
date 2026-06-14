@@ -63,20 +63,6 @@ function BiasBadge({ bias }: { bias: string }) {
   )
 }
 
-function RiskBadge({ type }: { type: string }) {
-  if (!type) return null
-  const isDefined = type === 'DEFINED'
-  return (
-    <span style={{
-      background: isDefined ? '#0d1a2d' : '#2d1a0d',
-      color: isDefined ? C.blue : C.yellow,
-      border: `1px solid ${isDefined ? C.blue : C.yellow}44`,
-      borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: 700,
-    }}>
-      {type}
-    </span>
-  )
-}
 
 function IVRBar({ rank }: { rank: number }) {
   const pct = Math.max(0, Math.min(100, rank))
@@ -410,7 +396,7 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: C.surface2 }}>
-                  {['Symbol', 'Price', 'IVR', 'IV Env', 'Bias', 'Top Strategy', 'PoP', 'Risk', ''].map(h => (
+                  {['Symbol', 'Price', 'IVR', 'IV Env', 'Bias', 'Strategies Available', 'Condition Matches', ''].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -431,23 +417,17 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
                     <td style={{ padding: '10px 14px' }}><IVRBar rank={r.iv_rank} /></td>
                     <td style={{ padding: '10px 14px' }}><IVEnvBadge env={r.iv_environment} /></td>
                     <td style={{ padding: '10px 14px' }}><BiasBadge bias={r.bias} /></td>
-                    <td style={{ padding: '10px 14px', color: C.text, maxWidth: '260px' }}>
-                      {r.top_strategy ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600 }}>{r.top_strategy.name}</span>
-                          {r.scan_narrative?.headline && (
-                            <span style={{ fontSize: '11px', color: C.muted, lineHeight: 1.4 }}>{r.scan_narrative.headline}</span>
-                          )}
-                        </div>
+                    <td style={{ padding: '10px 14px', color: C.text, fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
+                      {r.strategy_count != null ? `${r.strategy_count} strategies` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
+                      {r.condition_matches != null ? (
+                        <span style={{ color: r.condition_matches > 0 ? C.green : C.muted, fontWeight: 600 }}>
+                          {r.condition_matches} match{r.condition_matches !== 1 ? 'es' : ''}
+                        </span>
                       ) : (
-                        <span style={{ color: C.muted, fontSize: '12px' }}>—</span>
+                        <span style={{ color: C.muted }}>—</span>
                       )}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: C.accent, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      {r.top_strategy ? `${r.top_strategy.pop_range[0]}–${r.top_strategy.pop_range[1]}%` : '—'}
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      {r.top_strategy && <RiskBadge type={r.top_strategy.risk_type} />}
                     </td>
                     <td style={{ padding: '10px 10px' }}>
                       <button
