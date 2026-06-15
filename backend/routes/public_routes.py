@@ -3,6 +3,7 @@ Public routes — /api/public/*
 
 No authentication required. Serve pricing page and FAQ data.
 """
+import os
 import time
 import logging
 from fastapi import APIRouter
@@ -128,7 +129,10 @@ async def get_public_pricing():
                 plan_entry["contact_us"] = True
             plans_list.append(plan_entry)
 
-    return {"plans": plans_list}
+    return {
+        "plans": plans_list,
+        "billing_active": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
+    }
 
 
 @router.get("/public/faq")

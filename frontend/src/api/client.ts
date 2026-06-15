@@ -520,6 +520,7 @@ export interface Plan {
 
 export interface PublicPricingResponse {
   plans: Plan[]
+  billing_active: boolean
 }
 
 export interface FaqArticle {

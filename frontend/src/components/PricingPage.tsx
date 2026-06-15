@@ -33,6 +33,7 @@ export default function PricingPage({ onUpgrade, onClose, currentTier }: Props) 
   const { user } = useAuth()
   const { isMobile } = useWindowSize()
   const [plans, setPlans] = useState<Plan[]>([])
+  const [billingActive, setBillingActive] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
@@ -42,7 +43,10 @@ export default function PricingPage({ onUpgrade, onClose, currentTier }: Props) 
     setLoading(true)
     setError(null)
     getPublicPricing()
-      .then(data => setPlans(data.plans))
+      .then(data => {
+        setPlans(data.plans)
+        setBillingActive(data.billing_active)
+      })
       .catch(() => setError('Unable to load pricing. Please try again.'))
       .finally(() => setLoading(false))
   }, [])
@@ -109,6 +113,11 @@ export default function PricingPage({ onUpgrade, onClose, currentTier }: Props) 
         <p style={{ margin: 0, color: C.muted, fontSize: '15px' }}>
           Start free. Upgrade when you are ready.
         </p>
+        {!billingActive && (
+          <p style={{ margin: '12px 0 0', color: '#f59e0b', fontSize: '13px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '8px', padding: '8px 16px', display: 'inline-block' }}>
+            Paid plans coming soon — sign up free and we will notify you when billing goes live.
+          </p>
+        )}
       </div>
 
       {checkoutError && (
@@ -128,6 +137,7 @@ export default function PricingPage({ onUpgrade, onClose, currentTier }: Props) 
           const highlighted = plan.tier_key === 'pro'
           const current = isCurrent(plan)
           const busy = checkoutLoading === plan.tier_key
+          const comingSoon = !billingActive && plan.tier_key !== 'free' && !plan.contact_us
 
           return (
             <div
@@ -175,22 +185,22 @@ export default function PricingPage({ onUpgrade, onClose, currentTier }: Props) 
               </div>
 
               <button
-                onClick={() => handleSelect(plan)}
-                disabled={current || busy}
+                onClick={() => !comingSoon && handleSelect(plan)}
+                disabled={current || busy || comingSoon}
                 style={{
-                  background: current ? 'transparent' : highlighted ? C.accent : '#252836',
-                  border: `1px solid ${current ? C.success : highlighted ? C.accent : C.border}`,
+                  background: comingSoon ? 'transparent' : current ? 'transparent' : highlighted ? C.accent : '#252836',
+                  border: `1px solid ${comingSoon ? C.border : current ? C.success : highlighted ? C.accent : C.border}`,
                   borderRadius: '8px',
-                  color: current ? C.success : highlighted ? '#fff' : C.text,
+                  color: comingSoon ? C.muted : current ? C.success : highlighted ? '#fff' : C.text,
                   padding: '10px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  cursor: current || busy ? 'default' : 'pointer',
+                  cursor: current || busy || comingSoon ? 'default' : 'pointer',
                   opacity: busy ? 0.7 : 1,
                   fontFamily: FONT,
                 }}
               >
-                {busy ? 'Redirecting...' : current ? 'Current plan' : plan.contact_us ? 'Contact us' : plan.tier_key === 'free' ? 'Get started' : `Upgrade to ${plan.display_name}`}
+                {busy ? 'Redirecting...' : comingSoon ? 'Coming soon' : current ? 'Current plan' : plan.contact_us ? 'Contact us' : plan.tier_key === 'free' ? 'Get started' : `Upgrade to ${plan.display_name}`}
               </button>
             </div>
           )
