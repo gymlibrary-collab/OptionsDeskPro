@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
-from services.strategy_engine import recommend_by_category, build_trade, build_comparison_matrix, get_strategy_count, STRATEGIES
+from services.strategy_engine import recommend_by_category, build_trade, build_comparison_matrix, get_strategy_count, get_condition_match_count, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
 from services.greeks import calculate_greeks
 from services.interpreter import generate_narrative
@@ -61,7 +61,7 @@ def _get_enriched_chain_for_symbol(symbol: str, expiry: str | None = None) -> tu
     return spot, enriched
 
 
-@router.get("/strategies/analyze/{symbol}")
+@router.get("/strategies/analyze/{symbol}", dependencies=[Depends(legal_gate_dep)])
 async def analyze_symbol(
     symbol: str,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
@@ -309,6 +309,7 @@ async def scan_watchlist(
                 "bias_strength": bias_data.get("strength", "MODERATE"),
                 "rsi14": bias_data.get("rsi14", 50.0),
                 "strategy_count": get_strategy_count(iv_env),
+                "condition_matches": get_condition_match_count(iv_env, bias),
                 "error": iv_data.get("error") or bias_data.get("error"),
             }
         except Exception as e:
@@ -324,6 +325,7 @@ async def scan_watchlist(
                 "bias_strength": "MODERATE",
                 "rsi14": 50.0,
                 "strategy_count": get_strategy_count("MEDIUM"),
+                "condition_matches": 0,
                 "error": str(e),
             }
 

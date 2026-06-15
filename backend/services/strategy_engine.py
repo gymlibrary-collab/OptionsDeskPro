@@ -697,6 +697,15 @@ def get_strategy_count(iv_env: str) -> int:
     return sum(1 for s in STRATEGIES.values() if iv_env in s["iv_environment"])
 
 
+def get_condition_match_count(iv_env: str, bias: str) -> int:
+    """Returns count of strategies where both IV and direction conditions match."""
+    return sum(
+        1
+        for s in STRATEGIES.values()
+        if _iv_matches(s["designed_for_iv"], iv_env) and _direction_matches(s["designed_for_direction"], bias)
+    )
+
+
 def build_comparison_matrix(
     symbol: str,
     iv_env: str,

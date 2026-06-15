@@ -64,14 +64,15 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | PASS / CONDITIONAL PASS / FAIL |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Original decision** | CONDITIONAL PASS — 2 conditions (F-01 auth gap on analyze route, F-02 condition_matches missing from scan response) |
+| **Updated decision** | **PASS** (15 Jun 2026) — both conditions resolved |
+| **Critical findings** | None |
+| **High findings** | None |
+| **Resolved conditions** | F-01: `Depends(legal_gate_dep)` added to analyze route; F-02: `get_condition_match_count()` added, `condition_matches` emitted from `_scan_one()` |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 15 Jun 2026 |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved
 
 ---
 
