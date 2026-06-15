@@ -382,10 +382,11 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
         )
     else:
         core = (
-            f"Given an IV Rank of {ivr:.0f} ({iv_word} volatility environment) "
-            f"and a {bias_clean} directional lean, the {strat_name} ranks as the best-fit strategy "
-            f"across the tastylive framework. It aligns the volatility environment with the directional bias "
-            f"and targets the {dte_target}-day expiration window where time decay is most efficient."
+            f"The {strat_name} is structured to perform in a {iv_word} IV environment (IV Rank {ivr:.0f}) "
+            f"with a {bias_clean} directional bias. In a {iv_word} volatility environment, "
+            f"{'premium sellers benefit from elevated option prices that decay as volatility compresses back toward its mean' if iv_env == 'HIGH' else 'defined-risk structures are more attractively priced, making it practical to buy spreads or pay a debit for directional exposure' if iv_env == 'LOW' else 'both buying and selling structures are reasonably priced, and the strategy can be sized without paying an outsized volatility premium'}. "
+            f"A {bias_clean} bias means the position is constructed so that its profit zone sits in the direction the analysis suggests {symbol} is leaning — without requiring a precise price target. "
+            f"Targeting the {dte_target}-day expiration window places the trade in the region where theta decay is meaningful but gamma risk has not yet become the dominant force."
         )
 
     extra_confirmations = []
@@ -645,7 +646,7 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
         )
 
     early_exit = (
-        f"The recommended exit point is when the trade reaches {profit_target_pct}% of max profit "
+        f"A common exit guideline (tastylive framework) is to close the trade when it reaches {profit_target_pct}% of max profit "
         f"({target_dollars}). "
         f"For example, if you collected ${abs(net)*100:.0f} in premium, you'd aim to close the position "
         f"when you've made ${abs(net)*100*profit_target_pct/100:.0f} — at that point the position should "
@@ -918,7 +919,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
 
     steps.append(
         f"OPEN YOUR BROKER and search for the ticker '{symbol}'. "
-        f"Recommended platforms that support multi-leg options: tastytrade (best for beginners), "
+        f"Platforms that support multi-leg options include: tastytrade, "
         f"thinkorswim by Schwab, Interactive Brokers (IBKR), or E*TRADE Power E*TRADE. "
         f"Log in and make sure you have options trading enabled on your account (a one-time setup "
         f"if you haven't already — brokers call it 'options approval level 2 or higher')."
@@ -938,7 +939,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"Click on that date in the expiry header row to expand it (some brokers show a dropdown; "
         f"others show all dates at once — scroll to find '{expiry}'). "
         f"tastylive's sweet spot for new trades is 30–45 days to expiration (DTE). "
-        f"At {dte} DTE this expiry sits in that optimal window, where time decay accelerates "
+        f"At {dte} DTE this expiry falls within that range — a well-studied window in which time decay accelerates "
         f"without gamma risk being too extreme yet."
     )
 
@@ -1194,7 +1195,7 @@ def generate_narrative(
             "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
             "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
             "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
-            "trade_plain_english": f"The specific strike/expiry data needed to build this trade could not be retrieved right now ({trade['error']}). The analysis above still applies — when data is available, this strategy remains the recommendation given current IV and bias conditions.",
+            "trade_plain_english": f"The specific strike/expiry data needed to build this trade could not be retrieved right now ({trade['error']}). The IV environment and directional bias analysis above still applies to {symbol} — the market snapshot, IV context, and strategy alignment sections reflect current conditions and are not affected by the missing chain data.",
             "profit_scenario": "",
             "loss_scenario": "",
             "defensive_tactic": _defensive_tactic(strat_key_err),

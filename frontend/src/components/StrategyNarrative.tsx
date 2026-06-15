@@ -225,7 +225,7 @@ export default function StrategyNarrative({ narrative, newsSentiment }: Props) {
           <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
             {narrative.profit_scenario
               ? <Paragraphs text={narrative.profit_scenario} />
-              : <span style={{ color: C.muted, fontStyle: 'italic' }}>Profit scenario requires live options chain data (specific strikes and breakevens). The strategy recommendation above is still valid.</span>
+              : <span style={{ color: C.muted, fontStyle: 'italic' }}>Profit scenario requires live options chain data (specific strikes and breakevens). The strategy analysis above still applies.</span>
             }
           </div>
         </div>
@@ -253,7 +253,7 @@ export default function StrategyNarrative({ narrative, newsSentiment }: Props) {
           <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>
             {narrative.loss_scenario
               ? <Paragraphs text={narrative.loss_scenario} />
-              : <span style={{ color: C.muted, fontStyle: 'italic' }}>Loss scenario requires live options chain data (specific strikes and breakevens). The strategy recommendation above is still valid.</span>
+              : <span style={{ color: C.muted, fontStyle: 'italic' }}>Loss scenario requires live options chain data (specific strikes and breakevens). The strategy analysis above still applies.</span>
             }
           </div>
         </div>
