@@ -232,3 +232,9 @@ The seed row in the migration resolves the admin user via `(SELECT id FROM auth.
 | F-03 — Backend enforcement of legal gate | ✅ Resolved. `legal_gate_dep` FastAPI dependency applied at router level on all authenticated business-logic routers: `orders`, `positions`, `trading_routes`, `watchlist`, `ai_routes`; and on the `/strategies/scan` route. Returns HTTP 451 when user has no acknowledgment row. |
 
 F-05 through F-08 remain low/informational and may be addressed in a follow-up sprint.
+
+1. **F-01 and F-02 resolved** — `version_id` typed as UUID and `content_hash` constrained to 64-character hex in `AcknowledgeRequest`.
+2. **F-04 resolved** — `SET search_path = public` added to `publish_legal_version()`.
+3. **F-03 decision documented** — Product and legal must explicitly accept client-side-only gate enforcement in `03-approvals.md`, or backend enforcement must be added.
+
+F-05 through F-08 may be addressed in a follow-up sprint.
