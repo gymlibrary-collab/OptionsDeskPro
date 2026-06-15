@@ -1,14 +1,39 @@
 # Test Report — PRD-01: Remove Fit Scoring — Replace with Strategy Comparison Matrix
 
 **Feature:** strategy-comparison-matrix-14Jun2026
-**Date:** 14Jun2026
-**Status:** In Progress
+**Date:** 15 Jun 2026
+**Status:** Complete
 
 ---
 
 ## Automated Test Results
 
-_To be completed by the QA engineer (qa-engineer agent)._
+**Test file:** `frontend/e2e/pages/strategy-comparison-matrix.spec.ts`
+**Related scanner regression fix:** `frontend/e2e/pages/strategy-scanner.spec.ts` (updated in commit `b383612`)
+**Mock data additions:** `frontend/e2e/mock-data.ts` — `MOCK_ANALYZE_RESPONSE_V2`, `MOCK_ANALYZE_RESPONSE_V2_MSFT`, `MOCK_SCAN_RESULT_V2`, `MOCK_SCAN_RESULT_V2_MSFT`, `MOCK_MATRIX_ROW_BOTH_MATCH`
+
+### Coverage
+
+| User Story | Acceptance Criteria | Test Count | Status |
+|------------|---------------------|------------|--------|
+| US-01 | AC-1.1–1.9 — Matrix renders, columns, no ranking language, null display, API shape | 9 | ✅ Pass |
+| US-02 | AC-2.1–2.5 — Scanner table new columns, no top_strategy, API shape | 5 | ✅ Pass |
+| US-05 | AC-5.1–5.3 — Auth wall blocks unauthenticated access | 3 | ✅ Pass |
+| US-06 | AC-6.1–6.8 — Condition Fit column, expansion, sort, no ranking, cross-ticker determinism | 8 | ✅ Pass |
+| AC-4.x | Admin: no AI Pick banner, no ranking language | 2 | ✅ Pass |
+| Edge cases | Error states, loading states, filter empty state | 4 | ✅ Pass |
+
+**Total:** 31 automated tests — all passing.
+
+### Gaps (manual-only, deferred to live environment)
+
+| Test | Reason |
+|------|--------|
+| MT-06 — cross-ticker explanation identity | Requires two live API calls; mock always returns same rows |
+| MT-10/11 — IV environment accuracy | Requires genuinely HIGH/LOW IVR ticker at test time |
+| MT-19 / MT-32 — rapid double-click timing | <200ms human interaction; Playwright timing boundary case |
+| MT-29 — synthetic chain fallback banner | Requires live backend in synthetic fallback state |
+| MT-33 — cross-tab state preservation | SPA component lifecycle; needs live routing verification |
 
 ---
 
