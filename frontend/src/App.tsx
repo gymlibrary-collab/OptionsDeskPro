@@ -21,7 +21,7 @@ import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
-import { TradeStructure } from './api/client'
+import { TradeStructure, getPublicConfig } from './api/client'
 import api from './api/client'
 import { createBillingPortalSession } from './api/client'
 
@@ -55,6 +55,7 @@ function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(true)
 
   // MT-020: on mount, check for /settings or /onboarding paths (Stripe return URLs)
   useEffect(() => {
@@ -65,6 +66,14 @@ function Dashboard() {
       window.history.replaceState({}, '', '/')
     }
   }, [])
+
+  useEffect(() => {
+    getPublicConfig().then(cfg => setAiEnabled(cfg.ai_features_enabled)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!aiEnabled && activeTab === 'ai') setActiveTab('chain')
+  }, [aiEnabled, activeTab])
 
   const handleSearch = useCallback(() => {
     const s = inputSymbol.trim().toUpperCase()
@@ -120,6 +129,8 @@ function Dashboard() {
     { key: 'guide', label: 'User Guide', short: 'Guide' },
     { key: 'ai', label: 'AI Features', short: 'AI' },
   ]
+
+  const visibleTabs = tabs.filter(t => t.key !== 'ai' || aiEnabled)
 
   const displayName = (profile as unknown as { full_name?: string })?.full_name || user?.email || '?'
   const initials = displayName
@@ -272,7 +283,7 @@ function Dashboard() {
 
             {/* Tab bar */}
             <div style={{ display: 'flex', gap: '2px', padding: isMobile ? '6px 8px 0' : '8px 16px 0', background: C.surface, borderBottom: `1px solid ${C.border}`, flexShrink: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'] }}>
-              {tabs.map(tab => (
+              {visibleTabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => handleTabChange(tab.key)}

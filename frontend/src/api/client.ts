@@ -547,6 +547,13 @@ export const getPublicPricing = (): Promise<PublicPricingResponse> =>
 export const getPublicFaq = (): Promise<PublicFaqResponse> =>
   api.get('/public/faq').then(r => r.data)
 
+export interface PublicConfig {
+  ai_features_enabled: boolean
+}
+
+export const getPublicConfig = (): Promise<PublicConfig> =>
+  api.get('/public/config').then(r => r.data)
+
 // ─── Billing routes ──────────────────────────────────────────────────────────────────────────────
 
 export interface CheckoutSessionRequest {
@@ -780,6 +787,7 @@ export interface HealthData {
 export interface PlatformSettings {
   invite_only_mode: boolean
   maintenance_mode: boolean
+  ai_features_enabled: boolean
 }
 
 export const getStaffMe = (): Promise<StaffMeResponse> =>
@@ -872,6 +880,9 @@ export const getPlatformSettings = (): Promise<PlatformSettings> =>
 
 export const patchPlatformSettings = (req: Partial<PlatformSettings>): Promise<{ ok: boolean }> =>
   api.patch('/platform/settings', req).then(r => r.data)
+
+export const patchAdminPlatformSettings = (req: { ai_features_enabled?: boolean }): Promise<{ ok: boolean }> =>
+  api.patch('/admin/platform-settings', req).then(r => r.data)
 
 // ─── Legal Terms Acknowledgment ──────────────────────────────────────────────
 

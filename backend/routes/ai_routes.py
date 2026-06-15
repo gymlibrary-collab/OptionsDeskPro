@@ -51,19 +51,24 @@ class EnhanceNarrativeRequest(BaseModel):
 # ── Helpers ────────────────────────────────────────────────────────────────────────
 
 def _get_settings(user_id: str) -> dict:
-    sb = get_supabase()
-    result = sb.table("ai_settings").select("*").eq("user_id", user_id).execute()
-    if result.data:
-        return result.data[0]
     default = {
         "user_id": user_id,
         "narrative_enabled": False,
         "chat_enabled": False,
         "risk_summary_enabled": False,
         "strategy_reasoning_enabled": False,
+        "earnings_awareness_enabled": False,
     }
-    sb.table("ai_settings").insert(default).execute()
-    return default
+    try:
+        sb = get_supabase()
+        result = sb.table("ai_settings").select("*").eq("user_id", user_id).execute()
+        if result.data:
+            return result.data[0]
+        sb.table("ai_settings").upsert(default, on_conflict="user_id").execute()
+        return default
+    except Exception as e:
+        logger.warning("Could not load/create ai_settings for %s: %s", user_id, e)
+        return default
 
 
 def _settings_response(row: dict) -> dict:

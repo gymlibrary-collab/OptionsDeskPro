@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
+import { getPublicConfig, patchAdminPlatformSettings } from '../api/client'
 
-type AdminTab = 'users' | 'whitelist' | 'activity' | 'leaderboard'
+type AdminTab = 'users' | 'whitelist' | 'activity' | 'leaderboard' | 'settings'
 type Role = 'user' | 'admin'
 
 interface UserRow {
@@ -77,6 +78,31 @@ export default function AdminPanel() {
   // Role change in-flight tracker
   const [changingRole, setChangingRole] = useState<string | null>(null)
 
+  // Platform settings
+  const [aiEnabled, setAiEnabled] = useState(true)
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  const loadPlatformSettings = useCallback(async () => {
+    try {
+      const cfg = await getPublicConfig()
+      setAiEnabled(cfg.ai_features_enabled)
+    } catch {}
+  }, [])
+
+  useEffect(() => { loadPlatformSettings() }, [loadPlatformSettings])
+
+  const handleToggleAI = async (enabled: boolean) => {
+    setSavingSettings(true)
+    try {
+      await patchAdminPlatformSettings({ ai_features_enabled: enabled })
+      setAiEnabled(enabled)
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Failed to save setting.')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   const loadStats = useCallback(async () => {
     try {
       const { data } = await api.get<Stats>('/admin/stats')
@@ -123,7 +149,8 @@ export default function AdminPanel() {
     else if (activeTab === 'whitelist') loadWhitelist()
     else if (activeTab === 'activity') loadActivity()
     else if (activeTab === 'leaderboard') loadStats()
-  }, [activeTab, loadUsers, loadWhitelist, loadActivity, loadStats])
+    else if (activeTab === 'settings') loadPlatformSettings()
+  }, [activeTab, loadUsers, loadWhitelist, loadActivity, loadStats, loadPlatformSettings])
 
   // Auto-refresh activity every 60s
   useEffect(() => {
@@ -201,6 +228,7 @@ export default function AdminPanel() {
     { key: 'whitelist', label: 'Whitelist' },
     { key: 'activity', label: 'Activity Log' },
     { key: 'leaderboard', label: 'Leaderboard' },
+    { key: 'settings', label: 'Platform Settings' },
   ]
 
   return (
@@ -436,6 +464,41 @@ export default function AdminPanel() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* PLATFORM SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div style={{ maxWidth: '600px' }}>
+            <h3 style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 600, margin: '0 0 20px' }}>Platform Settings</h3>
+            <div style={{ background: '#1a1d27', border: '1px solid #2d3148', borderRadius: '10px', padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0', marginBottom: '4px' }}>AI Features Tab</div>
+                  <div style={{ fontSize: '13px', color: '#94a3b8' }}>Show or hide the AI Features tab for all users.</div>
+                </div>
+                <button
+                  onClick={() => handleToggleAI(!aiEnabled)}
+                  disabled={savingSettings}
+                  style={{
+                    width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+                    background: aiEnabled ? '#7c6af7' : '#3a3f5c',
+                    cursor: savingSettings ? 'not-allowed' : 'pointer',
+                    position: 'relative', transition: 'background 0.2s',
+                    flexShrink: 0, opacity: savingSettings ? 0.6 : 1,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: '3px',
+                    left: aiEnabled ? '23px' : '3px',
+                    width: '18px', height: '18px',
+                    borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+              {savingSettings && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>Saving...</div>}
+            </div>
           </div>
         )}
       </div>
