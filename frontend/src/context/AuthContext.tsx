@@ -40,6 +40,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [pendingLegalAcknowledgment, setPendingLegalAcknowledgment] = useState(false)
 
+  // Re-trigger the legal gate modal if any API call returns 451.
+  // This handles the case where a new legal version is published while the
+  // user is already logged in (login-time check would have returned false).
+  useEffect(() => {
+    const id = api.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err?.response?.status === 451) {
+          setPendingLegalAcknowledgment(true)
+        }
+        return Promise.reject(err)
+      }
+    )
+    return () => api.interceptors.response.eject(id)
+  }, [])
+
   const fetchEntitlements = useCallback(async () => {
     try {
       const data = await getEntitlements()
