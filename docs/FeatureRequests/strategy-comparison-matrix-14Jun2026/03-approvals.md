@@ -81,10 +81,10 @@
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Deployed to** | Railway |
-| **Deployment date** | |
-| **User Guide updated** | Yes / No / N/A |
-| **Approved by** | |
-| **Date** | |
+| **Deployed to** | Railway (auto-deploy from `main`) |
+| **Deployment date** | 15 Jun 2026 |
+| **User Guide updated** | Yes — Comparison Matrix and Condition Fit sections added to `frontend/src/components/UserGuide.tsx` |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 15 Jun 2026 |
 
-☐ Released
+☑ Released

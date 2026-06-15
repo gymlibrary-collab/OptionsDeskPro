@@ -148,10 +148,10 @@ If the rollback is successful:
 - [x] Security review passed (Gate 5, 15 Jun 2026)
 - [x] No database migration required
 - [x] No new environment variables required
-- [ ] Deployed to Railway production (pending Gate 6 approval)
-- [ ] Release note published to changelog
-- [ ] User Guide updated (frontend/src/components/UserGuide.tsx)
-- [ ] Help articles updated (if any) with Condition Fit explanation
+- [x] Deployed to Railway production (main branch — auto-deployed, 15 Jun 2026)
+- [x] Release note published to changelog
+- [x] User Guide updated (frontend/src/components/UserGuide.tsx — Comparison Matrix and Condition Fit sections added)
+- [x] Help articles updated — Condition Fit explanation added to UserGuide component
 - [ ] Monitoring alert set for any increase in error rates on /api/strategies endpoints
 - [ ] Internal team (support, content) notified of feature change
 
