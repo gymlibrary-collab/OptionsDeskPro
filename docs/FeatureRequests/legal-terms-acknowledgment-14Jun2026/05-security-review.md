@@ -2,7 +2,7 @@
 ## Feature: Legal Terms Acknowledgment Gate
 **Review date:** 14 Jun 2026
 **Reviewer:** Security Reviewer (Gate 5)
-**Gate decision: CONDITIONAL PASS**
+**Gate decision: PASS** *(originally CONDITIONAL PASS; all conditions resolved — 15 Jun 2026)*
 
 ---
 
@@ -220,10 +220,15 @@ The seed row in the migration resolves the admin user via `(SELECT id FROM auth.
 
 ## Conditions for PASS
 
-This review returns **CONDITIONAL PASS**. The feature may proceed to Gate 6 once the following are resolved:
+~~This review returns **CONDITIONAL PASS**. The feature may proceed to Gate 6 once the following are resolved:~~
 
-1. **F-01 and F-02 resolved** — `version_id` typed as UUID and `content_hash` constrained to 64-character hex in `AcknowledgeRequest`.
-2. **F-04 resolved** — `SET search_path = public` added to `publish_legal_version()`.
-3. **F-03 decision documented** — Product and legal must explicitly accept client-side-only gate enforcement in `03-approvals.md`, or backend enforcement must be added.
+**All conditions resolved — 15 Jun 2026. Gate decision updated to PASS.**
 
-F-05 through F-08 may be addressed in a follow-up sprint.
+| Condition | Resolution |
+|-----------|------------|
+| F-01 — `version_id` typed as `uuid.UUID` | ✅ Resolved. `AcknowledgeRequest.version_id` is `uuid.UUID` in `backend/routes/legal_routes.py:40`. |
+| F-02 — `content_hash` constrained to 64-char hex | ✅ Resolved. `Field(pattern=r'^[0-9a-f]{64}$')` applied in `backend/routes/legal_routes.py:41`. |
+| F-04 — `SET search_path = public` on SECURITY DEFINER function | ✅ Resolved. Migration `013_legal_function_search_path.sql` alters `publish_legal_version()` with `SET search_path = public`. |
+| F-03 — Backend enforcement of legal gate | ✅ Resolved. `legal_gate_dep` FastAPI dependency applied at router level on all authenticated business-logic routers: `orders`, `positions`, `trading_routes`, `watchlist`, `ai_routes`; and on the `/strategies/scan` route. Returns HTTP 451 when user has no acknowledgment row. |
+
+F-05 through F-08 remain low/informational and may be addressed in a follow-up sprint.
