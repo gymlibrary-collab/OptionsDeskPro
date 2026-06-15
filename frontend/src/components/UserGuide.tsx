@@ -142,9 +142,9 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           and execute trades with a clear plan.
         </P>
         <Note>
-          <strong>The golden rule:</strong> Every strategy recommendation on this app comes with a plain-English
-          explanation covering market conditions, IV context, trade mechanics, profit/loss scenarios, and an
-          execution checklist. Read it before placing any trade.
+          <strong>The golden rule:</strong> Every strategy you consider comes with a plain-English explanation
+          covering market conditions, IV context, trade mechanics, profit/loss scenarios, and an execution
+          checklist. Read the full narrative before placing any trade. The decision to trade is yours.
         </Note>
       </Section>
 
@@ -184,11 +184,12 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Current IV">The annualised implied volatility of the at-the-money option, expressed as a percentage.</Term>
           <Term term="IV Environment">HIGH (IVR &gt; 50), MEDIUM, or LOW — determines whether to favour selling or buying strategies.</Term>
           <Term term="Bias">The directional signal based on RSI and moving averages: BULLISH, BEARISH, NEUTRAL, NEUTRAL_BULLISH, or NEUTRAL_BEARISH.</Term>
-          <Term term="Top Strategy">The single best-fit strategy recommended for that symbol given its IV environment and bias.</Term>
+          <Term term="Strategies Available">The count of strategies that are mathematically applicable to this symbol's current IV environment and direction.</Term>
+          <Term term="Condition Matches">The number of those strategies where both the IV and directional conditions align with current market data — shown in green when greater than zero.</Term>
         </Sub>
         <P>
           Click <strong>Analyze</strong> on any row to run a full deep-dive analysis on that symbol, including
-          specific strike recommendations, a full plain-English narrative, and an execution checklist.
+          a side-by-side comparison of all applicable strategies, specific strike recommendations, a full plain-English narrative, and an execution checklist.
         </P>
         <Note>
           The scanner uses real-time data from Yahoo Finance. Results refresh each time you load the tab.
@@ -197,11 +198,15 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       </Section>
 
       {/* ── DEEP ANALYSIS ── */}
-      <Section title="Deep Analysis — Reading the Narrative">
+      <Section title="Deep Analysis — Strategy Comparison Matrix and Narrative">
         <P>
-          When you click <strong>Analyze</strong> on a symbol, the app builds a full trade recommendation
-          with a multi-section plain-English breakdown. Here is what each section means:
+          When you click <strong>Analyze</strong> on a symbol, the app displays a <strong>Strategy Comparison Matrix</strong> — a side-by-side table of all applicable strategies for the current IV environment. Below that is a multi-section plain-English narrative that explains the market context and trade mechanics. Here is what you see:
         </P>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Strategy Comparison Matrix</div>
+          <P>A sortable table showing all applicable strategies for this symbol and IV environment. Each row shows: strategy name, type (credit or debit), maximum profit, maximum loss, greeks (delta, theta, vega), probability of profit, and <strong>Condition Fit</strong> indicators. The Condition Fit column shows checkmarks (✓) or crosses (✗) for IV alignment and directional alignment — a factual, educational comparison of the current ticker's conditions against each strategy's textbook design. Click any row's Condition Fit cell to expand an explanation. The matrix is not ranked; all strategies remain visible by default. Use the filter controls to show only strategies where both conditions match, or filter by direction, type, or risk.</P>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
@@ -214,7 +219,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.amber, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Why This Strategy</div>
-            <P>Explains the logic behind the recommended strategy given the IV environment and directional bias. Also shows: earnings risk warning (if applicable), options flow put/call ratio and any unusual volume activity, and MACD alignment with the bias.</P>
+            <P>Once you expand a strategy card from the matrix, this section explains the logic behind that strategy given the IV environment and directional bias. Also shows: earnings risk warning (if applicable), options flow put/call ratio and any unusual volume activity, and MACD alignment with the bias.</P>
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>The Trade in Simple Terms</div>
@@ -239,6 +244,10 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             <P>Step-by-step instructions for placing the trade in your broker, including limit price, GTC closing order, price alerts, and the 21-DTE close reminder. Click <strong>Copy Checklist</strong> to paste it into your notes.</P>
           </div>
         </div>
+
+        <Note color={C.blue}>
+          <strong>How to use the Condition Fit column:</strong> The checkmarks and crosses show whether the current ticker's IV environment and directional bias match each strategy's textbook design. This is educational context, not a ranking. You may choose a strategy with crosses if your analysis suggests a different thesis than the current bias. The decision is yours.
+        </Note>
       </Section>
 
       {/* ── PLACING TRADES ── */}
