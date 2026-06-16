@@ -106,7 +106,7 @@ async def acknowledge_legal(
         logger.error("legal/acknowledge: duplicate check failed for user %s: %s", user_id, e)
         raise HTTPException(status_code=500, detail="Database error. Please try again.")
 
-    if existing.data:
+    if existing and existing.data:
         return {"already_acknowledged": True}
 
     # Extract IP address for the audit record.
