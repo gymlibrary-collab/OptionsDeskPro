@@ -106,7 +106,7 @@ async def publish_legal_version(
             sb.table("legal_document_versions")
             .select("id")
             .eq("version_number", body.version_number)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
         if existing.data:
@@ -118,7 +118,7 @@ async def publish_legal_version(
         raise
     except Exception as e:
         logger.error("platform/legal/versions: uniqueness check failed: %s", e)
-        raise HTTPException(status_code=500, detail="Database error during version check.")
+        raise HTTPException(status_code=500, detail=f"Database error during version check: {e}")
 
     # Compute content_hash server-side — the canonical value stored in the DB.
     content_hash = hashlib.sha256(body.content_markdown.encode("utf-8")).hexdigest()
