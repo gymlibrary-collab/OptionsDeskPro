@@ -1,7 +1,27 @@
 import os
+import math
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
+
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with 0.0 so json.dumps never raises."""
+    if isinstance(obj, float):
+        return 0.0 if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
+class SafeJSONResponse(JSONResponse):
+    """JSONResponse that replaces NaN/Inf with 0.0 before encoding."""
+    def render(self, content) -> bytes:
+        return json.dumps(_sanitize(content), ensure_ascii=False).encode("utf-8")
 
 from routes.options import router as options_router
 from routes.orders import router as orders_router
@@ -18,7 +38,7 @@ from routes.public_routes import router as public_router
 from routes.legal_routes import router as legal_router
 from routes.platform_legal_routes import router as platform_legal_router
 
-app = FastAPI(title="Options Trading Dashboard", version="1.0.0")
+app = FastAPI(title="Options Trading Dashboard", version="1.0.0", default_response_class=SafeJSONResponse)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # Hardcoded client origins (unchanged from pre-SaaS to avoid breaking changes).
