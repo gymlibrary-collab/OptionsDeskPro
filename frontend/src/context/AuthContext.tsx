@@ -56,6 +56,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => api.interceptors.response.eject(id)
   }, [])
 
+  // Auto-refresh Supabase session on 401 ("Session does not exist" / expired token)
+  // and retry the original request once with the new token.
+  useEffect(() => {
+    let isRefreshing = false
+    const id = api.interceptors.response.use(
+      (res) => res,
+      async (err) => {
+        if (err?.response?.status === 401 && !err.config?._retried) {
+          if (!isRefreshing) {
+            isRefreshing = true
+            try {
+              const { data } = await supabase.auth.refreshSession()
+              if (data.session) {
+                const token = data.session.access_token
+                api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+                err.config._retried = true
+                err.config.headers = { ...err.config.headers, Authorization: `Bearer ${token}` }
+                isRefreshing = false
+                return api.request(err.config)
+              }
+            } catch {
+              // refresh failed — let the error propagate
+            }
+            isRefreshing = false
+          }
+        }
+        return Promise.reject(err)
+      }
+    )
+    return () => api.interceptors.response.eject(id)
+  }, [])
+
   const fetchEntitlements = useCallback(async () => {
     try {
       const data = await getEntitlements()
