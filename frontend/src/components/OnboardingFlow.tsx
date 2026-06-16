@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PricingPage from './PricingPage'
 import { useWindowSize } from '../hooks/useWindowSize'
-import { getLegalCurrentVersion, postLegalAcknowledge, LegalVersion } from '../api/client'
+import { getLegalCurrentVersion, postLegalAcknowledge, completeOnboarding, LegalVersion } from '../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -244,11 +244,9 @@ export default function OnboardingFlow({ initialStep = 'plan_selection', onCompl
   // Called when legal step is acknowledged.
   const handleLegalAcknowledged = (tier: string | null) => {
     if (!tier || tier === 'free') {
-      setStep('complete')
+      // Mark onboarding complete in DB so reload doesn't loop back here
+      completeOnboarding().catch(() => {}).finally(() => setStep('complete'))
     } else {
-      // Paid tier: redirect to Stripe (same pattern PricingPage uses internally)
-      // For the onboarding flow, after legal acknowledgment, the paid path goes to Stripe.
-      // We set step to 'payment' to show the indicator, then redirect.
       setStep('payment')
     }
   }

@@ -499,6 +499,9 @@ export interface Entitlements {
 export const getEntitlements = (): Promise<Entitlements> =>
   api.get('/auth/entitlements').then(r => r.data)
 
+export const completeOnboarding = (): Promise<{ ok: boolean }> =>
+  api.post('/auth/complete-onboarding').then(r => r.data)
+
 // ─── Public routes ───────────────────────────────────────────────────────────────────────────────
 
 export interface PlanFeatures {

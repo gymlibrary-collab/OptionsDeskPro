@@ -155,6 +155,23 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     }
 
 
+# ── Complete onboarding ───────────────────────────────────────────────────────
+
+@router.post("/auth/complete-onboarding")
+async def complete_onboarding(payload: dict = Depends(verify_token)):
+    """Mark the user's onboarding as complete (free-tier path, no Stripe needed)."""
+    sb = get_supabase()
+    user_id = get_user_id(payload)
+    try:
+        sb.table("user_profiles").update({
+            "onboarding_completed": True,
+            "onboarding_step": "complete",
+        }).eq("id", user_id).execute()
+    except Exception:
+        pass
+    return {"ok": True}
+
+
 # ── Me ────────────────────────────────────────────────────────────────────────
 
 @router.get("/auth/me")
