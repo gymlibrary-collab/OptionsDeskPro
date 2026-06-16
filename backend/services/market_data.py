@@ -274,13 +274,52 @@ def _empty_quote(symbol: str) -> dict:
             "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
 
+def _patch_bid_ask_from_yfinance(mda_chain: dict, symbol: str, expiry: Optional[str]) -> dict:
+    """Fill in missing bid/ask on MDA contracts using yfinance, matched by strike."""
+    yf_chain = _yfinance_chain(symbol, expiry)
+    if not yf_chain:
+        return mda_chain
+
+    def build_index(contracts: list) -> dict:
+        return {round(c["strike"], 2): c for c in contracts}
+
+    yf_calls = build_index(yf_chain.get("calls", []))
+    yf_puts  = build_index(yf_chain.get("puts", []))
+
+    def patch(contracts: list, yf_index: dict) -> list:
+        patched = []
+        for c in contracts:
+            if not c.get("bid") and not c.get("ask"):
+                yf = yf_index.get(round(c["strike"], 2), {})
+                c = {**c, "bid": yf.get("bid", 0.0), "ask": yf.get("ask", 0.0)}
+            patched.append(c)
+        return patched
+
+    return {
+        **mda_chain,
+        "calls": patch(mda_chain.get("calls", []), yf_calls),
+        "puts":  patch(mda_chain.get("puts",  []), yf_puts),
+    }
+
+
 def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     cache_key = f"chain:{symbol}:{expiry}"
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
-    result = _marketdata_chain(symbol, expiry) or _yfinance_chain(symbol, expiry)
+    mda = _marketdata_chain(symbol, expiry)
+    if mda:
+        # Check if bid/ask are largely missing (MDA returns null → 0 when market is closed)
+        all_contracts = mda.get("calls", []) + mda.get("puts", [])
+        missing_quotes = sum(1 for c in all_contracts if not c.get("bid") and not c.get("ask"))
+        if all_contracts and missing_quotes / len(all_contracts) > 0.5:
+            logger.info("MDA chain for %s has missing bid/ask on %d/%d contracts — patching from yfinance",
+                        symbol, missing_quotes, len(all_contracts))
+            mda = _patch_bid_ask_from_yfinance(mda, symbol, expiry)
+        result = mda
+    else:
+        result = _yfinance_chain(symbol, expiry)
 
     if result:
         _cache_set(cache_key, result)
