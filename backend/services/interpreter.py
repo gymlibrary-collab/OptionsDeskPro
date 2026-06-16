@@ -633,26 +633,46 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
             condition = f"This trade profits if {symbol} moves in the expected direction by expiration."
 
     if max_profit is not None:
-        profit_detail = (
-            f"Your maximum possible profit is {max_profit_dollars} per contract. "
-            f"This is achieved if all short options expire worthless (i.e. you keep every dollar of premium collected). "
-            f"As a good practice, it is recommended NOT to wait for maximum profit — the last few percent of gain isn't worth "
-            f"the additional gamma risk in the final days before expiration."
-        )
+        if net >= 0:  # credit spread
+            profit_detail = (
+                f"Your maximum possible profit is {max_profit_dollars} per contract. "
+                f"This is achieved if all short options expire worthless (i.e. you keep every dollar of premium collected). "
+                f"As a good practice, it is recommended NOT to wait for maximum profit — the last few percent of gain isn't worth "
+                f"the additional gamma risk in the final days before expiration."
+            )
+        else:  # debit spread
+            profit_detail = (
+                f"Your maximum possible profit is {max_profit_dollars} per contract. "
+                f"This is achieved when the spread reaches its full value at expiration — i.e. when {symbol} closes firmly past your short strike, "
+                f"so both legs are deep in-the-money and the spread is worth its full width. "
+                f"As a good practice, it is recommended NOT to wait for maximum profit — close early once you've captured a meaningful portion of the potential gain."
+            )
     else:
         profit_detail = (
             f"Your profit is uncapped on the upside — it grows the further {symbol} moves in your favour. "
             f"As a good practice, it is recommended to close when you've captured 50% of the initial credit collected."
         )
 
-    early_exit = (
-        f"A common exit guideline (established options trading methodology) is to close the trade when it reaches {profit_target_pct}% of max profit "
-        f"({target_dollars}). "
-        f"For example, if you collected ${abs(net)*100:.0f} in premium, you'd aim to close the position "
-        f"when you've made ${abs(net)*100*profit_target_pct/100:.0f} — at that point the position should "
-        f"cost around ${abs(net)*100*(1-profit_target_pct/100):.0f} to buy back. "
-        f"Closing early also frees up your capital to put on the next trade."
-    )
+    if net >= 0:  # credit spread
+        early_exit = (
+            f"A common exit guideline (established options trading methodology) is to close the trade when it reaches {profit_target_pct}% of max profit "
+            f"({target_dollars}). "
+            f"Since you collected ${abs(net)*100:.0f} in premium, you'd aim to close the position "
+            f"when you've made ${abs(net)*100*profit_target_pct/100:.0f} — at that point the position should "
+            f"cost around ${abs(net)*100*(1-profit_target_pct/100):.0f} to buy back. "
+            f"Closing early also frees up your capital to put on the next trade."
+        )
+    else:  # debit spread: net is negative
+        max_profit_dollars_val = (max_profit * 100) if max_profit else 0
+        gain_target = round(max_profit_dollars_val * profit_target_pct / 100)
+        sell_for = round(abs(net) * 100 + gain_target)
+        early_exit = (
+            f"A common exit guideline is to close the trade when it reaches {profit_target_pct}% of max profit "
+            f"({target_dollars}). "
+            f"Since you paid ${abs(net)*100:.0f} as a net debit, aim to sell the spread for approximately "
+            f"${sell_for:.0f} — that locks in ${gain_target:.0f} of the ${max_profit_dollars_val:.0f} maximum profit. "
+            f"Closing early avoids the risk of a reversal eroding your unrealized gain."
+        )
 
     pop_note = (
         f"Based on the delta of the short strikes, this setup has an estimated {pop_range[0]}–{pop_range[1]}% "
@@ -675,17 +695,27 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
 
     if risk_type == "DEFINED" and max_loss is not None:
         max_loss_dollars = max_loss * 100
-        loss_frame = (
-            f"Your maximum loss on this trade is ${max_loss_dollars:.0f} per contract — and that number "
-            f"cannot be exceeded no matter what {symbol} does. Even if the stock gaps down 30% overnight, "
-            f"your loss is still capped at ${max_loss_dollars:.0f}. "
-            f"This is the power of defined-risk spreads: you trade off some premium collected "
-            f"in exchange for a hard ceiling on how much you can lose."
-        )
+        if net >= 0:  # credit spread
+            loss_frame = (
+                f"Your maximum loss on this trade is ${max_loss_dollars:.0f} per contract — and that number "
+                f"cannot be exceeded no matter what {symbol} does. Even if the stock gaps down 30% overnight, "
+                f"your loss is still capped at ${max_loss_dollars:.0f}. "
+                f"This is the power of defined-risk spreads: you trade off some premium collected "
+                f"in exchange for a hard ceiling on how much you can lose."
+            )
+        else:  # debit spread
+            loss_frame = (
+                f"Your maximum loss on this trade is ${max_loss_dollars:.0f} per contract — the net debit you paid to enter. "
+                f"No matter what {symbol} does, you cannot lose more than that upfront cost. "
+                f"This is the power of defined-risk debit spreads: your worst case is fully known before you enter the trade."
+            )
         if max_loss_dollars > 0:
+            max_profit_trade = trade.get("max_profit")
+            max_reward = (max_profit_trade * 100) if max_profit_trade is not None else abs(net) * 100
+            ratio = max_reward / max_loss_dollars
             loss_frame += (
                 f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
-                f"${abs(net)*100:.0f} — a {abs(net)*100/max_loss_dollars:.1f}:1 risk/reward ratio. "
+                f"${max_reward:.0f} — a {ratio:.1f}:1 risk/reward ratio. "
                 f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
             )
     else:

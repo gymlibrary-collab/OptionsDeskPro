@@ -26,7 +26,7 @@ const FEATURES: {
     key: 'narrative_enabled',
     entitlementKey: 'ai_narrative',
     label: 'AI Narrative Enhancement',
-    description: 'Adds a Claude-written coaching paragraph to each strategy setup — explains the specific IV/bias edge, exact numbers, and what has to go wrong for the trade to lose.',
+    description: 'Adds an AI-written coaching paragraph to each strategy setup — explains the specific IV/bias edge, exact numbers, and what has to go wrong for the trade to lose.',
   },
   {
     key: 'chat_enabled',
@@ -252,7 +252,7 @@ export default function AISettings() {
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 700, color: C.text }}>AI Features</h2>
         <p style={{ margin: 0, fontSize: '14px', color: C.muted, lineHeight: 1.6 }}>
-          Toggle Claude-powered features on or off. Each feature uses the Anthropic API — costs are minimal for normal usage.
+          Toggle AI-powered features on or off. Each feature uses Google Gemini — responses are fast and costs are minimal for normal usage.
         </p>
       </div>
 
