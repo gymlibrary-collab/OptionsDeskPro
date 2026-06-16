@@ -26,7 +26,7 @@ options/
 │   ├── services/
 │   │   ├── auth_utils.py     JWT verify (via Supabase Auth API), admin check
 │   │   ├── db.py             Supabase client factory
-│   │   ├── market_data.py    Options chain: Market Data App (primary) → yfinance fallback → synthetic BS
+│   │   ├── market_data.py    Options chain: yfinance (primary) → synthetic BS fallback
 │   │   ├── iv_analysis.py    IV rank, HV, environment classification
 │   │   ├── greeks.py         Black-Scholes greeks
 │   │   ├── strategy_engine.py 31-strategy catalog, fit scoring, strike selection
@@ -81,7 +81,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 Required env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-Optional env var: `MARKETDATA_API_TOKEN` (from api.marketdata.app — omit to use yfinance only)
+Optional env var: `GEMINI_API_KEY` (from aistudio.google.com — required for AI features)
 
 ### Frontend
 ```bash
@@ -119,22 +119,25 @@ CORS origins are hardcoded in `backend/main.py`. Add new frontend domains there.
 
 ## Market data
 
-`market_data.py` uses a 3-tier fallback:
+`market_data.py` uses a 2-tier fallback:
 
-1. **Market Data App** (`MARKETDATA_API_TOKEN` set) — full greeks, real OPRA data, 5-min cache
-2. **yfinance** — free fallback, 30-sec cache; volume/openInterest NaN-safe via `_safe_int()`
-3. **Synthetic Black-Scholes chain** — last resort when both above fail; flagged `_synthetic=True`
+1. **yfinance** — primary source, 30-sec cache; volume/openInterest NaN-safe via `_safe_int()`
+2. **Synthetic Black-Scholes chain** — last resort when yfinance fails; flagged `_synthetic=True`
 
-The `MARKETDATA_API_TOKEN` is a backend-only variable — never expose it to the frontend.
-Cache TTL is source-aware: 300 s for marketdata, 30 s for yfinance.
+Bid/ask correction (`greeks.fill_quote`, applied in the options and strategies routes):
+yfinance returns 0/NaN bid/ask on illiquid contracts and stale below-intrinsic prices on
+deep-ITM strikes. `fill_quote` substitutes a Black-Scholes theoretical price (± 2.5%) when a
+quote is missing and clamps any quote up to the intrinsic-value floor. Real, sane quotes pass
+through untouched. The default options-chain expiry skips today (0-DTE has unreliable quotes
+and zero greeks) in favour of the nearest future expiry.
 
 ## Key invariants
 
 - `SUPABASE_JWT_SECRET` is **not** needed — do not add it back; it caused alg errors
 - Alpaca integration was removed — do not re-add `alpaca-py` or `alpaca_broker.py`
+- Market Data App integration was removed — market data is yfinance-only; do not re-add `MARKETDATA_API_TOKEN` or `_marketdata_chain`
 - Paper trades are stored in Supabase; they do **not** hit a real broker
 - IV rank is computed from 52-week high/low historical volatility (no external feed)
-- `MARKETDATA_API_TOKEN` is backend-only; a 429 on the first request usually means the token is wrong or the free-plan daily quota (100 credits) is exhausted
 
 ## Common mistakes to avoid
 

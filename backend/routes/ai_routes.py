@@ -210,9 +210,9 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
     E4 — Daily Morning Briefing. Free for all authenticated users.
 
     Checks the morning_briefings table for today's UTC date; returns cached if
-    found. Otherwise fetches the user's watchlist, runs a lightweight yfinance-
-    only IV+bias scan (no Market Data App credits), calls Claude Haiku to
-    generate a <120-word briefing, persists it, and returns it.
+    found. Otherwise fetches the user's watchlist, runs a lightweight yfinance
+    IV+bias scan, calls the AI model to generate a <120-word briefing, persists
+    it, and returns it.
 
     Response: {"briefing": "...", "date": "2026-06-13", "symbols": [...], "cached": true|false}
     """
@@ -279,7 +279,7 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
             pass
         return {"briefing": briefing_text, "date": today, "symbols": [], "cached": False}
 
-    # Lightweight IV+bias scan (yfinance only, no Market Data App credits consumed)
+    # Lightweight IV+bias scan (yfinance).
     # We import here to avoid module-level side effects.
     from services.iv_analysis import get_iv_rank, get_directional_bias
     from services.market_context import get_earnings_info

@@ -779,13 +779,7 @@ export interface RevenueMetrics {
 
 export interface HealthData {
   api_status: string
-  market_data_credits: {
-    date: string
-    calls_today: number
-    limit: number
-    pct: number
-    alert_level: 'ok' | 'warning' | 'critical'
-  }
+  market_data_source: string
   requests_last_24h: Record<string, number>
   active_sessions_last_15min: number
 }

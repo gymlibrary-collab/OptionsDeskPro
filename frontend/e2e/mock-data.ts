@@ -555,39 +555,9 @@ export const MOCK_REVENUE_METRICS = {
 /** Health panel data from GET /api/platform/health */
 export const MOCK_HEALTH_DATA = {
   api_status: 'ok',
-  market_data_credits: {
-    date: '2026-06-12',
-    calls_today: 43,
-    limit: 100,
-    pct: 43.0,
-    alert_level: 'ok',
-  },
+  market_data_source: 'yfinance',
   requests_last_24h: { strategy_analyze: 312, strategy_scan: 87 },
   active_sessions_last_15min: 14,
-}
-
-/** Health data with critical credit usage */
-export const MOCK_HEALTH_DATA_CRITICAL = {
-  ...MOCK_HEALTH_DATA,
-  market_data_credits: {
-    date: '2026-06-12',
-    calls_today: 100,
-    limit: 100,
-    pct: 100.0,
-    alert_level: 'critical',
-  },
-}
-
-/** Health data with warning credit usage */
-export const MOCK_HEALTH_DATA_WARNING = {
-  ...MOCK_HEALTH_DATA,
-  market_data_credits: {
-    date: '2026-06-12',
-    calls_today: 85,
-    limit: 100,
-    pct: 85.0,
-    alert_level: 'warning',
-  },
 }
 
 /** Staff list from GET /api/platform/staff */

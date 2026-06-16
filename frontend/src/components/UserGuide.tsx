@@ -520,7 +520,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
 
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Health Panel</div>
           <Sub>
-            <P>System health at a glance: API status, Market Data App credit usage, request counts, and active sessions. Alerts turn amber at 80% credit usage and red at 100%.</P>
+            <P>System health at a glance: API status, market data source, request counts, and active sessions.</P>
           </Sub>
 
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>FAQ Management</div>

@@ -621,10 +621,8 @@ async def get_health(staff: dict = Depends(require_staff(["owner"]))):
     System health panel data (FR-43, FR-44, FR-45, ADR-0006).
     No external API calls — all data from in-process counters and DB.
     """
-    from services.market_data import get_mda_credit_usage
     from services.metrics import get_counts_last_24h
 
-    mda = get_mda_credit_usage()
     request_counts = get_counts_last_24h()
 
     # Active sessions: users with last_seen_at in last 15 minutes
@@ -640,7 +638,7 @@ async def get_health(staff: dict = Depends(require_staff(["owner"]))):
 
     return {
         "api_status": "ok",
-        "market_data_credits": mda,
+        "market_data_source": "yfinance",
         "requests_last_24h":   request_counts,
         "active_sessions_last_15min": active_sessions,
     }

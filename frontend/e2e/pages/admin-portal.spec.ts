@@ -44,8 +44,6 @@ import {
   MOCK_PLATFORM_PRICING,
   MOCK_REVENUE_METRICS,
   MOCK_HEALTH_DATA,
-  MOCK_HEALTH_DATA_CRITICAL,
-  MOCK_HEALTH_DATA_WARNING,
   MOCK_STAFF_LIST,
   MOCK_ADMIN_FAQ,
 } from '../mock-data'
@@ -179,7 +177,7 @@ test.describe('Admin portal — /api/platform/* API mock contracts', () => {
     expect(result.status).toBe(401)
   })
 
-  test('GET /api/platform/health returns health panel shape with alert_level', async ({ authedPage }) => {
+  test('GET /api/platform/health returns health panel shape', async ({ authedPage }) => {
     await authedPage.route(`${API}platform/health`, (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_HEALTH_DATA) }))
 
@@ -188,33 +186,8 @@ test.describe('Admin portal — /api/platform/* API mock contracts', () => {
       return res.json()
     })
     expect(result).toHaveProperty('api_status', 'ok')
-    expect(result.market_data_credits).toHaveProperty('pct', 43.0)
-    expect(result.market_data_credits).toHaveProperty('alert_level', 'ok')
+    expect(result).toHaveProperty('market_data_source', 'yfinance')
     expect(result).toHaveProperty('active_sessions_last_15min', 14)
-  })
-
-  test('Health data: alert_level is critical when calls_today >= 100 (AC14.2)', async ({ authedPage }) => {
-    await authedPage.route(`${API}platform/health`, (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_HEALTH_DATA_CRITICAL) }))
-
-    const result = await authedPage.evaluate(async () => {
-      const res = await fetch('/api/platform/health')
-      return res.json()
-    })
-    expect(result.market_data_credits.alert_level).toBe('critical')
-    expect(result.market_data_credits.pct).toBeGreaterThanOrEqual(100)
-  })
-
-  test('Health data: alert_level is warning when calls_today >= 80% (AC14.2)', async ({ authedPage }) => {
-    await authedPage.route(`${API}platform/health`, (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_HEALTH_DATA_WARNING) }))
-
-    const result = await authedPage.evaluate(async () => {
-      const res = await fetch('/api/platform/health')
-      return res.json()
-    })
-    expect(result.market_data_credits.alert_level).toBe('warning')
-    expect(result.market_data_credits.pct).toBeGreaterThanOrEqual(80)
   })
 
   test('GET /api/platform/staff returns staff list shape (AC12.1, FR-51)', async ({ authedPage }) => {

@@ -40,8 +40,6 @@ export default function HealthPanel() {
     return () => clearInterval(interval)
   }, [load])
 
-  const alertColor = (level: string) => level === 'ok' ? C.success : level === 'warning' ? C.warning : C.error
-
   if (loading) return <div style={{ color: C.muted, fontSize: '14px', fontFamily: FONT }}>Loading health data...</div>
 
   return (
@@ -67,27 +65,12 @@ export default function HealthPanel() {
             </div>
           </Section>
 
-          {/* Market data credits */}
-          <Section title="Market Data Credits">
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ fontSize: '13px', color: C.muted }}>Today</span>
-                <span style={{ fontSize: '13px', color: alertColor(health.market_data_credits.alert_level), fontWeight: 600 }}>
-                  {health.market_data_credits.calls_today} / {health.market_data_credits.limit}
-                </span>
-              </div>
-              <div style={{ height: '6px', background: C.border, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(100, health.market_data_credits.pct)}%`,
-                  background: alertColor(health.market_data_credits.alert_level),
-                  borderRadius: '3px',
-                }} />
-              </div>
+          {/* Market data source */}
+          <Section title="Market Data Source">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: C.success }} />
+              <span style={{ fontSize: '14px', color: C.text, fontWeight: 600 }}>{health.market_data_source}</span>
             </div>
-            <span style={{ fontSize: '12px', color: alertColor(health.market_data_credits.alert_level), fontWeight: 600 }}>
-              {health.market_data_credits.pct.toFixed(0)}% — {health.market_data_credits.alert_level.toUpperCase()}
-            </span>
           </Section>
 
           {/* Active sessions */}

@@ -185,7 +185,7 @@ function DashboardSection({
     { key: 'subscribers', label: 'Subscribers', desc: 'View and manage subscriber accounts', roles: ['owner', 'support'] },
     { key: 'pricing', label: 'Pricing', desc: 'View and edit tier prices and entitlements', roles: ['owner', 'finance'] },
     { key: 'revenue', label: 'Revenue', desc: 'MRR, subscriber counts, churn', roles: ['owner', 'finance'] },
-    { key: 'health', label: 'Health', desc: 'API status, market data credits, active sessions', roles: ['owner'] },
+    { key: 'health', label: 'Health', desc: 'API status, market data source, active sessions', roles: ['owner'] },
     { key: 'faq', label: 'FAQ Editor', desc: 'Create and publish FAQ articles', roles: ['owner', 'support'] },
     { key: 'legal', label: 'Legal', desc: 'Manage legal document versions and view subscriber acknowledgment history', roles: ['owner', 'support', 'finance'] },
     { key: 'staff', label: 'Staff', desc: 'Invite staff, manage roles', roles: ['owner'] },

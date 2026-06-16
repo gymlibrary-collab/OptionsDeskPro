@@ -1,9 +1,7 @@
 import yfinance as yf
 import time
-import os
 import math
-import requests as _requests
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 import logging
 
@@ -30,52 +28,14 @@ def _safe_float(val, default: float = 0.0) -> float:
         return default
 
 _cache: dict = {}
-_TTL_MARKETDATA = 300   # 5 min — conserve API credits
-_TTL_YFINANCE   = 30    # 30 s
-
-# ── Market Data App credit counter (ADR-0006) ────────────────────────────────
-# In-process counter keyed by UTC date string. Resets on process restart.
-# Approximate — not accurate across multiple backend instances.
-_mda_credit_counter: dict[str, int] = {}
-
-_MDA_DAILY_LIMIT = 100  # Market Data App free plan daily quota
-
-
-def _mda_increment() -> None:
-    """Increment today's Market Data App credit counter."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    _mda_credit_counter[today] = _mda_credit_counter.get(today, 0) + 1
-
-
-def get_mda_credit_usage() -> dict:
-    """
-    Return the current-day Market Data App credit usage.
-    Called by GET /api/platform/health — no external API call made.
-    """
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    calls_today = _mda_credit_counter.get(today, 0)
-    pct = round(calls_today / _MDA_DAILY_LIMIT * 100, 1)
-    if pct >= 100:
-        alert_level = "critical"
-    elif pct >= 80:
-        alert_level = "warning"
-    else:
-        alert_level = "ok"
-    return {
-        "date": today,
-        "calls_today": calls_today,
-        "limit": _MDA_DAILY_LIMIT,
-        "pct": pct,
-        "alert_level": alert_level,
-    }
+_TTL_YFINANCE = 30    # 30 s
 
 
 def _cache_get(key: str) -> Optional[dict]:
     entry = _cache.get(key)
     if not entry:
         return None
-    ttl = _TTL_MARKETDATA if entry["data"].get("_source") == "marketdata" else _TTL_YFINANCE
-    if (time.time() - entry["ts"]) < ttl:
+    if (time.time() - entry["ts"]) < _TTL_YFINANCE:
         return entry["data"]
     return None
 
@@ -84,106 +44,7 @@ def _cache_set(key: str, data: dict):
     _cache[key] = {"data": data, "ts": time.time()}
 
 
-# ── Market Data App (primary) ────────────────────────────────────────────────
-
-def _marketdata_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
-    """Fetch options chain from api.marketdata.app. Returns None if unconfigured or on any error."""
-    token = os.environ.get("MARKETDATA_API_TOKEN", "").strip()
-    if not token:
-        return None
-
-    url = f"https://api.marketdata.app/v1/options/chain/{symbol}/"
-    headers = {"Authorization": f"Token {token}"}
-    params: dict = {}
-    if expiry:
-        params["expiration"] = expiry
-    else:
-        params["minDte"] = 0
-        params["maxDte"] = 180  # up to ~6 months of expirations
-
-    try:
-        resp = _requests.get(url, headers=headers, params=params, timeout=15)
-        if resp.status_code == 401:
-            logger.error("MarketData.app: invalid MARKETDATA_API_TOKEN")
-            return None
-        if resp.status_code != 200:
-            logger.warning("MarketData.app chain %s: HTTP %s", symbol, resp.status_code)
-            return None
-
-        data = resp.json()
-        if data.get("s") != "ok":
-            logger.info("MarketData.app chain %s: s=%s", symbol, data.get("s"))
-            return None
-
-        opt_symbols = data.get("optionSymbol", [])
-        n = len(opt_symbols)
-        if n == 0:
-            return None
-
-        def _val(field: str, i: int, default=0):
-            arr = data.get(field)
-            if not arr or i >= len(arr) or arr[i] is None:
-                return default
-            return arr[i]
-
-        def _exp_str(raw) -> str:
-            if isinstance(raw, (int, float)):
-                return datetime.utcfromtimestamp(raw).strftime("%Y-%m-%d")
-            if isinstance(raw, str):
-                return raw[:10]
-            return expiry or ""
-
-        contracts = []
-        for i in range(n):
-            contracts.append({
-                "contractSymbol":    opt_symbols[i],
-                "strike":            float(_val("strike", i, 0)),
-                "lastPrice":         float(_val("last",   i, 0)),
-                "bid":               float(_val("bid",    i, 0)),
-                "ask":               float(_val("ask",    i, 0)),
-                "change":            0.0,
-                "percentChange":     0.0,
-                "volume":            int(_val("volume",       i, 0)),
-                "openInterest":      int(_val("openInterest", i, 0)),
-                "impliedVolatility": float(_val("iv",    i, 0)),
-                "inTheMoney":        bool(_val("inTheMoney", i, False)),
-                "delta":             float(_val("delta", i, 0)),
-                "gamma":             float(_val("gamma", i, 0)),
-                "theta":             float(_val("theta", i, 0)),
-                "vega":              float(_val("vega",  i, 0)),
-                "_side": _val("side", i, "call"),
-                "_exp":  _exp_str(_val("expiration", i, expiry)),
-            })
-
-        all_expiries = sorted({c["_exp"] for c in contracts if c["_exp"]})
-        actual_expiry = expiry if expiry in all_expiries else (all_expiries[0] if all_expiries else expiry)
-
-        calls, puts = [], []
-        for c in contracts:
-            if c["_exp"] != actual_expiry:
-                continue
-            row = {k: v for k, v in c.items() if not k.startswith("_")}
-            if c["_side"] == "call":
-                calls.append(row)
-            else:
-                puts.append(row)
-
-        result = {
-            "expirations": all_expiries,
-            "expiry":      actual_expiry,
-            "calls":       calls,
-            "puts":        puts,
-            "_source":     "marketdata",
-        }
-        # Increment credit counter after a successful API response (ADR-0006)
-        _mda_increment()
-        return result
-    except Exception as e:
-        logger.warning("MarketData.app chain failed for %s: %s", symbol, e)
-        return None
-
-
-# ── yfinance (fallback) ──────────────────────────────────────────────────────
+# ── yfinance (options chain source) ──────────────────────────────────────────
 
 def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
     try:
@@ -307,85 +168,13 @@ def _empty_quote(symbol: str) -> dict:
             "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
 
-def _patch_bid_ask_from_yfinance(mda_chain: dict, symbol: str, expiry: Optional[str]) -> dict:
-    """Fill in missing bid/ask on MDA contracts using yfinance, matched by strike.
-
-    If yfinance doesn't carry the exact expiry, picks the nearest available one
-    (strikes usually overlap for equity options). Any contracts still at 0 after
-    the yfinance patch are synthesised from lastPrice ± 5%.
-    """
-    try:
-        ticker = yf.Ticker(symbol)
-        expirations = ticker.options
-        if not expirations:
-            raise ValueError("no expirations")
-
-        # Find the closest available yfinance expiry to the MDA expiry
-        target = expiry or (expirations[0] if expirations else None)
-        if target and target not in expirations:
-            from datetime import datetime
-            try:
-                target_dt = datetime.strptime(target, "%Y-%m-%d")
-                target = min(expirations, key=lambda e: abs((datetime.strptime(e, "%Y-%m-%d") - target_dt).days))
-            except Exception:
-                target = expirations[0]
-
-        chain = ticker.option_chain(target)
-
-        def df_to_index(df):
-            idx = {}
-            for _, row in df.iterrows():
-                strike = _safe_float(row.get("strike"))
-                idx[round(strike, 2)] = {
-                    "bid": _safe_float(row.get("bid")),
-                    "ask": _safe_float(row.get("ask")),
-                    "lastPrice": _safe_float(row.get("lastPrice")),
-                }
-            return idx
-
-        yf_calls = df_to_index(chain.calls)
-        yf_puts  = df_to_index(chain.puts)
-    except Exception as e:
-        logger.debug("yfinance bid/ask patch failed for %s: %s", symbol, e)
-        yf_calls, yf_puts = {}, {}
-
-    def patch(contracts: list, yf_index: dict) -> list:
-        patched = []
-        for c in contracts:
-            if not c.get("bid") and not c.get("ask"):
-                yf = yf_index.get(round(c["strike"], 2), {})
-                # Use real yfinance quotes when present; anything still missing
-                # is corrected downstream in greeks.fill_quote.
-                c = {**c, "bid": yf.get("bid", 0.0), "ask": yf.get("ask", 0.0)}
-            patched.append(c)
-        return patched
-
-    return {
-        **mda_chain,
-        "calls": patch(mda_chain.get("calls", []), yf_calls),
-        "puts":  patch(mda_chain.get("puts",  []), yf_puts),
-    }
-
-
 def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     cache_key = f"chain:{symbol}:{expiry}"
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
-    mda = _marketdata_chain(symbol, expiry)
-    if mda:
-        # Patch any contracts where MDA returned null/0 bid+ask (common outside market hours)
-        all_contracts = mda.get("calls", []) + mda.get("puts", [])
-        missing_quotes = sum(1 for c in all_contracts if not c.get("bid") and not c.get("ask"))
-        if missing_quotes > 0:
-            logger.info("MDA chain for %s: %d/%d contracts missing bid/ask — patching from yfinance",
-                        symbol, missing_quotes, len(all_contracts))
-            mda = _patch_bid_ask_from_yfinance(mda, symbol, expiry)
-        result = mda
-    else:
-        result = _yfinance_chain(symbol, expiry)
-
+    result = _yfinance_chain(symbol, expiry)
     if result:
         _cache_set(cache_key, result)
         return result
@@ -412,7 +201,7 @@ def get_option_price(symbol: str, expiry: str, strike: float, option_type: str) 
 
 def synthetic_options_chain(symbol: str, spot: float, iv: float) -> dict:
     """
-    Black-Scholes synthetic chain — last resort when both Market Data App and yfinance fail.
+    Black-Scholes synthetic chain — last resort when yfinance fails.
     Flagged with _synthetic=True so callers can add a disclaimer.
     """
     from datetime import date, timedelta
