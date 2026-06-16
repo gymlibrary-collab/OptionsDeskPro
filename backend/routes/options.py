@@ -1,11 +1,32 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import date
+import logging
 
-from services.market_data import get_quote, get_options_chain
+from services.market_data import get_quote, get_options_chain, _marketdata_chain, _yfinance_chain
 from services.greeks import calculate_greeks
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+@router.get("/options/debug/{symbol}")
+def debug_chain(symbol: str, expiry: Optional[str] = Query(None)):
+    """Temporary debug endpoint — shows raw bid/ask from each data source."""
+    sym = symbol.upper()
+    mda = _marketdata_chain(sym, expiry)
+    yf  = _yfinance_chain(sym, expiry)
+
+    def sample(contracts, n=3):
+        return [{"strike": c["strike"], "bid": c.get("bid"), "ask": c.get("ask"), "lastPrice": c.get("lastPrice")}
+                for c in contracts[:n]]
+
+    return {
+        "mda_source": bool(mda),
+        "mda_calls_sample": sample(mda.get("calls", [])) if mda else [],
+        "yf_source": bool(yf),
+        "yf_calls_sample": sample(yf.get("calls", [])) if yf else [],
+    }
 
 
 @router.get("/options/chain/{symbol}")
