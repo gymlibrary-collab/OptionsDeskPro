@@ -240,13 +240,28 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
   const [scanned, setScanned] = useState(false)
 
   // Load from Supabase on mount, fall back to localStorage
+  // If DB is empty but localStorage has symbols, push them to DB so the
+  // morning briefing (which reads the DB) can see them.
   useEffect(() => {
     getWatchlist()
-      .then(state => {
+      .then(async state => {
         setWatchlistState(state)
         if (state.symbols.length > 0) {
           setSymbols(state.symbols)
           localStorage.setItem(LS_KEY, JSON.stringify(state.symbols))
+        } else {
+          // DB is empty — push whatever is in localStorage now
+          const local: string[] = (() => {
+            try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+          })()
+          if (local.length > 0) {
+            try {
+              await saveWatchlist(local)
+              const refreshed = await getWatchlist()
+              setWatchlistState(refreshed)
+              setBriefingRevision(r => r + 1)
+            } catch { /* best-effort */ }
+          }
         }
       })
       .catch(() => { /* stay with localStorage */ })
