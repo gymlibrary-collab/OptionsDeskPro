@@ -132,6 +132,50 @@ def test_vertical_both_sides_positive(key, dense_chain, spot):
     assert trade["max_loss"] > 0, f"{key}: max_loss not positive"
 
 
+# ── Iron condor / Iron fly max_loss correctness ──────────────────────────────
+
+WINGS = ["iron_condor", "iron_fly"]
+
+
+@pytest.mark.parametrize("key", WINGS)
+def test_wing_max_loss_equals_spread_width_minus_credit(key, dense_chain, spot):
+    """max_profit + max_loss must equal the wider individual spread width.
+    The old bug used the total outer span (all 4 strikes), overstating max_loss ~6×."""
+    trade = build_trade("TEST", key, dense_chain, spot)
+    assert "error" not in trade
+
+    legs = _option_legs(trade)
+    put_strikes = [l["strike"] for l in legs if l["option_type"] == "put"]
+    call_strikes = [l["strike"] for l in legs if l["option_type"] == "call"]
+
+    put_width = abs(max(put_strikes) - min(put_strikes))
+    call_width = abs(max(call_strikes) - min(call_strikes))
+    spread_width = max(put_width, call_width)
+
+    total = trade["max_profit"] + trade["max_loss"]
+    assert abs(total - spread_width) < 0.02, (
+        f"{key}: max_profit ({trade['max_profit']}) + max_loss ({trade['max_loss']}) "
+        f"= {total}, but wider spread width is {spread_width} "
+        f"(put_w={put_width}, call_w={call_width})"
+    )
+
+
+@pytest.mark.parametrize("key", WINGS)
+def test_wing_max_loss_less_than_outer_span(key, dense_chain, spot):
+    """Sanity: max_loss must be strictly less than the total outer-strike span."""
+    trade = build_trade("TEST", key, dense_chain, spot)
+    assert "error" not in trade
+
+    legs = _option_legs(trade)
+    all_strikes = [l["strike"] for l in legs]
+    outer_span = abs(max(all_strikes) - min(all_strikes))
+
+    assert trade["max_loss"] < outer_span, (
+        f"{key}: max_loss ({trade['max_loss']}) >= outer span ({outer_span}) — "
+        "looks like the old span-width bug"
+    )
+
+
 @pytest.mark.parametrize("key", ALL_KEYS)
 def test_breakevens_ordered(key, dense_chain, spot):
     trade = build_trade("TEST", key, dense_chain, spot)

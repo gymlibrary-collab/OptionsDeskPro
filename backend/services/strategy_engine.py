@@ -773,8 +773,9 @@ def build_comparison_matrix(
                 if leg.get("option_type") == "stock":
                     delta_sum += leg.get("delta", 1.0)
                     continue
-                sign = 1.0 if leg.get("action") == "sell" else -1.0
-                delta_sum += leg.get("delta", 0.0)
+                # Short positions negate the per-leg greek; long positions keep it.
+                sign = -1.0 if leg.get("action") == "sell" else 1.0
+                delta_sum += sign * leg.get("delta", 0.0)
                 t = leg.get("theta")
                 v = leg.get("vega")
                 if t is not None:
@@ -925,6 +926,8 @@ def _mid(contract: dict) -> float:
     ask = contract.get("ask", 0.0)
     if bid > 0 and ask > 0:
         return round((bid + ask) / 2, 2)
+    if ask > 0:
+        return round(ask / 2, 2)
     return round(contract.get("lastPrice", 0.0), 2)
 
 
@@ -972,7 +975,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     puts = options_chain.get("puts", [])
 
     legs = []
-    estimated_credit = 0.0
 
     # Track strikes already claimed per option_type so two legs of the same type
     # never resolve to the same strike on a sparse chain. Intentional same-strike
@@ -1358,15 +1360,26 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     if strat["risk_type"] == "DEFINED":
         # Width of spread as proxy for max loss
         if short_strikes and long_strikes:
-            width = abs(
-                max(short_strikes + long_strikes) - min(short_strikes + long_strikes)
-            )
-            if net >= 0:  # credit spread
-                max_profit = net
-                max_loss = round(width - net, 2)
-            else:  # debit spread
-                max_profit = round(width + net, 2)  # net is negative for debit
-                max_loss = round(-net, 2)
+            if strategy_key in ("iron_condor", "iron_fly"):
+                # Max loss = wider individual spread width minus total credit.
+                # Using the total outer-strike span would overstate max_loss by ~6×.
+                put_strikes_all = [l["strike"] for l in legs if l["option_type"] == "put"]
+                call_strikes_all = [l["strike"] for l in legs if l["option_type"] == "call"]
+                put_w = abs(max(put_strikes_all) - min(put_strikes_all)) if put_strikes_all else 0.0
+                call_w = abs(max(call_strikes_all) - min(call_strikes_all)) if call_strikes_all else 0.0
+                spread_width = max(put_w, call_w)
+                max_profit = round(net, 2)
+                max_loss = round(spread_width - net, 2)
+            else:
+                width = abs(
+                    max(short_strikes + long_strikes) - min(short_strikes + long_strikes)
+                )
+                if net >= 0:  # credit spread
+                    max_profit = net
+                    max_loss = round(width - net, 2)
+                else:  # debit spread
+                    max_profit = round(width + net, 2)  # net is negative for debit
+                    max_loss = round(-net, 2)
         else:
             max_profit = abs(net)
             max_loss = abs(net) * 2
