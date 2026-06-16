@@ -39,7 +39,9 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
           : err?.message || 'Authentication failed.'
       setError(msg)
       setStaffProfile(null)
-      await supabase.auth.signOut()
+      // Clear only the admin portal's auth header — do NOT call supabase.auth.signOut()
+      // here because both portals share the same Supabase project and signing out would
+      // invalidate the user's main client-portal session too.
       delete api.defaults.headers.common['Authorization']
     } finally {
       setLoading(false)
