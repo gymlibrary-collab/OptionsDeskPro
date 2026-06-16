@@ -249,14 +249,41 @@ def get_quote(symbol: str) -> dict:
         info = ticker.fast_info
         hist = ticker.history(period="2d")
 
-        if hist.empty:
-            return _empty_quote(symbol)
+        # Prefer the real-time last price from fast_info; fall back to the
+        # most recent daily close only if it's unavailable.
+        last_price = None
+        try:
+            lp = getattr(info, "last_price", None)
+            if lp is not None:
+                lp = float(lp)
+                if lp > 0 and not (math.isnan(lp) or math.isinf(lp)):
+                    last_price = lp
+        except Exception:
+            last_price = None
 
-        last_close = float(hist["Close"].iloc[-1])
-        prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
-        change = last_close - prev_close
+        hist_close = float(hist["Close"].iloc[-1]) if not hist.empty else 0.0
+
+        if last_price is None:
+            if hist.empty:
+                return _empty_quote(symbol)
+            last_price = hist_close
+
+        # Previous close: prefer fast_info, else the prior daily bar.
+        prev_close = None
+        try:
+            pc = getattr(info, "previous_close", None)
+            if pc is not None:
+                pc = float(pc)
+                if pc > 0 and not (math.isnan(pc) or math.isinf(pc)):
+                    prev_close = pc
+        except Exception:
+            prev_close = None
+        if prev_close is None:
+            prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_price
+
+        change = last_price - prev_close
         change_pct = (change / prev_close * 100) if prev_close else 0.0
-        volume = int(hist["Volume"].iloc[-1]) if "Volume" in hist.columns else 0
+        volume = int(hist["Volume"].iloc[-1]) if (not hist.empty and "Volume" in hist.columns) else 0
 
         try:
             market_cap = getattr(info, "market_cap", None) or 0
@@ -265,7 +292,7 @@ def get_quote(symbol: str) -> dict:
 
         result = {
             "symbol":        symbol.upper(),
-            "price":         round(last_close, 2),
+            "price":         round(last_price, 2),
             "previousClose": round(prev_close, 2),
             "change":        round(change, 2),
             "changePercent": round(change_pct, 2),
