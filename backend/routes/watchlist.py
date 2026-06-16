@@ -34,14 +34,17 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
     symbols = [r["symbol"] for r in (symbols_result.data or [])]
 
     month = datetime.utcnow().strftime("%Y-%m")
-    usage_result = (
-        db.table("scan_usage")
-        .select("scans_used")
-        .eq("user_id", user_id)
-        .eq("month", month)
-        .execute()
-    )
-    scans_used = usage_result.data[0]["scans_used"] if usage_result.data else 0
+    try:
+        usage_result = (
+            db.table("scan_usage")
+            .select("scans_used")
+            .eq("user_id", user_id)
+            .eq("month", month)
+            .execute()
+        )
+        scans_used = usage_result.data[0]["scans_used"] if (usage_result and usage_result.data) else 0
+    except Exception:
+        scans_used = 0
 
     max_symbols = entitlements["max_symbols"]
     over_limit = max_symbols is not None and len(symbols) > max_symbols

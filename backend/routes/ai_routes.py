@@ -250,15 +250,13 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
         briefing_text = (
             "Your watchlist is empty. Add some tickers to receive a personalised morning briefing."
         )
-        sb.table("morning_briefings").upsert(
-            {
-                "user_id": user_id,
-                "briefing_date": today,
-                "symbols": [],
-                "briefing_text": briefing_text,
-            },
-            on_conflict="user_id,briefing_date",
-        ).execute()
+        try:
+            sb.table("morning_briefings").upsert(
+                {"user_id": user_id, "briefing_date": today, "symbols": [], "briefing_text": briefing_text},
+                on_conflict="user_id,briefing_date",
+            ).execute()
+        except Exception:
+            pass
         return {"briefing": briefing_text, "date": today, "symbols": [], "cached": False}
 
     # Lightweight IV+bias scan (yfinance only, no Market Data App credits consumed)
