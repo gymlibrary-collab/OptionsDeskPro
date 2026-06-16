@@ -438,6 +438,47 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </Note>
       </Section>
 
+      {/* ── AI FEATURES ── */}
+      <Section title="AI Features — What They Do & What They Need">
+        <P>
+          The <strong>AI Features</strong> tab provides eleven AI-powered tools that analyse your watchlist,
+          portfolio, and trades using Claude (Anthropic's AI). All AI features require an active
+          <strong> Anthropic API key</strong> to be configured by the platform administrator — without it,
+          the features are available in the UI but AI generation will show a fallback message.
+        </P>
+
+        <Note color={C.amber}>
+          <strong>No Anthropic API key?</strong> The Strategy Scanner, Options Chain, narrative analysis,
+          paper trading, and all core features work fully without it. Only the AI tab features listed below
+          require the key.
+        </Note>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.accent, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>All 11 AI Features (Pro/Enterprise)</div>
+            <Sub>
+              <Term term="1. Morning Briefing">A daily &lt;120-word market summary covering your watchlist symbols — IV regime, earnings risk, and strategy suggestions. Auto-regenerates when you update your watchlist.</Term>
+              <Term term="2. AI Chat">Ask plain-English questions about your portfolio. Example: "Which of my positions has the most theta risk?" Replies in context of your open trades.</Term>
+              <Term term="3. AI Risk Summary">Synthesises your position risk signals into a single paragraph — flags concentration risk, DTE urgency, and positions breaching loss rules.</Term>
+              <Term term="4. AI Strategy Reasoning">After running a deep analysis on a symbol, this explains in plain English why a specific strategy was ranked the way it was, given the current IV and bias.</Term>
+              <Term term="5. AI Narrative Enhancement">Enriches the standard plain-English narrative with additional market context, flow interpretation, and macro backdrop — beyond what the rule-based narrative covers.</Term>
+              <Term term="6. Earnings Awareness">Surfaces earnings dates for watchlist symbols and explains how an upcoming announcement affects the strategy selection and position sizing.</Term>
+              <Term term="7. Trade Journal Review">After closing a trade, submit it for an AI post-mortem: entry consistency, rule adherence, and behavioural patterns graded A–D.</Term>
+              <Term term="8. Roll Advisor">When a position approaches 21 DTE or a loss threshold, the Roll Advisor suggests whether to roll, close, or adjust — with specific strike and expiry recommendations.</Term>
+              <Term term="9. Greeks Coaching">Explains what your current portfolio-level Greeks (delta, theta, vega) mean in plain English and suggests rebalancing actions if any exposure is outsized.</Term>
+              <Term term="10. News Sentiment">Analyses recent headlines for your watchlist symbols and summarises the sentiment impact on each ticker's options pricing.</Term>
+              <Term term="11. AI Strategy Comparison">After scanning a symbol, compares two or more strategies side-by-side with an AI-written explanation of the trade-offs in the current market environment.</Term>
+            </Sub>
+          </div>
+        </div>
+
+        <Note>
+          AI features are enabled per-account in the <strong>AI Features</strong> tab. Each feature has an
+          individual toggle — you can enable only the ones you want. All AI calls are made server-side;
+          your data is never sent directly to Anthropic from your browser.
+        </Note>
+      </Section>
+
       {/* ── FAQ ── */}
       <Section title="FAQ & Knowledge Base">
         <P>
