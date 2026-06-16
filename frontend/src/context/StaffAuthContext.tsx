@@ -26,7 +26,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     api.defaults.headers.common['Authorization'] = `Bearer ${sess.access_token}`
     try {
       const profile = await getStaffMe()
-      if (!profile.is_active) {
+      if (profile.is_active === false) {
         throw new Error('You do not have admin portal access.')
       }
       setStaffProfile(profile)

@@ -107,6 +107,7 @@ def require_staff(allowed_roles: list[str] | None = None):
             "email":      email,
             "staff_role": staff_role,
             "full_name":  staff_row.get("full_name", ""),
+            "is_active":  True,
         }
 
     return _dependency
