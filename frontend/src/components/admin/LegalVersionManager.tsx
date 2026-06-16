@@ -178,7 +178,8 @@ export default function LegalVersionManager({ staffRole }: Props) {
       } else if (err?.response?.status === 422) {
         setPublishError(err?.response?.data?.detail || 'Invalid input. Check all fields.')
       } else {
-        setPublishError('Failed to publish version. Please try again.')
+        const detail = err?.response?.data?.detail
+        setPublishError(detail ? `Publish failed: ${detail}` : 'Failed to publish version. Please try again.')
       }
     } finally {
       setPublishLoading(false)

@@ -131,7 +131,7 @@ async def publish_legal_version(
         sb.table("legal_document_versions").update({"is_active": False}).eq("is_active", True).execute()
     except Exception as e:
         logger.error("platform/legal/versions: deactivate current version failed: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to publish legal version.")
+        raise HTTPException(status_code=500, detail=f"Failed to deactivate current version: {e}")
 
     try:
         insert_result = sb.table("legal_document_versions").insert({
@@ -145,7 +145,7 @@ async def publish_legal_version(
         }).execute()
     except Exception as e:
         logger.error("platform/legal/versions: insert new version failed: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to publish legal version.")
+        raise HTTPException(status_code=500, detail=f"Failed to insert new version: {e}")
 
     new_id = insert_result.data[0]["id"] if insert_result.data else None
 
