@@ -13,11 +13,13 @@ logger = logging.getLogger(__name__)
 @router.get("/options/debug/{symbol}")
 def debug_chain(symbol: str, expiry: Optional[str] = Query(None)):
     """Temporary debug endpoint — shows raw bid/ask from each data source."""
+    from services.market_data import get_options_chain as _get_chain
     sym = symbol.upper()
     mda = _marketdata_chain(sym, expiry)
     yf  = _yfinance_chain(sym, expiry)
+    final = _get_chain(sym, expiry)
 
-    def sample(contracts, n=3):
+    def sample(contracts, n=5):
         return [{"strike": c["strike"], "bid": c.get("bid"), "ask": c.get("ask"), "lastPrice": c.get("lastPrice")}
                 for c in contracts[:n]]
 
@@ -26,6 +28,8 @@ def debug_chain(symbol: str, expiry: Optional[str] = Query(None)):
         "mda_calls_sample": sample(mda.get("calls", [])) if mda else [],
         "yf_source": bool(yf),
         "yf_calls_sample": sample(yf.get("calls", [])) if yf else [],
+        "final_expiry": final.get("expiry"),
+        "final_calls_sample": sample(final.get("calls", [])),
     }
 
 
