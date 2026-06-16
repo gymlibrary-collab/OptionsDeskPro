@@ -86,7 +86,7 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
         escalate("yellow")
     elif dte <= 21:
         signals.append({"level": "yellow", "type": "dte",
-                         "msg": f"{dte} days to expiry. You've entered the danger zone. The tastylive rule is to close at 21 DTE because theta accelerates and the risk/reward worsens from here."})
+                         "msg": f"{dte} days to expiry. You've entered the danger zone. As a good practice, it is recommended to close at 21 DTE because theta accelerates and the risk/reward worsens from here."})
         escalate("yellow")
 
     # ── P&L thresholds ──────────────────────────────────────────────────────────────────

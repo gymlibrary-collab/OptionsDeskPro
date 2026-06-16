@@ -230,7 +230,7 @@ def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
             f"for options that, statistically, will lose value faster than their pricing implies. "
             f"When IV eventually contracts (which it almost always does after spikes), "
             f"short options positions benefit from that contraction on top of normal time decay. "
-            f"This is what tastylive calls 'selling overpriced insurance.'"
+            f"This is commonly referred to as 'selling overpriced insurance.'"
         )
 
     term_para = ""
@@ -306,13 +306,13 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
         if risk_type == "DEFINED"
         else
         f"It is an **undefined-risk** trade — losses can theoretically grow if {symbol} moves sharply against you. "
-        f"tastylive recommends keeping this position to 1–3% of your total portfolio and using the 2× credit rule as a stop."
+        f"As a good practice, it is recommended to keep this position to 1–3% of your total portfolio and use the 2× credit rule as a stop."
     )
 
     pop_note = (
         f"The estimated probability of profit is {pop_range[0]}–{pop_range[1]}%, "
         f"meaning that statistically, this trade wins more often than it loses. "
-        f"tastylive's approach is to put on many high-probability trades, take losses when they happen, "
+        f"A common approach is to put on many high-probability trades, take losses when they happen, "
         f"and let the math work over time."
     )
 
@@ -455,7 +455,7 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
                     + (
                         f"Selling premium into an earnings event is high-risk: implied volatility will collapse immediately after the announcement, "
                         f"but the stock may gap sharply through your strikes. "
-                        f"tastylive's rule: either close the position before earnings, or size it at half your normal allocation."
+                        f"As a good practice, it is recommended to either close the position before earnings, or size it at half your normal allocation."
                         if is_seller
                         else f"Buying options into an earnings event can be powerful — you benefit from both the directional move AND the pre-earnings IV expansion. "
                         f"However, if the stock moves less than the options are pricing in, IV crush can hurt you even if you're directionally right."
@@ -578,7 +578,7 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
 
     sections.append(
         f"The trade expires on {expiry} — that is {dte} calendar days from today. "
-        f"You do not need to hold until expiration. tastylive recommends closing early once the "
+        f"You do not need to hold until expiration. As a good practice, it is recommended to close early once the "
         f"trade has reached its profit target, to avoid last-week gamma risk."
     )
 
@@ -636,17 +636,17 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
         profit_detail = (
             f"Your maximum possible profit is {max_profit_dollars} per contract. "
             f"This is achieved if all short options expire worthless (i.e. you keep every dollar of premium collected). "
-            f"tastylive recommends NOT waiting for maximum profit — the last few percent of gain isn't worth "
+            f"As a good practice, it is recommended NOT to wait for maximum profit — the last few percent of gain isn't worth "
             f"the additional gamma risk in the final days before expiration."
         )
     else:
         profit_detail = (
             f"Your profit is uncapped on the upside — it grows the further {symbol} moves in your favour. "
-            f"tastylive recommends closing when you've captured 50% of the initial credit collected."
+            f"As a good practice, it is recommended to close when you've captured 50% of the initial credit collected."
         )
 
     early_exit = (
-        f"A common exit guideline (tastylive framework) is to close the trade when it reaches {profit_target_pct}% of max profit "
+        f"A common exit guideline (established options trading methodology) is to close the trade when it reaches {profit_target_pct}% of max profit "
         f"({target_dollars}). "
         f"For example, if you collected ${abs(net)*100:.0f} in premium, you'd aim to close the position "
         f"when you've made ${abs(net)*100*profit_target_pct/100:.0f} — at that point the position should "
@@ -692,7 +692,7 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
         loss_frame = (
             f"This is an undefined-risk trade, which means there is no hard ceiling on losses. "
             f"In theory, if {symbol} moves far enough against you, the loss can be substantial. "
-            f"In practice, tastylive manages this risk with two rules:\n"
+            f"A common way to manage this risk follows two rules:\n"
             f"1. Position sizing: never let this trade represent more than 1–3% of your total portfolio value.\n"
             f"2. The 2× rule: if the trade has lost 2× the credit you collected (i.e. you collected "
             f"${abs(net)*100:.0f} and the trade is now showing a ${abs(net)*200:.0f} loss), close it "
@@ -726,7 +726,7 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
 
     monitor = (
         f"During the life of the trade, monitor it daily in the final two weeks. "
-        f"tastylive's guideline is to close any trade that has reached 21 DTE (21 days to expiration) "
+        f"A common guideline is to close any trade that has reached 21 DTE (21 days to expiration) "
         f"regardless of profit or loss — the risk/reward deteriorates sharply inside 21 days "
         f"due to accelerating gamma, which makes short options much more sensitive to price moves."
     )
@@ -738,7 +738,7 @@ def _defensive_tactic(strategy_key: str) -> str:
     tactics = {
         "short_strangle": (
             "If the stock moves toward one of your strikes and that short option is now in-the-money or close to it, "
-            "the standard tastylive adjustment is to 'roll the untested side.' "
+            "the standard adjustment is to 'roll the untested side.' "
             "This means moving the opposite (winning) short option closer to the current stock price — "
             "say, from a strike that was far out-of-the-money to one that is closer to at-the-money. "
             "By doing so, you collect more premium from the adjustment, which widens your total credit "
@@ -794,13 +794,13 @@ def _defensive_tactic(strategy_key: str) -> str:
             "If the stock drops and the spread is moving against you, you have two choices: "
             "1. Do nothing and let time decay work (the short call you sold decays faster than the long call you bought). "
             "2. Close early and accept a partial loss rather than waiting for the full spread width to be at risk. "
-            "tastylive's rule for debit spreads is to close if the spread loses 50% of what you paid — "
+            "A common rule for debit spreads is to close if the spread loses 50% of what you paid — "
             "if you paid $200, close at a $100 loss. This preserves capital for the next trade."
         ),
         "long_put_vertical": (
             "If the stock rises and the spread is moving against you, consider closing early at a 50% loss "
             "rather than riding to max loss. "
-            "tastylive's rule for debit spreads: if you paid $200, close at a $100 loss maximum. "
+            "A common rule for debit spreads: if you paid $200, close at a $100 loss maximum. "
             "Alternatively, if you believe the directional thesis is still intact (just delayed), "
             "you can roll the spread to a closer expiry and higher strikes to reduce your net debit "
             "and potentially recover with less stock movement required."
@@ -829,7 +829,7 @@ def _defensive_tactic(strategy_key: str) -> str:
     }
     generic = (
         "Monitor the position daily as expiration approaches. "
-        "The general tastylive framework for management is: "
+        "The established options education methodology for management is: "
         "(1) Close at 50% of max profit — take the win early and redeploy. "
         "(2) Close at 21 DTE regardless of P&L — avoid the accelerated gamma risk in the final three weeks. "
         "(3) Use the 2× credit rule for undefined-risk positions — if you're down 2× what you collected, close without exception. "
@@ -938,7 +938,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"SELECT THE EXPIRATION DATE: {exp_fmt} ({dte} calendar days away). "
         f"Click on that date in the expiry header row to expand it (some brokers show a dropdown; "
         f"others show all dates at once — scroll to find '{expiry}'). "
-        f"tastylive's sweet spot for new trades is 30–45 days to expiration (DTE). "
+        f"A commonly used window for new trades is 30–45 days to expiration (DTE). "
         f"At {dte} DTE this expiry falls within that range — a well-studied window in which time decay accelerates "
         f"without gamma risk being too extreme yet."
     )
@@ -1061,7 +1061,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"(${close_debit:.0f} per contract). "
             f"Why this price? You collected ${abs_net:.0f} credit. When the position costs ${close_debit:.0f} to close, "
             f"you've captured ${close_price:.0f} profit — that is {profit_target_pct}% of the maximum possible gain. "
-            f"tastylive closes at 50% of max profit to avoid the riskier final weeks near expiration."
+            f"It is common practice to close at 50% of max profit to avoid the riskier final weeks near expiration."
         )
     else:
         close_credit = abs_net * 0.5
@@ -1071,7 +1071,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"(${close_credit:.0f} per contract). "
             f"You paid ${abs_net:.0f} to open. When it sells for ${close_credit:.0f}, "
             f"you've made back 50% of your cost — a ${close_credit:.0f} profit. "
-            f"That is tastylive's standard debit spread exit rule."
+            f"That is the standard debit spread exit rule."
         )
 
     if bl is not None and bh is not None:
@@ -1095,14 +1095,14 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"HARD STOP RULE (undefined-risk position): if the position P&L reaches −{exit_loss_dollars} "
             f"(a loss of 2× the credit you collected), CLOSE THE ENTIRE POSITION immediately. "
             f"Do not wait for a recovery. In your broker, check 'Positions' → find this trade → 'Close Position'. "
-            f"This is the tastylive 2× rule — it prevents a small loser from becoming a large one."
+            f"This is the well-established 2× rule — it prevents a small loser from becoming a large one."
         )
 
     close_date_days = dte - 21
     steps.append(
         f"MARK YOUR CALENDAR: set a reminder for {close_date_days} days from today "
         f"(that will be approximately 21 DTE — 21 days before {exp_fmt}). "
-        f"tastylive's iron rule: close ALL positions at 21 DTE regardless of profit or loss. "
+        f"A well-established rule: close ALL positions at 21 DTE regardless of profit or loss. "
         f"Inside 21 days, gamma risk accelerates sharply — small stock moves cause outsized option "
         f"price changes, and the risk/reward of holding further no longer justifies it. "
         f"To close: go to Positions → select this trade → click 'Close' or 'Buy to Close' (for short positions). "

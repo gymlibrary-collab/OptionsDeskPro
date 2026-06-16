@@ -50,7 +50,7 @@ def enhance_narrative(
         max_loss = trade.get("max_loss")
 
         prompt = (
-            f"You are an options trading coach trained in the tastylive framework.\n\n"
+            f"You are an options trading coach trained in established options trading methodology.\n\n"
             f"Setup for {symbol}:\n"
             f"- Price: ${price:.2f}, RSI: {rsi:.1f}\n"
             f"- IV Rank: {ivr:.0f}/100 ({iv_env}) — IV {iv_pct:.1f}% vs HV {hv_30:.1f}%\n"
@@ -184,7 +184,7 @@ def answer_portfolio_question(
         )
 
         sys_prompt = (
-            "You are an options trading assistant specialising in the tastylive framework. "
+            "You are an options trading assistant specialising in established options trading methodology. "
             "Answer concisely and practically. Reference the trader's actual positions when relevant. "
             "Keep answers under 200 words."
         )
@@ -457,7 +457,7 @@ def review_closed_trade(trade: dict, recent_trades: list[dict]) -> dict:
 
         prompt = (
             f"You are an options trading coach reviewing a paper trade post-mortem. "
-            f"Use the tastylive framework as the standard (21-DTE entry, 2× credit stop, "
+            f"Use established options trading methodology as the standard (21-DTE entry, 2× credit stop, "
             f"delta targets 0.15-0.30 for short options, 50% profit target).\n\n"
             f"Trade reviewed:\n  {trade_line}\n\n"
             f"Last 10 trades for context:\n{recent_block}\n\n"
@@ -606,7 +606,7 @@ def generate_greeks_coaching(
         pos_block = "\n".join(pos_lines) if pos_lines else "  (no open positions)"
 
         prompt = (
-            f"You are an options portfolio risk coach trained in the tastylive framework.\n\n"
+            f"You are an options portfolio risk coach trained in established options trading methodology.\n\n"
             f"Portfolio net greeks:\n"
             f"  Net delta: {net_delta:+.4f}\n"
             f"  Net theta: {net_theta:+.2f} (daily)\n"
