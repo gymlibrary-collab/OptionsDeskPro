@@ -24,14 +24,17 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
     entitlements = compute_entitlements(user_id)
     tier = entitlements["effective_tier"]
 
-    symbols_result = (
-        db.table("user_watchlists")
-        .select("symbol, position")
-        .eq("user_id", user_id)
-        .order("position")
-        .execute()
-    )
-    symbols = [r["symbol"] for r in (symbols_result.data or [])]
+    try:
+        symbols_result = (
+            db.table("user_watchlists")
+            .select("symbol, position")
+            .eq("user_id", user_id)
+            .order("position")
+            .execute()
+        )
+        symbols = [r["symbol"] for r in (symbols_result.data or [])]
+    except Exception:
+        symbols = []
 
     month = datetime.utcnow().strftime("%Y-%m")
     try:
@@ -81,9 +84,12 @@ async def save_watchlist(body: WatchlistSaveRequest, payload: dict = Depends(ver
             },
         )
 
-    db.table("user_watchlists").delete().eq("user_id", user_id).execute()
-    if symbols:
-        rows = [{"user_id": user_id, "symbol": s, "position": i} for i, s in enumerate(symbols)]
-        db.table("user_watchlists").insert(rows).execute()
+    try:
+        db.table("user_watchlists").delete().eq("user_id", user_id).execute()
+        if symbols:
+            rows = [{"user_id": user_id, "symbol": s, "position": i} for i, s in enumerate(symbols)]
+            db.table("user_watchlists").insert(rows).execute()
+    except Exception:
+        pass
 
     return {"saved": len(symbols), "tier": tier}

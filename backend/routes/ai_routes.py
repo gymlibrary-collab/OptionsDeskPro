@@ -236,15 +236,18 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
         }
 
     # Fetch user's watchlist
-    watchlist_result = (
-        sb.table("user_watchlists")
-        .select("symbol")
-        .eq("user_id", user_id)
-        .order("position")
-        .limit(10)
-        .execute()
-    )
-    watchlist = [r["symbol"] for r in (watchlist_result.data or [])]
+    try:
+        watchlist_result = (
+            sb.table("user_watchlists")
+            .select("symbol")
+            .eq("user_id", user_id)
+            .order("position")
+            .limit(10)
+            .execute()
+        )
+        watchlist = [r["symbol"] for r in (watchlist_result.data or [])]
+    except Exception:
+        watchlist = []
 
     if not watchlist:
         briefing_text = (
