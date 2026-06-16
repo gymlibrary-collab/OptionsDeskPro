@@ -226,7 +226,7 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
         .maybe_single()
         .execute()
     )
-    if cached_result.data:
+    if cached_result and cached_result.data:
         row = cached_result.data
         return {
             "briefing": row["briefing_text"],

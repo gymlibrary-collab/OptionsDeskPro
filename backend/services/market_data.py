@@ -19,6 +19,16 @@ def _safe_int(val, default: int = 0) -> int:
     except (ValueError, TypeError):
         return default
 
+
+def _safe_float(val, default: float = 0.0) -> float:
+    try:
+        if val is None:
+            return default
+        f = float(val)
+        return default if math.isnan(f) or math.isinf(f) else f
+    except (ValueError, TypeError):
+        return default
+
 _cache: dict = {}
 _TTL_MARKETDATA = 300   # 5 min — conserve API credits
 _TTL_YFINANCE   = 30    # 30 s
@@ -192,15 +202,15 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
             for _, row in df.iterrows():
                 rows.append({
                     "contractSymbol":    str(row.get("contractSymbol", "")),
-                    "strike":            float(row.get("strike", 0)),
-                    "lastPrice":         float(row.get("lastPrice", 0)),
-                    "bid":               float(row.get("bid", 0)),
-                    "ask":               float(row.get("ask", 0)),
-                    "change":            float(row.get("change", 0)),
-                    "percentChange":     float(row.get("percentChange", 0)),
+                    "strike":            _safe_float(row.get("strike")),
+                    "lastPrice":         _safe_float(row.get("lastPrice")),
+                    "bid":               _safe_float(row.get("bid")),
+                    "ask":               _safe_float(row.get("ask")),
+                    "change":            _safe_float(row.get("change")),
+                    "percentChange":     _safe_float(row.get("percentChange")),
                     "volume":            _safe_int(row.get("volume")),
                     "openInterest":      _safe_int(row.get("openInterest")),
-                    "impliedVolatility": float(row.get("impliedVolatility", 0)),
+                    "impliedVolatility": _safe_float(row.get("impliedVolatility")),
                     "inTheMoney":        bool(row.get("inTheMoney", False)),
                 })
             return rows
