@@ -73,6 +73,21 @@ export default function HealthPanel() {
             </div>
           </Section>
 
+          {/* AI / Gemini */}
+          <Section title="AI Engine (Gemini)">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: health.gemini_configured ? C.success : C.error }} />
+              <span style={{ fontSize: '14px', color: C.text, fontWeight: 600 }}>
+                {health.gemini_configured ? 'API key configured' : 'API key not set'}
+              </span>
+            </div>
+            {!health.gemini_configured && (
+              <p style={{ margin: '8px 0 0', fontSize: '12px', color: C.warning, lineHeight: 1.5 }}>
+                Set GEMINI_API_KEY in Railway → backend service → Variables, then redeploy.
+              </p>
+            )}
+          </Section>
+
           {/* Active sessions */}
           <Section title="Active Sessions">
             <div style={{ fontSize: '28px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>

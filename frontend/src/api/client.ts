@@ -780,6 +780,7 @@ export interface RevenueMetrics {
 export interface HealthData {
   api_status: string
   market_data_source: string
+  gemini_configured: boolean
   requests_last_24h: Record<string, number>
   active_sessions_last_15min: number
 }

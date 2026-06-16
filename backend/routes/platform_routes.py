@@ -636,9 +636,13 @@ async def get_health(staff: dict = Depends(require_staff(["owner"]))):
     except Exception as e:
         logger.warning("Active sessions count failed: %s", e)
 
+    import os
+    gemini_configured = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+
     return {
         "api_status": "ok",
         "market_data_source": "yfinance",
+        "gemini_configured": gemini_configured,
         "requests_last_24h":   request_counts,
         "active_sessions_last_15min": active_sessions,
     }
