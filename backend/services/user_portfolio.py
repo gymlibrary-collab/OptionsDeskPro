@@ -113,12 +113,16 @@ def _update_position(sb, user_id: str, req, price: float):
         avg = float(pos["avg_cost"])
         if req.action.lower() == "buy":
             new_qty = qty + req.quantity
-            new_avg = (avg * qty + price * req.quantity) / new_qty
-            sb.table("positions").update({
-                "quantity": new_qty,
-                "avg_cost": new_avg,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", pos["id"]).execute()
+            if new_qty == 0:
+                # Buying exactly covers a short — position is flat, remove it.
+                sb.table("positions").delete().eq("id", pos["id"]).execute()
+            else:
+                new_avg = (avg * qty + price * req.quantity) / new_qty
+                sb.table("positions").update({
+                    "quantity": new_qty,
+                    "avg_cost": new_avg,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", pos["id"]).execute()
         else:
             new_qty = qty - req.quantity
             if new_qty == 0:
