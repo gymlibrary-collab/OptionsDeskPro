@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import date
 import logging
 
-from services.market_data import get_quote, get_options_chain, _marketdata_chain, _yfinance_chain
+from services.market_data import get_quote, get_options_chain
 from services.greeks import calculate_greeks, fill_quote
 
 router = APIRouter()
