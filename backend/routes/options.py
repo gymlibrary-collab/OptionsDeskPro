@@ -4,7 +4,7 @@ from datetime import date
 import logging
 
 from services.market_data import get_quote, get_options_chain, _marketdata_chain, _yfinance_chain
-from services.greeks import calculate_greeks
+from services.greeks import calculate_greeks, fill_quote
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,7 +34,8 @@ def get_chain(symbol: str, expiry: Optional[str] = Query(None), response: Respon
                 T = 0.0
 
             greeks = calculate_greeks(S, strike, T, 0.05, sigma, option_type)
-            enriched.append({**c, **greeks})
+            bid, ask = fill_quote(c, S, T, option_type)
+            enriched.append({**c, **greeks, "bid": bid, "ask": ask})
         return enriched
 
     calls = enrich(chain["calls"], "call")

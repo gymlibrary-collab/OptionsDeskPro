@@ -10,7 +10,7 @@ from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import recommend_by_category, build_trade, build_comparison_matrix, get_strategy_count, get_condition_match_count, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
-from services.greeks import calculate_greeks
+from services.greeks import calculate_greeks, fill_quote
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
 from services.auth_utils import verify_token, security as bearer_security
@@ -42,7 +42,8 @@ def _enrich_chain_with_greeks(chain: dict, spot_price: float) -> dict:
             except Exception:
                 T = 0.0
             greeks = calculate_greeks(spot_price, strike, T, 0.05, sigma, option_type)
-            enriched.append({**c, **greeks})
+            bid, ask = fill_quote(c, spot_price, T, option_type)
+            enriched.append({**c, **greeks, "bid": bid, "ask": ask})
         return enriched
 
     return {

@@ -203,19 +203,15 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
         def df_to_list(df) -> list:
             rows = []
             for _, row in df.iterrows():
-                bid      = _safe_float(row.get("bid"))
-                ask      = _safe_float(row.get("ask"))
-                last     = _safe_float(row.get("lastPrice"))
-                # yfinance returns NaN for bid/ask on illiquid/after-hours contracts
-                if not bid and not ask and last:
-                    bid = round(last * 0.95, 2)
-                    ask = round(last * 1.05, 2)
+                # Raw quotes only. Missing/stale bid-ask is corrected downstream
+                # in greeks.fill_quote (BS theoretical + intrinsic-value floor),
+                # where spot price and time-to-expiry are available.
                 rows.append({
                     "contractSymbol":    str(row.get("contractSymbol", "")),
                     "strike":            _safe_float(row.get("strike")),
-                    "lastPrice":         last,
-                    "bid":               bid,
-                    "ask":               ask,
+                    "lastPrice":         _safe_float(row.get("lastPrice")),
+                    "bid":               _safe_float(row.get("bid")),
+                    "ask":               _safe_float(row.get("ask")),
                     "change":            _safe_float(row.get("change")),
                     "percentChange":     _safe_float(row.get("percentChange")),
                     "volume":            _safe_int(row.get("volume")),
@@ -358,15 +354,9 @@ def _patch_bid_ask_from_yfinance(mda_chain: dict, symbol: str, expiry: Optional[
         for c in contracts:
             if not c.get("bid") and not c.get("ask"):
                 yf = yf_index.get(round(c["strike"], 2), {})
-                bid = yf.get("bid", 0.0)
-                ask = yf.get("ask", 0.0)
-                # Final fallback: synthesise from lastPrice if yfinance also has no quote
-                if not bid and not ask:
-                    last = c.get("lastPrice") or yf.get("lastPrice", 0.0)
-                    if last:
-                        bid = round(last * 0.95, 2)
-                        ask = round(last * 1.05, 2)
-                c = {**c, "bid": bid, "ask": ask}
+                # Use real yfinance quotes when present; anything still missing
+                # is corrected downstream in greeks.fill_quote.
+                c = {**c, "bid": yf.get("bid", 0.0), "ask": yf.get("ask", 0.0)}
             patched.append(c)
         return patched
 
