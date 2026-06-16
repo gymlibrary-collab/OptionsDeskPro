@@ -974,11 +974,21 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     legs = []
     estimated_credit = 0.0
 
+    # Track strikes already claimed per option_type so two legs of the same type
+    # never resolve to the same strike on a sparse chain. Intentional same-strike
+    # legs (butterfly body, calendar back month, ratio second short) are always
+    # built via dict-copy, not a second make_leg call, so they bypass this.
+    _used_strikes: dict[str, set] = {"call": set(), "put": set()}
+
     def make_leg(role: str, option_type: str, target_delta: float, action: str, exclude_strikes: set | None = None) -> dict | None:
         contracts = calls if option_type == "call" else puts
-        c = _find_by_delta(contracts, target_delta, exclude_strikes=exclude_strikes)
+        combined = set(_used_strikes.get(option_type, set()))
+        if exclude_strikes:
+            combined |= exclude_strikes
+        c = _find_by_delta(contracts, target_delta, exclude_strikes=combined or None)
         if not c:
             return None
+        _used_strikes.setdefault(option_type, set()).add(c["strike"])
         mid = _mid(c)
         signed_mid = mid if action == "sell" else -mid
         return {
@@ -1014,12 +1024,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
 
     elif strategy_key == "long_call_vertical":
         long_leg = make_leg("Long Call (ITM)", "call", 0.70, "buy")
-        used = {long_leg["strike"]} if long_leg else set()
-        short_leg = make_leg("Short Call (OTM)", "call", 0.30, "sell", exclude_strikes=used)
+        short_leg = make_leg("Short Call (OTM)", "call", 0.30, "sell")
         for l in [long_leg, short_leg]:
             if l:
                 legs.append(l)
-        if long_leg and short_leg and long_leg["strike"] >= short_leg["strike"]:
+        if not (long_leg and short_leg) or long_leg["strike"] >= short_leg["strike"]:
             return {"error": "Could not build valid vertical spread — strikes too close; options chain may be too sparse"}
 
     elif strategy_key == "poor_mans_covered_call":
@@ -1078,12 +1087,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
 
     elif strategy_key == "long_put_vertical":
         long_leg = make_leg("Long Put (ITM)", "put", -0.70, "buy")
-        used = {long_leg["strike"]} if long_leg else set()
-        short_leg = make_leg("Short Put (OTM)", "put", -0.30, "sell", exclude_strikes=used)
+        short_leg = make_leg("Short Put (OTM)", "put", -0.30, "sell")
         for l in [long_leg, short_leg]:
             if l:
                 legs.append(l)
-        if long_leg and short_leg and long_leg["strike"] <= short_leg["strike"]:
+        if not (long_leg and short_leg) or long_leg["strike"] <= short_leg["strike"]:
             return {"error": "Could not build valid vertical spread — strikes too close; options chain may be too sparse"}
 
     elif strategy_key == "put_butterfly":
@@ -1163,12 +1171,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
 
     elif strategy_key == "short_put_vertical":
         short_leg = make_leg("Short Put (OTM)", "put", -0.30, "sell")
-        used = {short_leg["strike"]} if short_leg else set()
-        long_leg = make_leg("Long Put (further OTM)", "put", -0.16, "buy", exclude_strikes=used)
+        long_leg = make_leg("Long Put (further OTM)", "put", -0.16, "buy")
         for l in [short_leg, long_leg]:
             if l:
                 legs.append(l)
-        if short_leg and long_leg and short_leg["strike"] <= long_leg["strike"]:
+        if not (short_leg and long_leg) or short_leg["strike"] <= long_leg["strike"]:
             return {"error": "Could not build valid vertical spread — strikes too close; options chain may be too sparse"}
 
     elif strategy_key == "jade_lizard":
@@ -1241,12 +1248,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
 
     elif strategy_key == "short_call_vertical":
         short_leg = make_leg("Short Call (OTM)", "call", 0.30, "sell")
-        used = {short_leg["strike"]} if short_leg else set()
-        long_leg = make_leg("Long Call (further OTM)", "call", 0.16, "buy", exclude_strikes=used)
+        long_leg = make_leg("Long Call (further OTM)", "call", 0.16, "buy")
         for l in [short_leg, long_leg]:
             if l:
                 legs.append(l)
-        if short_leg and long_leg and short_leg["strike"] >= long_leg["strike"]:
+        if not (short_leg and long_leg) or short_leg["strike"] >= long_leg["strike"]:
             return {"error": "Could not build valid vertical spread — strikes too close; options chain may be too sparse"}
 
     elif strategy_key == "reverse_jade_lizard":
@@ -1296,7 +1302,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     elif strategy_key == "put_broken_wing_butterfly":
         long_put = make_leg("Long Put (ATM)", "put", -0.50, "buy")
         short_put1 = make_leg("Short Put (OTM)", "put", -0.30, "sell")
-        short_put2 = make_leg("Short Put (OTM) 2", "put", -0.30, "sell")
         wing = make_leg("Long Put (wide wing)", "put", -0.10, "buy")
         for l in [long_put, short_put1, wing]:
             if l:
