@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse
 from typing import Optional
 from datetime import date
 import logging
@@ -58,14 +59,22 @@ def get_chain(symbol: str, expiry: Optional[str] = Query(None)):
             enriched.append({**c, **greeks})
         return enriched
 
-    return {
-        "symbol": symbol.upper(),
-        "quote": quote,
-        "expiry": chain["expiry"],
-        "expirations": chain["expirations"],
-        "calls": enrich(chain["calls"], "call"),
-        "puts": enrich(chain["puts"], "put"),
-    }
+    calls = enrich(chain["calls"], "call")
+    puts  = enrich(chain["puts"], "put")
+    if calls:
+        logger.info("chain %s expiry=%s first_call bid=%s ask=%s", symbol, chain["expiry"],
+                    calls[0].get("bid"), calls[0].get("ask"))
+    return JSONResponse(
+        content={
+            "symbol": symbol.upper(),
+            "quote": quote,
+            "expiry": chain["expiry"],
+            "expirations": chain["expirations"],
+            "calls": calls,
+            "puts": puts,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/options/quote/{symbol}")
