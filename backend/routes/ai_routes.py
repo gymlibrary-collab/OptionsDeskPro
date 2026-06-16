@@ -235,19 +235,32 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
             "cached": True,
         }
 
-    # Fetch user's watchlist
+    # Fetch user's watchlist (schema-agnostic: supports symbols[] array or legacy symbol rows)
     try:
-        watchlist_result = (
+        wl_result = (
             sb.table("user_watchlists")
-            .select("symbol")
+            .select("symbols")
             .eq("user_id", user_id)
-            .order("position")
-            .limit(10)
+            .maybe_single()
             .execute()
         )
-        watchlist = [r["symbol"] for r in (watchlist_result.data or [])]
+        if wl_result and wl_result.data is not None:
+            watchlist = wl_result.data.get("symbols") or []
+        else:
+            watchlist = []
     except Exception:
-        watchlist = []
+        # Fall back to legacy schema (one row per symbol)
+        try:
+            wl_legacy = (
+                sb.table("user_watchlists")
+                .select("symbol")
+                .eq("user_id", user_id)
+                .limit(10)
+                .execute()
+            )
+            watchlist = [r["symbol"] for r in (wl_legacy.data or [])]
+        except Exception:
+            watchlist = []
 
     if not watchlist:
         briefing_text = (
