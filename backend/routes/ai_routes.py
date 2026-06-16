@@ -315,6 +315,27 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
     }
 
 
+@router.post("/ai/morning-briefing/refresh")
+def refresh_morning_briefing(payload: dict = Depends(verify_token)):
+    """
+    Force-regenerate today's morning briefing by deleting the cached entry
+    then delegating to get_morning_briefing to produce a fresh one.
+    """
+    user_id = get_user_id(payload)
+    _require_ai_feature(user_id, "morning_briefing")
+    sb = get_supabase()
+    today = date.today().isoformat()
+
+    # Delete today's cached entry so get_morning_briefing regenerates
+    try:
+        sb.table("morning_briefings").delete().eq("user_id", user_id).eq("briefing_date", today).execute()
+    except Exception as exc:
+        logger.warning("Could not delete cached morning briefing for %s: %s", user_id, exc)
+
+    # Delegate to the main handler (reuse all watchlist-fetch + AI logic)
+    return get_morning_briefing(payload)
+
+
 # ── E1: Trade Journal AI Review ───────────────────────────────────────────────
 
 class TradeJournalReviewRequest(BaseModel):

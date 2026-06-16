@@ -409,6 +409,9 @@ export interface MorningBriefingResponse {
 export const getMorningBriefing = (): Promise<MorningBriefingResponse> =>
   api.get('/ai/morning-briefing', { timeout: 30000 }).then(r => r.data)
 
+export const refreshMorningBriefing = (): Promise<MorningBriefingResponse> =>
+  api.post('/ai/morning-briefing/refresh', {}, { timeout: 30000 }).then(r => r.data)
+
 export interface TradeJournalReview {
   entry_consistency: string
   rule_adherence: string

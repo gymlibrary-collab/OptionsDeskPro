@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { getMorningBriefing, MorningBriefingResponse } from '../api/client'
+import { useEffect, useState, useCallback } from 'react'
+import { getMorningBriefing, refreshMorningBriefing, MorningBriefingResponse } from '../api/client'
 import { useWindowSize } from '../hooks/useWindowSize'
 
 const C = {
@@ -31,20 +31,32 @@ export default function DailyBriefingCard({ unlocked = true }: { unlocked?: bool
   const { isMobile } = useWindowSize()
   const [data, setData] = useState<MorningBriefingResponse | null>(null)
   const [loading, setLoading] = useState(unlocked)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Collapsed by default on mobile, expanded on desktop
   const [expanded, setExpanded] = useState(!isMobile)
 
-  useEffect(() => {
-    if (!unlocked) return
-    getMorningBriefing()
+  const load = useCallback((fetcher: () => Promise<MorningBriefingResponse>) => {
+    setError(null)
+    fetcher()
       .then(setData)
       .catch(e => {
         const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
         setError(typeof detail === 'string' ? detail : 'Could not load morning briefing.')
       })
-      .finally(() => setLoading(false))
-  }, [unlocked])
+      .finally(() => { setLoading(false); setRefreshing(false) })
+  }, [])
+
+  useEffect(() => {
+    if (!unlocked) return
+    load(getMorningBriefing)
+  }, [unlocked, load])
+
+  const handleRefresh = () => {
+    if (refreshing) return
+    setRefreshing(true)
+    load(refreshMorningBriefing)
+  }
 
   return (
     <div style={{
@@ -91,6 +103,26 @@ export default function DailyBriefingCard({ unlocked = true }: { unlocked?: bool
           )}
         </div>
         <span style={{ color: C.muted, fontSize: '14px', flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+        {unlocked && !loading && (
+          <button
+            onClick={e => { e.stopPropagation(); handleRefresh() }}
+            disabled={refreshing}
+            title="Regenerate briefing"
+            style={{
+              background: 'transparent',
+              border: `1px solid ${C.border}`,
+              borderRadius: '5px',
+              color: refreshing ? C.muted : C.accent,
+              padding: '3px 8px',
+              fontSize: '11px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              flexShrink: 0,
+              fontFamily: 'inherit',
+            }}
+          >
+            {refreshing ? '…' : '↺'}
+          </button>
+        )}
       </button>
 
       {/* Body */}
@@ -101,9 +133,9 @@ export default function DailyBriefingCard({ unlocked = true }: { unlocked?: bool
               🔒 Upgrade to Pro to unlock your Daily Morning Briefing.
             </div>
           )}
-          {unlocked && loading && (
+          {unlocked && (loading || refreshing) && (
             <div style={{ color: C.muted, fontSize: '13px', textAlign: 'center', padding: '12px 0' }}>
-              Generating your morning briefing…
+              {refreshing ? 'Regenerating your morning briefing…' : 'Generating your morning briefing…'}
             </div>
           )}
 
