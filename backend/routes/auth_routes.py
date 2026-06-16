@@ -50,18 +50,26 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     # ── Determine role ────────────────────────────────────────────────────────
     role = "admin" if email == ADMIN_EMAIL else "user"
     if email != ADMIN_EMAIL:
-        wl_row = sb.table("user_whitelist").select("role").eq("email", email).maybe_single().execute()
-        if wl_row.data and wl_row.data.get("role"):
-            role = wl_row.data["role"]
+        try:
+            wl_row = sb.table("user_whitelist").select("role").eq("email", email).maybe_single().execute()
+            if wl_row and wl_row.data and wl_row.data.get("role"):
+                role = wl_row.data["role"]
+        except Exception:
+            pass
 
     # ── Check if account is deactivated ──────────────────────────────────────
-    existing_profile = sb.table("user_profiles").select("deactivated_at, onboarding_completed, onboarding_step, is_platform_staff").eq("id", user_id).maybe_single().execute()
-    if existing_profile.data and existing_profile.data.get("deactivated_at") is not None:
-        raise HTTPException(
-            status_code=403,
-            detail="Account suspended. Contact support.",
-            headers={"X-Error-Code": "account_suspended"},
-        )
+    try:
+        existing_profile = sb.table("user_profiles").select("deactivated_at, onboarding_completed, onboarding_step, is_platform_staff").eq("id", user_id).maybe_single().execute()
+        if existing_profile and existing_profile.data and existing_profile.data.get("deactivated_at") is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Account suspended. Contact support.",
+                headers={"X-Error-Code": "account_suspended"},
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     # ── Upsert user profile ───────────────────────────────────────────────────
     meta = payload.get("user_metadata", {}) or {}
@@ -93,7 +101,10 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         upsert_data["onboarding_completed"] = True
         upsert_data["onboarding_step"] = "complete"
 
-    sb.table("user_profiles").upsert(upsert_data, on_conflict="id").execute()
+    try:
+        sb.table("user_profiles").upsert(upsert_data, on_conflict="id").execute()
+    except Exception:
+        pass
 
     # ── Ensure portfolio exists ───────────────────────────────────────────────
     try:
