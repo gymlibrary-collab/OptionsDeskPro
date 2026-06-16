@@ -56,6 +56,47 @@ const FEATURES: {
   },
 ]
 
+// Plan-included features (always active when plan supports them — no individual toggle)
+const PLAN_FEATURES: {
+  entitlementKey: string
+  label: string
+  description: string
+  comingSoon?: boolean
+}[] = [
+  {
+    entitlementKey: 'morning_briefing',
+    label: 'Morning Briefing',
+    description: 'Daily <120-word market summary covering your watchlist — IV regime, earnings risk, and strategy suggestions. Auto-regenerates when you update your watchlist. Visible in the Strategy Scanner tab.',
+  },
+  {
+    entitlementKey: 'trade_journal',
+    label: 'Trade Journal AI Review',
+    description: 'After closing a trade, submit it for a post-mortem: entry consistency, rule adherence, and behavioural patterns graded A–D. Triggered per-trade from the Orders tab.',
+  },
+  {
+    entitlementKey: 'roll_advisor',
+    label: 'Roll Advisor',
+    description: 'When a position approaches 21 DTE or a loss threshold, suggests whether to roll, close, or adjust — with specific strike and expiry recommendations. Visible in the Risk Monitor.',
+  },
+  {
+    entitlementKey: 'greeks_coaching',
+    label: 'Greeks Coaching',
+    description: 'Explains what your current portfolio-level Greeks mean in plain English and suggests rebalancing actions if any exposure is outsized. Visible in the Positions tab.',
+  },
+  {
+    entitlementKey: 'news_sentiment',
+    label: 'News Sentiment Analysis',
+    description: 'Analyses recent headlines for your watchlist symbols and summarises the sentiment impact on each ticker\'s options pricing.',
+    comingSoon: true,
+  },
+  {
+    entitlementKey: 'ai_strategy_comparison',
+    label: 'AI Strategy Comparison',
+    description: 'Compares two or more strategies side-by-side with an AI-written explanation of the trade-offs given the current IV environment and directional bias.',
+    comingSoon: true,
+  },
+]
+
 function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
@@ -221,7 +262,11 @@ export default function AISettings() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Toggleable features (1–5) */}
+      <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+        User-Configurable
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
         {FEATURES.map(f => {
           const unlocked = isFeatureUnlocked(f.entitlementKey)
           return (
@@ -260,6 +305,59 @@ export default function AISettings() {
               </div>
 
               {f.key === 'chat_enabled' && settings.chat_enabled && unlocked && <ChatPanel />}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Plan-included features (6–11) */}
+      <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+        Always-On When Plan Supports
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {PLAN_FEATURES.map(f => {
+          const unlocked = isFeatureUnlocked(f.entitlementKey)
+          return (
+            <div
+              key={f.entitlementKey}
+              style={{
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: '10px',
+                padding: '16px 20px',
+                opacity: unlocked ? 1 : 0.5,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: C.text }}>{f.label}</span>
+                    {f.comingSoon && (
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#f59e0b22', color: '#f59e0b', letterSpacing: '0.05em', border: '1px solid #f59e0b44' }}>
+                        Coming Soon
+                      </span>
+                    )}
+                    {!unlocked && !f.comingSoon && (
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#7c6af722', color: C.purple, letterSpacing: '0.05em', border: `1px solid ${C.purple}44` }}>
+                        Requires Pro
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: C.muted, lineHeight: 1.55 }}>{f.description}</p>
+                </div>
+                <div style={{
+                  flexShrink: 0,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '5px',
+                  background: f.comingSoon ? '#f59e0b18' : unlocked ? `${C.green}18` : `${C.border}`,
+                  color: f.comingSoon ? '#f59e0b' : unlocked ? C.green : C.muted,
+                  border: `1px solid ${f.comingSoon ? '#f59e0b44' : unlocked ? `${C.green}44` : C.border}`,
+                }}>
+                  {f.comingSoon ? 'Soon' : unlocked ? 'Active' : 'Locked'}
+                </div>
+              </div>
             </div>
           )
         })}
