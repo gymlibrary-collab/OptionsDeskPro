@@ -9,15 +9,20 @@ Model usage:
   - All new E-series features use claude-haiku-4-5-20251001 for cost efficiency.
 """
 import os
+import logging
 import time
 from typing import Optional
 
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
+logger = logging.getLogger(__name__)
 
 
 def _client():
     import anthropic
-    return anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set")
+    return anthropic.Anthropic(api_key=key)
 
 
 # ── In-process cache helpers ─────────────────────────────────────────────────
@@ -202,7 +207,8 @@ def answer_portfolio_question(
             messages=[{"role": "user", "content": user_content}],
         )
         return msg.content[0].text.strip()
-    except Exception:
+    except Exception as e:
+        logger.error("ai_chat failed: %s", e)
         return "I couldn't process your question right now — please try again."
 
 
