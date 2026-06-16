@@ -230,6 +230,7 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
   })
   const [watchlistState, setWatchlistState] = useState<WatchlistState | null>(null)
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [briefingRevision, setBriefingRevision] = useState(0)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [results, setResults] = useState<ScanResult[]>([])
@@ -265,6 +266,7 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
         const state = await getWatchlist()
         setWatchlistState(state)
         setSyncStatus('saved')
+        setBriefingRevision(r => r + 1)
         setTimeout(() => setSyncStatus('idle'), 2000)
       } catch {
         setSyncStatus('error')
@@ -306,7 +308,7 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
       {/* E4 — Daily Morning Briefing */}
-      <DailyBriefingCard unlocked={briefingUnlocked} />
+      <DailyBriefingCard unlocked={briefingUnlocked} watchlistRevision={briefingRevision} />
 
       {/* Watchlist editor card */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

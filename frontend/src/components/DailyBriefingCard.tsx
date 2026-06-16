@@ -27,7 +27,7 @@ function fmt(date: string): string {
   }
 }
 
-export default function DailyBriefingCard({ unlocked = true }: { unlocked?: boolean }) {
+export default function DailyBriefingCard({ unlocked = true, watchlistRevision = 0 }: { unlocked?: boolean; watchlistRevision?: number }) {
   const { isMobile } = useWindowSize()
   const [data, setData] = useState<MorningBriefingResponse | null>(null)
   const [loading, setLoading] = useState(unlocked)
@@ -51,6 +51,13 @@ export default function DailyBriefingCard({ unlocked = true }: { unlocked?: bool
     if (!unlocked) return
     load(getMorningBriefing)
   }, [unlocked, load])
+
+  // Auto-refresh when watchlist is saved (watchlistRevision increments)
+  useEffect(() => {
+    if (!unlocked || watchlistRevision === 0) return
+    setRefreshing(true)
+    load(refreshMorningBriefing)
+  }, [watchlistRevision, unlocked, load])
 
   const handleRefresh = () => {
     if (refreshing) return
