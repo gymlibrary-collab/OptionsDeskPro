@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -9,6 +10,7 @@ from services.tier_limits import get_user_tier, get_limits
 from services.entitlements import compute_entitlements
 
 router = APIRouter(dependencies=[Depends(legal_gate_dep)])
+logger = logging.getLogger(__name__)
 
 
 class WatchlistSaveRequest(BaseModel):
@@ -24,6 +26,7 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
     entitlements = compute_entitlements(user_id)
     tier = entitlements["effective_tier"]
 
+    watchlist_error: str | None = None
     try:
         symbols_result = (
             db.table("user_watchlists")
@@ -33,7 +36,9 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
             .execute()
         )
         symbols = [r["symbol"] for r in (symbols_result.data or [])]
-    except Exception:
+    except Exception as exc:
+        watchlist_error = str(exc)
+        logger.error("watchlist GET failed for %s: %s", user_id, exc)
         symbols = []
 
     month = datetime.utcnow().strftime("%Y-%m")
@@ -59,6 +64,7 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
         "scans_used": scans_used,
         "max_scans_per_month": entitlements["max_scans_per_month"],
         "over_limit": over_limit,
+        "_debug_error": watchlist_error,
     }
 
 
@@ -84,12 +90,14 @@ async def save_watchlist(body: WatchlistSaveRequest, payload: dict = Depends(ver
             },
         )
 
+    save_error: str | None = None
     try:
         db.table("user_watchlists").delete().eq("user_id", user_id).execute()
         if symbols:
             rows = [{"user_id": user_id, "symbol": s, "position": i} for i, s in enumerate(symbols)]
             db.table("user_watchlists").insert(rows).execute()
-    except Exception:
-        pass
+    except Exception as exc:
+        save_error = str(exc)
+        logger.error("watchlist save failed for %s: %s", user_id, exc)
 
-    return {"saved": len(symbols), "tier": tier}
+    return {"saved": len(symbols), "tier": tier, "save_error": save_error}
