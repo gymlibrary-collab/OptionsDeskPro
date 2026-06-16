@@ -193,7 +193,10 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
             return None
 
         if expiry is None or expiry not in expirations:
-            expiry = expirations[0]
+            # Skip today's expiry — 0-DTE options have stale/unreliable bid/ask and zero greeks
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            future = [e for e in expirations if e > today]
+            expiry = future[0] if future else expirations[0]
 
         chain = ticker.option_chain(expiry)
 
