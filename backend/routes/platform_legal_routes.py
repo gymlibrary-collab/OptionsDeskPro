@@ -77,11 +77,11 @@ async def publish_legal_version(
     """
     Publish a new legal document version. Owner only.
 
-    Steps (executed atomically via a Postgres RPC):
+    Steps:
     1. Validate inputs.
     2. Compute content_hash server-side.
     3. Check version_number uniqueness.
-    4. Call publish_legal_version() RPC (UPDATE old active + INSERT new in one txn).
+    4. Deactivate current active version, then insert new active version.
     5. Write platform_audit_log entry (best-effort).
     6. Invalidate the 60-second active-version cache in legal_service.
     """
@@ -123,22 +123,31 @@ async def publish_legal_version(
     # Compute content_hash server-side — the canonical value stored in the DB.
     content_hash = hashlib.sha256(body.content_markdown.encode("utf-8")).hexdigest()
 
-    # Call the atomic Postgres RPC that deactivates the current version and
-    # inserts the new one within a single transaction.
+    # Deactivate the current active version then insert the new one.
+    # Two separate calls are used instead of the publish_legal_version() RPC because
+    # PostgREST requires explicit EXECUTE grants that are not applied by the migration.
+    # The service role key bypasses RLS so both operations succeed without extra grants.
     try:
-        rpc_result = sb.rpc("publish_legal_version", {
-            "p_version_number":   body.version_number,
-            "p_title":            body.title,
-            "p_content_markdown": body.content_markdown,
-            "p_content_hash":     content_hash,
-            "p_effective_date":   str(effective),
-            "p_published_by":     staff["id"],
-        }).execute()
+        sb.table("legal_document_versions").update({"is_active": False}).eq("is_active", True).execute()
     except Exception as e:
-        logger.error("platform/legal/versions: publish_legal_version RPC failed: %s", e)
+        logger.error("platform/legal/versions: deactivate current version failed: %s", e)
         raise HTTPException(status_code=500, detail="Failed to publish legal version.")
 
-    new_id = rpc_result.data
+    try:
+        insert_result = sb.table("legal_document_versions").insert({
+            "version_number":   body.version_number,
+            "title":            body.title,
+            "content_markdown": body.content_markdown,
+            "content_hash":     content_hash,
+            "effective_date":   str(effective),
+            "published_by":     staff["id"],
+            "is_active":        True,
+        }).execute()
+    except Exception as e:
+        logger.error("platform/legal/versions: insert new version failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to publish legal version.")
+
+    new_id = insert_result.data[0]["id"] if insert_result.data else None
 
     # Audit log (best-effort — consistent with _audit pattern in platform_routes.py).
     _audit(staff, "legal_version_publish", payload={
