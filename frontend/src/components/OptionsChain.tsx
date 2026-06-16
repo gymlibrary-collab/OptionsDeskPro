@@ -49,7 +49,7 @@ const styles = {
     cursor: 'pointer',
   },
   label: { fontSize: '13px', color: C.muted },
-  tableWrap: { overflowX: 'auto' as const },
+  tableWrap: { overflowX: 'auto' as const, overflowY: 'auto' as const, maxHeight: '70vh' },
   table: {
     width: '100%',
     borderCollapse: 'collapse' as const,
@@ -231,13 +231,7 @@ export default function OptionsChain({ symbol }: Props) {
     }
   }
 
-  // Focus on strikes near ATM (show ~30 above/below)
-  const atmIdx = sortedStrikes.indexOf(atmStrike)
-  const range = 20
-  const visibleStrikes = sortedStrikes.slice(
-    Math.max(0, atmIdx - range),
-    Math.min(sortedStrikes.length, atmIdx + range + 1)
-  )
+  const visibleStrikes = sortedStrikes
 
   const callHeaders = ['Bid', 'Ask', 'Last', 'Vol', 'OI', 'IV', 'Δ Delta']
   const putHeaders = ['Δ Delta', 'IV', 'OI', 'Vol', 'Last', 'Ask', 'Bid']
@@ -257,11 +251,6 @@ export default function OptionsChain({ symbol }: Props) {
         <span style={styles.label}>
           ATM: <strong style={{ color: '#7c6af7' }}>${fmt(atmStrike)}</strong>
         </span>
-        {data.calls.length > 0 && (
-          <span style={styles.label}>
-            Showing {visibleStrikes.length} strikes
-          </span>
-        )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           {lastUpdated && (
             <span style={{ fontSize: '11px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>
