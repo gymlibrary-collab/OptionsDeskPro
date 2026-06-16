@@ -68,60 +68,68 @@ async def list_subscribers(
     """Paginated list of all subscriber profiles. Owner and support only."""
     sb = get_supabase()
 
-    # Join user_profiles with subscriptions
-    query = sb.table("user_profiles").select(
-        "id, email, full_name, created_at, last_seen_at, is_active, deactivated_at,"
-        "subscriptions!inner(tier_key, status, stripe_customer_id)"
-    )
+    # subscriptions.user_id references auth.users (not user_profiles), so PostgREST
+    # cannot discover the FK for an !inner join. Use two separate queries and merge.
 
-    if search:
-        # ilike search on email or full_name — sanitise before interpolation
-        safe = _sanitise_search(search)
-        query = query.or_(f"email.ilike.%{safe}%,full_name.ilike.%{safe}%")
-
+    # 1. Query subscriptions with optional tier/status filters.
+    sub_query = sb.table("subscriptions").select("user_id, tier_key, status, stripe_customer_id")
     if tier_key:
-        query = query.eq("subscriptions.tier_key", tier_key)
-
+        sub_query = sub_query.eq("tier_key", tier_key)
     if status:
-        query = query.eq("subscriptions.status", status)
+        sub_query = sub_query.eq("status", status)
+    try:
+        sub_result = sub_query.execute()
+        sub_rows = sub_result.data or []
+    except Exception as e:
+        logger.warning("Subscriber subscriptions query failed: %s", e)
+        sub_rows = []
 
-    # Count total — separate query
-    count_query = sb.table("user_profiles").select("id", count="exact")
+    if not sub_rows:
+        return {"total": 0, "page": page, "page_size": page_size, "subscribers": []}
+
+    # Build lookup by user_id.
+    sub_map = {r["user_id"]: r for r in sub_rows}
+    user_ids = list(sub_map.keys())
+
+    # 2. Query user_profiles for those user_ids, with optional search filter.
+    profile_query = sb.table("user_profiles").select(
+        "id, email, full_name, created_at, last_seen_at, deactivated_at"
+    ).in_("id", user_ids)
     if search:
         safe = _sanitise_search(search)
-        count_query = count_query.or_(f"email.ilike.%{safe}%,full_name.ilike.%{safe}%")
+        profile_query = profile_query.or_(f"email.ilike.%{safe}%,full_name.ilike.%{safe}%")
 
     try:
-        count_result = count_query.execute()
-        total = count_result.count or 0
-    except Exception:
-        total = 0
-
-    offset = (page - 1) * page_size
-    try:
-        result = query.range(offset, offset + page_size - 1).execute()
-        rows = result.data or []
+        profile_result = profile_query.execute()
+        profile_rows = profile_result.data or []
     except Exception as e:
-        logger.warning("Subscriber list query failed: %s", e)
-        rows = []
-        total = 0
+        logger.warning("Subscriber profiles query failed: %s", e)
+        profile_rows = []
 
-    subscribers = []
-    for row in rows:
-        sub = row.get("subscriptions") or {}
-        if isinstance(sub, list):
-            sub = sub[0] if sub else {}
-        subscribers.append({
-            "id":                  row["id"],
-            "email":               row.get("email"),
-            "full_name":           row.get("full_name"),
+    profile_map = {r["id"]: r for r in profile_rows}
+
+    # 3. Merge: only include users present in both tables (inner join semantics).
+    merged = []
+    for uid in user_ids:
+        prof = profile_map.get(uid)
+        if not prof:
+            continue
+        sub = sub_map[uid]
+        merged.append({
+            "id":                  uid,
+            "email":               prof.get("email"),
+            "full_name":           prof.get("full_name"),
             "tier_key":            sub.get("tier_key", "free"),
             "subscription_status": sub.get("status", "active"),
             "stripe_customer_id":  sub.get("stripe_customer_id"),
-            "created_at":          row.get("created_at"),
-            "last_seen_at":        row.get("last_seen_at"),
-            "is_active":           row.get("deactivated_at") is None,
+            "created_at":          prof.get("created_at"),
+            "last_seen_at":        prof.get("last_seen_at"),
+            "is_active":           prof.get("deactivated_at") is None,
         })
+
+    total = len(merged)
+    offset = (page - 1) * page_size
+    subscribers = merged[offset: offset + page_size]
 
     return {
         "total":       total,
@@ -374,7 +382,12 @@ async def get_platform_pricing(staff: dict = Depends(require_staff())):
     """Return all plans with full details including Stripe IDs."""
     sb = get_supabase()
     result = sb.table("plans").select("*").order("sort_order").execute()
-    return {"plans": result.data or []}
+    plans = result.data or []
+    # Normalize DB column features_json → features so the frontend Plan interface works.
+    for plan in plans:
+        if "features_json" in plan and "features" not in plan:
+            plan["features"] = plan.pop("features_json")
+    return {"plans": plans}
 
 
 class PricingUpdateRequest(BaseModel):
