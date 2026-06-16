@@ -93,17 +93,21 @@ def get_ai_settings(payload: dict = Depends(verify_token)):
 def update_ai_settings(body: AISettingsBody, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     sb = get_supabase()
-    sb.table("ai_settings").upsert(
-        {
-            "user_id": user_id,
-            "narrative_enabled": body.narrative_enabled,
-            "chat_enabled": body.chat_enabled,
-            "risk_summary_enabled": body.risk_summary_enabled,
-            "strategy_reasoning_enabled": body.strategy_reasoning_enabled,
-            "earnings_awareness_enabled": body.earnings_awareness_enabled,
-        },
-        on_conflict="user_id",
-    ).execute()
+    try:
+        sb.table("ai_settings").upsert(
+            {
+                "user_id": user_id,
+                "narrative_enabled": body.narrative_enabled,
+                "chat_enabled": body.chat_enabled,
+                "risk_summary_enabled": body.risk_summary_enabled,
+                "strategy_reasoning_enabled": body.strategy_reasoning_enabled,
+                "earnings_awareness_enabled": body.earnings_awareness_enabled,
+            },
+            on_conflict="user_id",
+        ).execute()
+    except Exception as e:
+        logger.error("ai_settings upsert failed for %s: %s", user_id, e)
+        raise HTTPException(status_code=500, detail=f"Failed to save AI settings: {e}")
     return {"saved": True}
 
 
