@@ -471,6 +471,20 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
           <StrategyDetail symbol={selectedSymbol} onSelectTrade={onSelectTrade} />
         </div>
       )}
+
+      {/* Educational disclaimer */}
+      <div style={{
+        marginTop: '24px',
+        padding: '10px 16px',
+        background: C.surface2,
+        border: `1px solid ${C.border}`,
+        borderRadius: '8px',
+        textAlign: 'center',
+        fontSize: '12px',
+        color: C.muted,
+      }}>
+        For educational purposes only — not financial advice. All analysis is simulated and does not constitute a recommendation to trade.
+      </div>
     </div>
   )
 }

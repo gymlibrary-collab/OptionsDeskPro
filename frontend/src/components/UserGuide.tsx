@@ -128,7 +128,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           OptionsDesk — User Guide
         </h2>
         <p style={{ margin: 0, fontSize: '13px', color: C.muted }}>
-          Everything you need to read, analyse, and trade options using the tastylive framework.
+          Everything you need to read, analyse, and paper-trade options — educational simulator only.
           {isAdmin && ' Admin-specific sections are marked below.'}
         </p>
       </div>
@@ -136,10 +136,10 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── GETTING STARTED ── */}
       <Section title="Getting Started" defaultOpen>
         <P>
-          OptionsDesk is an options trading platform built around the <strong>tastylive</strong> methodology — a
-          systematic approach to selling options premium when implied volatility is elevated, and buying when
-          it is cheap. The app helps you identify opportunities, understand the reasoning behind each strategy,
-          and execute trades with a clear plan.
+          OptionsDesk is a <strong>paper-trading simulator for educational purposes only</strong>. It is not
+          financial advice and does not involve real money. The app teaches you how to read options markets,
+          understand strategy mechanics, and practise placing trades — all in a risk-free environment using
+          established options education frameworks.
         </P>
         <Note>
           <strong>The golden rule:</strong> Every strategy you consider comes with a plain-English explanation
@@ -232,7 +232,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             </div>
             <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}33`, borderRadius: '8px', padding: '12px 14px' }}>
               <div style={{ fontWeight: 700, color: C.red, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Loss Scenario</div>
-              <P>Maximum loss, when losses begin, and the tastylive 2× credit rule for undefined-risk trades.</P>
+              <P>Maximum loss, when losses begin, and the standard 2× credit rule for undefined-risk trades.</P>
             </div>
           </div>
           <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}33`, borderRadius: '8px', padding: '12px 14px' }}>
@@ -308,11 +308,11 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="PCR">Put/Call Ratio — ratio of put volume to call volume. Below 0.7 is bullish (call-heavy); above 1.3 is bearish (put-heavy).</Term>
           <Term term="ATR">Average True Range — the average daily high-to-low range over the past 14 days. Expressed as a dollar or percentage figure.</Term>
           <Term term="MACD">Moving Average Convergence Divergence — a momentum indicator. When the MACD line is above the signal line, momentum is bullish.</Term>
-          <Term term="DTE">Days to Expiration. tastylive targets 45 DTE for new entries and recommends closing at 21 DTE.</Term>
+          <Term term="DTE">Days to Expiration. A common practice is to target 30–45 DTE for new entries and close at 21 DTE to avoid accelerated decay risk.</Term>
           <Term term="PoP">Probability of Profit — estimated chance the trade is profitable at expiration, derived from the delta of the short strikes.</Term>
           <Term term="Defined Risk">A trade where max loss is capped (e.g. vertical spreads, iron condors). You can never lose more than the spread width minus credit.</Term>
-          <Term term="Undefined Risk">A trade with no hard loss ceiling (e.g. naked puts/calls, strangles). tastylive recommends sizing these at 1–3% of portfolio.</Term>
-          <Term term="2× Rule">tastylive's stop-loss rule for undefined-risk trades: if the loss equals 2× the premium collected, close the position immediately.</Term>
+          <Term term="Undefined Risk">A trade with no hard loss ceiling (e.g. naked puts/calls, strangles). As a good practice, sizing these at 1–3% of portfolio is recommended.</Term>
+          <Term term="2× Rule">A common stop-loss rule for undefined-risk trades: if the loss equals 2× the premium collected, close the position immediately.</Term>
           <Term term="Rolling">Closing a current position and reopening it at a later expiry (or different strikes) — ideally for a net credit to extend the trade's time horizon.</Term>
         </div>
       </Section>
@@ -552,7 +552,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       )}
 
       <div style={{ marginTop: '8px', padding: '12px 16px', background: C.surface, borderRadius: '8px', fontSize: '12px', color: C.muted, textAlign: 'center' }}>
-        OptionsDesk · Built on the tastylive framework · Paper trading only · Not financial advice
+        OptionsDesk · Paper-trading simulator · For educational purposes only · Not financial advice
       </div>
     </div>
   )

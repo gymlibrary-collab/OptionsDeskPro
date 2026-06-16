@@ -99,7 +99,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
         } else {
           bg = '#2d1f0a'; border = C.amber; icon = '⏰'
           headline = `21-DTE CLOSE — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
-          detail = `${stratLabel}${dte(a.pos.expiry)} days to expiry. tastylive rule: close at 21 DTE regardless of P&L.`
+          detail = `${stratLabel}${dte(a.pos.expiry)} days to expiry. Good practice: close at 21 DTE regardless of P&L.`
         }
 
         return (
@@ -577,7 +577,7 @@ export default function Positions() {
             </tbody>
           </table>
           <div style={{ marginTop: '10px', fontSize: '11px', color: C.muted, textAlign: 'right' }}>
-            Strategy-linked positions use the recommended profit target. Manual positions default to +50% (tastylive standard). DTE turns amber at 21 days, red at 7.
+            Strategy-linked positions use the recommended profit target. Manual positions default to +50% of max profit. DTE turns amber at 21 days, red at 7.
           </div>
         </div>
       )}
