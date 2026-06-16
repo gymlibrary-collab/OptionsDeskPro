@@ -1,34 +1,42 @@
 """
-AI-powered analysis features using Anthropic Claude.
+AI-powered analysis features using Google Gemini.
 Each function returns None gracefully if the API key is missing or the call fails.
 Never call get_supabase() at module level.
 
-Model usage:
-  - Legacy features (enhance_narrative, explain_strategy_reasoning, answer_portfolio_question):
-    retained as-is (claude-opus-4-8 / claude-haiku-4-5).
-  - All new E-series features use claude-haiku-4-5-20251001 for cost efficiency.
+Model: gemini-1.5-flash (free tier on Google AI Studio)
+Get your API key at: https://aistudio.google.com/app/apikey
+Set env var: GEMINI_API_KEY
 """
 import os
+import json
 import logging
 import time
 from typing import Optional
 
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+_MODEL = "gemini-1.5-flash"
 logger = logging.getLogger(__name__)
 
 
-def _client():
-    import anthropic
-    key = os.environ.get("ANTHROPIC_API_KEY")
+def _generate(prompt: str, system: Optional[str] = None) -> str:
+    """Call Gemini and return the response text."""
+    import google.generativeai as genai
+
+    key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set")
-    return anthropic.Anthropic(api_key=key)
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set")
+
+    genai.configure(api_key=key)
+    model = genai.GenerativeModel(
+        _MODEL,
+        system_instruction=system or "You are a helpful assistant.",
+    )
+    response = model.generate_content(prompt)
+    return response.text.strip()
 
 
 # ── In-process cache helpers ─────────────────────────────────────────────────
-# Simple dict + timestamp caches, matching the pattern in market_data.py.
 
-_sentiment_cache: dict[str, dict] = {}   # symbol → {result, ts}
+_sentiment_cache: dict[str, dict] = {}
 _SENTIMENT_TTL = 30.0  # seconds
 
 
@@ -68,14 +76,9 @@ def enhance_narrative(
             f"setup has edge right now. Be concrete about the IV/bias interaction, the exact numbers, "
             f"and what has to go wrong for the trade to lose. No generic options theory — specific insight only."
         )
-
-        msg = _client().messages.create(
-            model="claude-opus-4-8",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text.strip()
-    except Exception:
+        return _generate(prompt)
+    except Exception as e:
+        logger.error("enhance_narrative failed: %s", e)
         return None
 
 
@@ -113,14 +116,9 @@ def explain_strategy_reasoning(
             f"(3) what has to go wrong for it to lose. "
             f"Be specific to these numbers only. No generic theory."
         )
-
-        msg = _client().messages.create(
-            model="claude-opus-4-8",
-            max_tokens=250,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text.strip()
-    except Exception:
+        return _generate(prompt)
+    except Exception as e:
+        logger.error("explain_strategy_reasoning failed: %s", e)
         return None
 
 
@@ -150,14 +148,9 @@ def synthesize_risk_summary(positions_risk: list[dict]) -> Optional[str]:
             f"4. End with one specific, actionable recommendation\n"
             f"Use the actual ticker symbols. Be direct and practical."
         )
-
-        msg = _client().messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text.strip()
-    except Exception:
+        return _generate(prompt)
+    except Exception as e:
+        logger.error("synthesize_risk_summary failed: %s", e)
         return None
 
 
@@ -188,25 +181,18 @@ def answer_portfolio_question(
             f"P&L: ${portfolio_summary.get('total_pnl', 0):,.2f}"
         )
 
-        sys_prompt = (
+        system = (
             "You are an options trading assistant specialising in established options trading methodology. "
             "Answer concisely and practically. Reference the trader's actual positions when relevant. "
             "Keep answers under 200 words."
         )
-
         user_content = (
             f"Portfolio summary: {portfolio_text}\n"
             f"Open positions:\n" + ("\n".join(pos_lines) if pos_lines else "  (none)") + "\n\n"
             f"Question: {question}"
         )
 
-        msg = _client().messages.create(
-            model="claude-opus-4-8",
-            max_tokens=400,
-            system=sys_prompt,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        return msg.content[0].text.strip()
+        return _generate(user_content, system=system)
     except Exception as e:
         logger.error("ai_chat failed: %s", e)
         return "I couldn't process your question right now — please try again."
@@ -222,19 +208,7 @@ _NEUTRAL_SENTIMENT: dict = {
 
 
 def classify_news_sentiment(symbol: str, headlines: list[str]) -> dict:
-    """
-    E2 — News Sentiment Digest (free for all users, no entitlement check).
-
-    Classifies a list of news headlines for *symbol* as BULLISH/BEARISH/NEUTRAL
-    with a confidence score (0-1) and a 1-2 sentence digest.
-
-    Returns:
-        {"sentiment": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.85, "digest": "..."}
-
-    Falls back to neutral sentinel if headlines is empty or the Claude call fails.
-    Cache TTL: 30 seconds, keyed by symbol (last N headlines are implicitly stable
-    within the TTL window, so caching by symbol is sufficient).
-    """
+    """E2 — News Sentiment Digest."""
     if not headlines:
         return _NEUTRAL_SENTIMENT
 
@@ -253,14 +227,7 @@ def classify_news_sentiment(symbol: str, headlines: list[str]) -> dict:
             f'{{"sentiment": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, '
             f'"digest": "1-2 sentence summary of why"}}'
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=150,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        import json
-        raw = msg.content[0].text.strip()
-        # Strip markdown code fences if Claude wrapped the JSON
+        raw = _generate(prompt)
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -288,25 +255,11 @@ def compare_and_recommend(
     iv_environment: str,
     bias: str,
 ) -> dict:
-    """
-    E8 — AI Strategy Comparison (free for all users, no entitlement check).
-
-    Takes the top N strategies (each with keys: key, name, fit_score, description),
-    the IV environment, and the directional bias. Claude Haiku picks the single
-    best-fit strategy and explains why in 2-3 sentences.
-
-    Returns:
-        {"recommended_key": "short_strangle", "recommended_name": "Short Strangle", "reasoning": "..."}
-
-    Validation: if recommended_key is not in the input list, falls back to the
-    top-scorer by fit_score without AI reasoning.
-    """
+    """E8 — AI Strategy Comparison."""
     if not strategies:
         return {"recommended_key": "", "recommended_name": "", "reasoning": ""}
 
-    # Build a fast lookup for validation
     key_set = {s.get("key", "") for s in strategies}
-    # Identify the top scorer as fallback
     top_by_score = max(strategies, key=lambda s: s.get("fit_score", 0))
 
     try:
@@ -325,20 +278,13 @@ def compare_and_recommend(
             f'{{"recommended_key": "<key from list>", "recommended_name": "<name>", '
             f'"reasoning": "2-3 sentence explanation"}}'
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        import json
-        raw = msg.content[0].text.strip()
+        raw = _generate(prompt)
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
         parsed = json.loads(raw.strip())
         rec_key = str(parsed.get("recommended_key", ""))
-        # Validate: key must exist in the input list
         if rec_key not in key_set:
             return {
                 "recommended_key": top_by_score.get("key", ""),
@@ -365,18 +311,7 @@ def generate_morning_briefing(
     watchlist: list[str],
     market_contexts: list[dict],
 ) -> str:
-    """
-    E4 — Daily Morning Briefing (free for all users, no entitlement check).
-
-    Generates a <120-word morning briefing covering IV regime, earnings proximity,
-    and strategy shifts for the user's watchlist symbols.
-
-    *market_contexts* is a list of dicts, one per symbol, each containing at minimum:
-        {"symbol": "AAPL", "iv_environment": "HIGH", "bias": "BULLISH",
-         "earnings_soon": False, "iv_rank": 72.3}
-
-    Returns the briefing text string. Returns a safe fallback on failure.
-    """
+    """E4 — Daily Morning Briefing."""
     if not watchlist:
         return "No symbols in your watchlist. Add some tickers to receive a personalised morning briefing."
 
@@ -402,13 +337,9 @@ def generate_morning_briefing(
             f"Write in second-person ('Your watchlist...'), be specific to these tickers, "
             f"no more than 120 words total."
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=250,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text.strip()
-    except Exception:
+        return _generate(prompt)
+    except Exception as e:
+        logger.error("generate_morning_briefing failed: %s", e)
         symbols_str = ", ".join(watchlist[:10])
         return (
             f"Good morning. Your watchlist covers: {symbols_str}. "
@@ -420,23 +351,7 @@ def generate_morning_briefing(
 # ── E1: Trade Journal AI Review ───────────────────────────────────────────────
 
 def review_closed_trade(trade: dict, recent_trades: list[dict]) -> dict:
-    """
-    E1 — Trade Journal AI Review (Pro/Enterprise entitlement: trade_journal).
-
-    Writes a three-section post-mortem for a completed options trade.
-
-    *trade* keys: symbol, expiry, strike, option_type, action, quantity, price,
-                  strategy_key, strategy_name, created_at
-    *recent_trades*: last 10 filled orders for behavioural pattern detection
-
-    Returns:
-        {
-            "entry_consistency": "...",
-            "rule_adherence": "...",
-            "behavioural_patterns": "...",
-            "overall_grade": "A"|"B"|"C"|"D"
-        }
-    """
+    """E1 — Trade Journal AI Review."""
     _fallback = {
         "entry_consistency": "Analysis unavailable.",
         "rule_adherence": "Analysis unavailable.",
@@ -474,13 +389,7 @@ def review_closed_trade(trade: dict, recent_trades: list[dict]) -> dict:
             f'"behavioural_patterns": "1-2 sentences on any repeated mistakes or positive habits seen across recent trades", '
             f'"overall_grade": "A|B|C|D"}}'
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        import json
-        raw = msg.content[0].text.strip()
+        raw = _generate(prompt)
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -502,24 +411,7 @@ def review_closed_trade(trade: dict, recent_trades: list[dict]) -> dict:
 # ── E5: Roll/Adjustment Advisor ───────────────────────────────────────────────
 
 def suggest_roll_adjustment(position: dict, market_context: dict) -> dict:
-    """
-    E5 — Roll/Adjustment Advisor (Pro/Enterprise entitlement: roll_advisor).
-
-    Proposes 1-3 ranked defensive actions for a position under stress.
-
-    *position* keys: symbol, expiry, strike, option_type, quantity, avg_cost,
-                     current_price, pnl, dte, risk_level, signals
-    *market_context*: output of get_full_market_context() for the symbol
-
-    Returns:
-        {
-            "suggestions": [
-                {"action": "Roll Strikes", "rationale": "...", "urgency": "high"|"medium"|"low"},
-                ...
-            ],
-            "summary": "one sentence"
-        }
-    """
+    """E5 — Roll/Adjustment Advisor."""
     _fallback = {
         "suggestions": [
             {"action": "Hold", "rationale": "Unable to generate advice at this time.", "urgency": "low"}
@@ -531,8 +423,6 @@ def suggest_roll_adjustment(position: dict, market_context: dict) -> dict:
             s.get("msg", "")[:80] for s in (position.get("signals") or [])[:3]
         )
         earnings_soon = (market_context.get("earnings") or {}).get("earnings_soon", False)
-        iv_env = ""
-        # market_context doesn't carry iv_environment directly; derive a label from flow
         flow_bias = (market_context.get("flow") or {}).get("flow_bias", "neutral")
 
         prompt = (
@@ -551,13 +441,7 @@ def suggest_roll_adjustment(position: dict, market_context: dict) -> dict:
             f'{{"action": "...", "rationale": "1-2 sentences", "urgency": "high|medium|low"}}'
             f'], "summary": "one sentence"}}'
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=350,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        import json
-        raw = msg.content[0].text.strip()
+        raw = _generate(prompt)
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -591,17 +475,7 @@ def generate_greeks_coaching(
     net_vega: float,
     positions: list[dict],
 ) -> str:
-    """
-    E6 — Portfolio Greeks Coaching (Pro/Enterprise entitlement: greeks_coaching).
-
-    Writes a 2-3 sentence concentration-risk coaching paragraph based on the
-    portfolio's aggregate greek exposure.
-
-    *positions* is a lightweight list of dicts for context:
-        [{"symbol": "AAPL", "option_type": "call", "quantity": 2, "delta": 0.35}, ...]
-
-    Returns the coaching text string.
-    """
+    """E6 — Portfolio Greeks Coaching."""
     try:
         pos_lines = []
         for p in positions[:10]:
@@ -622,13 +496,9 @@ def generate_greeks_coaching(
             f"Be specific to these greek values. Suggest one concrete hedge or adjustment if appropriate. "
             f"No generic theory — only actionable insight for this exact portfolio."
         )
-        msg = _client().messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=200,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text.strip()
-    except Exception:
+        return _generate(prompt)
+    except Exception as e:
+        logger.error("generate_greeks_coaching failed: %s", e)
         return (
             f"Your portfolio carries net delta {net_delta:+.2f}, "
             f"theta {net_theta:+.2f}/day, vega {net_vega:+.2f}. "
