@@ -1,0 +1,22 @@
+name: Purge user_action_log (30-day retention)
+
+on:
+  schedule:
+    # Daily at 3:00 AM UTC
+    - cron: '0 3 * * *'
+  # Manual trigger for testing or on-demand purge
+  workflow_dispatch:
+
+jobs:
+  purge:
+    name: Delete rows older than 30 days
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Purge user_action_log rows older than 30 days
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DATABASE_URL" -c \
+            "DELETE FROM public.user_action_log WHERE created_at < now() - interval '30 days';"

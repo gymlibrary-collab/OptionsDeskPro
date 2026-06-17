@@ -91,17 +91,18 @@ User actions are recorded automatically and require no configuration:
 2. Run the Supabase migration `015_user_action_log.sql`:
    - Creates the `user_action_log` table with indexes on `created_at DESC` and `user_email`.
    - Enables RLS (service role writes and admin reads only; no direct user access).
-   - Schedules a pg_cron job to purge rows older than 30 days daily at 3:00 AM UTC.
-   - **Prerequisite:** pg_cron extension must be enabled in your Supabase project (via Dashboard → Database → Extensions). If pg_cron is unavailable, the migration will fail on the `cron.schedule()` call; consult the operator or enable the extension and re-run.
+   - No pg_cron dependency — 30-day retention is handled by the GitHub Actions workflow (see step 3).
 
-3. Deploy the frontend code containing:
+3. Add `SUPABASE_DB_URL` as a GitHub Actions secret (repository Settings → Secrets → Actions). The value is the direct Postgres connection URI from Supabase Dashboard → Settings → Database → Connection String → URI (Transaction mode, port 5432). The `.github/workflows/purge-user-action-log.yml` workflow runs daily at 3:00 AM UTC and deletes rows older than 30 days.
+
+4. Deploy the frontend code containing:
    - `HealthTab` sub-component and state management.
    - `UserActionsTab` sub-component with filters, pagination, and detail rendering.
    - Updated tab bar in `AdminPanel.tsx` (add "Health" and "User Actions" tabs; rename "Activity Log" to "Activity Log (Logins)").
    - New API functions in `client.ts`: `getHealthCheck()`, `getActivityLog()`, `postLogout()`.
    - Updated `AuthContext.tsx` to call `postLogout()` on sign-out.
 
-4. Verify:
+5. Verify:
    - Sign in as an admin user.
    - Navigate to the Admin panel.
    - Confirm the "Health" tab appears and displays all five component cards.
@@ -125,7 +126,7 @@ If a critical issue is discovered post-deployment:
 ## Known limitations
 
 - **CSV Export deferred** — The export-to-CSV button and `GET /api/admin/activity-log/export` endpoint were deferred per product owner decision at Gate 2. The filter and pagination UI are complete; export will be added in the next admin tooling iteration.
-- **pg_cron prerequisite** — If the Supabase project does not have pg_cron enabled, the migration's `cron.schedule()` call will fail. Contact the operator to enable the extension via the Supabase Dashboard, or manually delete the `cron.schedule()` statement from the migration and implement retention pruning via an alternative mechanism (e.g. Supabase Edge Function or external Lambda).
+- **Retention purge requires GitHub Actions secret** — The 30-day purge runs as a GitHub Actions cron job and requires `SUPABASE_DB_URL` to be set in repository secrets. Without it the workflow will fail silently and the table grows without bound. No pg_cron extension required.
 - **IP spoofing** — Client IP is extracted from X-Forwarded-For header (set by Railway's reverse proxy) or request.client.host. If a user is behind a proxy or CDN that strips X-Forwarded-For, the captured IP may not be accurate. This is informational only and not a security control.
 - **No real-time push** — The Health tab polls on a 60-second cycle with a 30-second manual refresh throttle. No WebSocket or Server-Sent Events. Component failures are not broadcast; admins must view the tab to see updates.
 - **No alerting** — No automated notifications (email, Slack) when a component goes into error state. Manual observation only.
@@ -142,21 +143,21 @@ If a critical issue is discovered post-deployment:
 |-------|---------|--------|
 | Migration readiness | `CREATE TABLE IF NOT EXISTS` with no ALTER on existing tables. FK to `auth.users ON DELETE CASCADE` is standard Supabase pattern. No lock risk on a live database. | CLEAR |
 | httpx dependency | `httpx>=0.27.0` present in `requirements.txt` and pinned consistently with all other dependencies. No action required. | CLEAR |
-| pg_cron | Not guaranteed on Supabase free tier. The migration is safe either way — the `DO/EXCEPTION` block converts a missing pg_cron extension to a WARNING, allowing the table creation to complete. Without pg_cron enabled, the table grows without bound; the operator must enable the extension or arrange an alternative purge mechanism. | CONDITIONAL |
+| Retention purge | GitHub Actions cron (`purge-user-action-log.yml`) runs daily at 3 AM UTC. Requires `SUPABASE_DB_URL` secret in repository settings. No pg_cron extension dependency. | CLEAR (secret required) |
 | Railway env vars | Zero new environment variables required. `GEMINI_API_KEY` absence is handled gracefully inside the health probe (reports Error status rather than crashing). | CLEAR |
 | Rollback | `DROP TABLE IF EXISTS public.user_action_log CASCADE;` is the migration rollback, plus `SELECT cron.unschedule('purge-user-action-log-30d');` if pg_cron registered. The fire-and-forget logging pattern means a rolled-back table produces WARNING log lines on Railway but zero user-facing errors. | SIMPLE |
 | Zero-downtime | No ALTER on existing tables, no route removals, `def`-to-`async def` conversion is transparent to FastAPI callers. Safe for a rolling Railway restart with no maintenance window. | CONFIRMED |
 
-**Operator decision:** CLEAR TO RELEASE — no blockers. Enable pg_cron in Supabase before or immediately after migration to activate the 30-day retention purge.
+**Operator decision:** CLEAR TO RELEASE — no blockers. Add `SUPABASE_DB_URL` to GitHub repository secrets to activate the 30-day retention purge workflow.
 
 ---
 
 ## Deployment Checklist
 
 Pre-deployment:
-- [ ] pg_cron extension enabled in Supabase Dashboard → Database → Extensions
+- [ ] Add `SUPABASE_DB_URL` secret to GitHub repository (Settings → Secrets → Actions → New repository secret). Value: Supabase Dashboard → Settings → Database → Connection String → URI (port 5432)
 - [ ] Run migration `015_user_action_log.sql` in Supabase SQL editor
-- [ ] Confirm migration completed without errors (check for pg_cron WARNING if extension not enabled — WARNING is acceptable, ERROR is not)
+- [ ] Confirm migration completed without errors
 
 Deployment:
 - [ ] Push to main triggers Railway auto-deploy for backend service
