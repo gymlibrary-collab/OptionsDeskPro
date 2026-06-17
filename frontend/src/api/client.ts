@@ -142,7 +142,7 @@ export const getPortfolio = () =>
   api.get<PortfolioSummary>('/portfolio', { timeout: 45000 }).then(r => r.data)
 
 export const getPositionsRisk = (): Promise<PositionRisk[]> =>
-  api.get<PositionRisk[]>('/positions/risk').then(r => r.data)
+  api.get<PositionRisk[]>('/positions/risk', { timeout: 60000 }).then(r => r.data)
 
 // ─── Strategy Intelligence ──────────────────────────────────────────────────────
 
