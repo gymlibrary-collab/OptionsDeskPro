@@ -136,7 +136,7 @@ export default function LoginPage() {
           backgroundImage: 'linear-gradient(rgba(124,106,247,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,106,247,0.04) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }} />
-        {/* Compass watermark — top-right, 45° CW, degree-ring style */}
+        {/* Compass watermark — top-right, 45° CW, nautical layered style */}
         <div style={{
           position: 'absolute', top: '3%', right: '-6%',
           width: '42%', height: '42%',
@@ -146,73 +146,66 @@ export default function LoginPage() {
           zIndex: 0,
         }}>
           <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-            {/* crosshair lines */}
-            <line x1="120" y1="0"   x2="120" y2="240" stroke="#7c6af7" strokeWidth="0.35" strokeDasharray="3 6" opacity="0.18"/>
-            <line x1="0"   y1="120" x2="240" y2="120" stroke="#7c6af7" strokeWidth="0.35" strokeDasharray="3 6" opacity="0.18"/>
-            <line x1="0"   y1="0"   x2="240" y2="240" stroke="#7c6af7" strokeWidth="0.25" strokeDasharray="2 9" opacity="0.1"/>
-            <line x1="240" y1="0"   x2="0"   y2="240" stroke="#7c6af7" strokeWidth="0.25" strokeDasharray="2 9" opacity="0.1"/>
-            {/* rings */}
-            <circle cx="120" cy="120" r="113" stroke="#7c6af7" strokeWidth="1.6"  opacity="0.22"/>
-            <circle cx="120" cy="120" r="104" stroke="#7c6af7" strokeWidth="0.45" opacity="0.14"/>
-            <circle cx="120" cy="120" r="62"  stroke="#a78bfa" strokeWidth="0.55" strokeDasharray="3 3" opacity="0.18"/>
-            <circle cx="120" cy="120" r="24"  stroke="#7c6af7" strokeWidth="0.9"  opacity="0.2"/>
-            {/* degree ticks every 10° */}
-            <g stroke="#7c6af7" strokeWidth="0.8" opacity="0.18">
-              <line x1="120" y1="7"   x2="120" y2="18"/>
-              <line x1="120" y1="222" x2="120" y2="233"/>
-              <line x1="7"   y1="120" x2="18"  y2="120"/>
-              <line x1="222" y1="120" x2="233" y2="120"/>
-              <line x1="175.4" y1="18.3" x2="171.7" y2="24.7"/>
-              <line x1="64.6"  y1="18.3" x2="68.3"  y2="24.7"/>
-              <line x1="221.7" y1="64.6" x2="215.3" y2="68.3"/>
-              <line x1="221.7" y1="175.4" x2="215.3" y2="171.7"/>
-              <line x1="18.3"  y1="64.6" x2="24.7"  y2="68.3"/>
-              <line x1="18.3"  y1="175.4" x2="24.7" y2="171.7"/>
-              <line x1="175.4" y1="221.7" x2="171.7" y2="215.3"/>
-              <line x1="64.6"  y1="221.7" x2="68.3"  y2="215.3"/>
-              <line x1="213.1" y1="57.5" x2="208.3" y2="63"/>
-              <line x1="57.5"  y1="213.1" x2="63"   y2="208.3"/>
-              <line x1="213.1" y1="182.5" x2="208.3" y2="177"/>
-              <line x1="57.5"  y1="26.9"  x2="63"   y2="31.7"/>
-              <line x1="26.9"  y1="57.5"  x2="31.7" y2="63"/>
-              <line x1="26.9"  y1="182.5" x2="31.7" y2="177"/>
-              <line x1="182.5" y1="26.9"  x2="177"  y2="31.7"/>
-              <line x1="182.5" y1="213.1" x2="177"  y2="208.3"/>
+            {/* three concentric rings */}
+            <circle cx="120" cy="120" r="114" stroke="#7c6af7" strokeWidth="2"   opacity="0.25"/>
+            <circle cx="120" cy="120" r="106" stroke="#7c6af7" strokeWidth="0.5" opacity="0.16"/>
+            <circle cx="120" cy="120" r="80"  stroke="#7c6af7" strokeWidth="0.8" strokeDasharray="2 4" opacity="0.15"/>
+            <circle cx="120" cy="120" r="52"  stroke="#a78bfa" strokeWidth="0.6" opacity="0.18"/>
+            <circle cx="120" cy="120" r="22"  stroke="#7c6af7" strokeWidth="1"   fill="rgba(124,106,247,0.06)" opacity="0.25"/>
+            {/* dense tick marks */}
+            <g stroke="#7c6af7" opacity="0.16">
+              {/* major every 90° */}
+              <line x1="120" y1="6"   x2="120" y2="22"  strokeWidth="2"/>
+              <line x1="120" y1="218" x2="120" y2="234" strokeWidth="2"/>
+              <line x1="6"   y1="120" x2="22"  y2="120" strokeWidth="2"/>
+              <line x1="218" y1="120" x2="234" y2="120" strokeWidth="2"/>
+              {/* 45° */}
+              <line x1="200.6" y1="39.4" x2="193" y2="47"   strokeWidth="1.4"/>
+              <line x1="39.4"  y1="39.4" x2="47"  y2="47"   strokeWidth="1.4"/>
+              <line x1="200.6" y1="200.6" x2="193" y2="193" strokeWidth="1.4"/>
+              <line x1="39.4"  y1="200.6" x2="47"  y2="193" strokeWidth="1.4"/>
+              {/* 30° */}
+              <line x1="177"   y1="17.3" x2="173.6" y2="23.3" strokeWidth="1"/>
+              <line x1="63"    y1="17.3" x2="66.4"  y2="23.3" strokeWidth="1"/>
+              <line x1="222.7" y1="63"   x2="216.7" y2="66.4" strokeWidth="1"/>
+              <line x1="222.7" y1="177"  x2="216.7" y2="173.6" strokeWidth="1"/>
+              <line x1="17.3"  y1="63"   x2="23.3"  y2="66.4" strokeWidth="1"/>
+              <line x1="17.3"  y1="177"  x2="23.3"  y2="173.6" strokeWidth="1"/>
+              <line x1="177"   y1="222.7" x2="173.6" y2="216.7" strokeWidth="1"/>
+              <line x1="63"    y1="222.7" x2="66.4"  y2="216.7" strokeWidth="1"/>
+              {/* 15° fine ticks */}
+              <line x1="150.7" y1="9.6"   x2="149.3" y2="14.3" strokeWidth="0.6"/>
+              <line x1="89.3"  y1="9.6"   x2="90.7"  y2="14.3" strokeWidth="0.6"/>
+              <line x1="209.6" y1="89.3"  x2="204.9" y2="90.7" strokeWidth="0.6" opacity="0.6"/>
+              <line x1="209.6" y1="150.7" x2="204.9" y2="149.3" strokeWidth="0.6" opacity="0.6"/>
+              <line x1="10.4"  y1="89.3"  x2="15.1"  y2="90.7" strokeWidth="0.6" opacity="0.6"/>
+              <line x1="10.4"  y1="150.7" x2="15.1"  y2="149.3" strokeWidth="0.6" opacity="0.6"/>
+              <line x1="150.7" y1="230.4" x2="149.3" y2="225.7" strokeWidth="0.6" opacity="0.6"/>
+              <line x1="89.3"  y1="230.4" x2="90.7"  y2="225.7" strokeWidth="0.6" opacity="0.6"/>
             </g>
-            {/* 45° ticks slightly longer */}
-            <g stroke="#7c6af7" strokeWidth="1.2" opacity="0.22">
-              <line x1="200.1" y1="39.9" x2="194.4" y2="45.6"/>
-              <line x1="39.9"  y1="39.9" x2="45.6"  y2="45.6"/>
-              <line x1="200.1" y1="200.1" x2="194.4" y2="194.4"/>
-              <line x1="39.9"  y1="200.1" x2="45.6"  y2="194.4"/>
-            </g>
-            {/* cardinal ticks brightest */}
-            <g stroke="#c4b5fd" strokeWidth="2" opacity="0.3">
-              <line x1="120" y1="7"   x2="120" y2="22"/>
-              <line x1="120" y1="218" x2="120" y2="233"/>
-              <line x1="7"   y1="120" x2="22"  y2="120"/>
-              <line x1="218" y1="120" x2="233" y2="120"/>
-            </g>
-            {/* S/E/W arrows — subtle */}
-            <polygon points="120,222 124.5,148 120,136 115.5,148" fill="#7c6af7" opacity="0.18"/>
-            <polygon points="222,120 148,124.5 136,120 148,115.5" fill="#7c6af7" opacity="0.15"/>
-            <polygon points="18,120 92,124.5 104,120 92,115.5"   fill="#7c6af7" opacity="0.15"/>
-            {/* N arrow — bright, on top */}
-            <polygon points="120,18 126,98 120,112 114,98" fill="#e2e8f0" opacity="0.55"/>
-            {/* N arrowhead cap */}
-            <polygon points="120,10 128,30 120,22 112,30" fill="#e2e8f0" opacity="0.7"/>
+            {/* N arrow — wide fleur style */}
+            <polygon points="120,10 127,85 120,100 113,85" fill="#e2e8f0" opacity="0.58"/>
+            {/* fleur arrowhead */}
+            <polygon points="120,8 130,20 120,26 110,20" fill="#e2e8f0" opacity="0.72"/>
+            <line x1="105" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
+            <line x1="135" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
+            {/* S arrow */}
+            <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
+            {/* E/W subtle marks */}
+            <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
+            <polygon points="10,120 85,125 100,120 85,115"   fill="#7c6af7" opacity="0.18"/>
             {/* centre */}
-            <circle cx="120" cy="120" r="12" fill="#08090f" stroke="#7c6af7" strokeWidth="1.4" opacity="0.4"/>
-            <circle cx="120" cy="120" r="5"  fill="#a78bfa" opacity="0.5"/>
-            {/* N label — counter-rotated so it stays upright */}
-            <text x="120" y="8" textAnchor="middle" fontSize="13" fontWeight="900"
-              fill="#e2e8f0" opacity="0.65" fontFamily="monospace"
-              transform="rotate(-45 120 8)">N</text>
-            {/* degree labels at 45° corners — counter-rotated */}
-            <text x="206" y="44"  textAnchor="middle" fontSize="7" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 206 44)">45°</text>
-            <text x="234" y="124" textAnchor="middle" fontSize="7" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 234 124)">90°</text>
-            <text x="206" y="200" textAnchor="middle" fontSize="7" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 206 200)">135°</text>
-            <text x="34"  y="200" textAnchor="middle" fontSize="7" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 34 200)">225°</text>
+            <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" strokeWidth="1.5" opacity="0.38"/>
+            <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
+            <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
+            {/* N label counter-rotated */}
+            <text x="120" y="7" textAnchor="middle" fontSize="12" fontWeight="900"
+              fill="#e2e8f0" opacity="0.72" fontFamily="Georgia, serif"
+              transform="rotate(-45 120 7)">N</text>
+            {/* S/E/W labels subtle */}
+            <text x="120" y="237" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 120 237)">S</text>
+            <text x="236" y="124" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 236 124)">E</text>
+            <text x="5"   y="124" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 5 124)">W</text>
           </svg>
         </div>
 
