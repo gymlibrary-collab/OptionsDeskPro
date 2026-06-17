@@ -50,6 +50,8 @@ _client_origins = [
     "https://optionspro-admin-production.up.railway.app",
     "https://optionscompass-production.up.railway.app",
     "https://optionscompass-admin-production.up.railway.app",
+    "https://optionscompass.up.railway.app",
+    "https://optionscompass-admin.up.railway.app",
 ]
 _admin_origins = [
     o.strip()
