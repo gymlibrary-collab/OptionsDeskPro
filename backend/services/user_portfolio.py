@@ -42,7 +42,8 @@ def ensure_portfolio(user_id: str) -> dict:
 def place_order(user_id: str, req: OrderRequest) -> Order:
     sb = get_supabase()
     portfolio = ensure_portfolio(user_id)
-    price = get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
+    # Use the price the frontend already has on screen; only fetch from market as fallback
+    price = req.price if (req.price and req.price > 0) else get_option_price(req.symbol, req.expiry, req.strike, req.option_type)
     if price <= 0:
         price = 0.01
     total_cost = price * req.quantity * 100

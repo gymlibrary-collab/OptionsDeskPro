@@ -28,14 +28,15 @@ def _safe_float(val, default: float = 0.0) -> float:
         return default
 
 _cache: dict = {}
-_TTL_YFINANCE = 30    # 30 s
+_TTL_QUOTE = 30      # 30 s — quotes need to be fresh
+_TTL_CHAIN = 300     # 5 min — chains are expensive; positions/risk/options tab share the cache
 
 
-def _cache_get(key: str) -> Optional[dict]:
+def _cache_get(key: str, ttl: int = _TTL_QUOTE) -> Optional[dict]:
     entry = _cache.get(key)
     if not entry:
         return None
-    if (time.time() - entry["ts"]) < _TTL_YFINANCE:
+    if (time.time() - entry["ts"]) < ttl:
         return entry["data"]
     return None
 
@@ -170,7 +171,7 @@ def _empty_quote(symbol: str) -> dict:
 
 def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     cache_key = f"chain:{symbol}:{expiry}"
-    cached = _cache_get(cache_key)
+    cached = _cache_get(cache_key, ttl=_TTL_CHAIN)
     if cached:
         return cached
 
