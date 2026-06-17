@@ -8,6 +8,8 @@ export default defineConfig({
     allowedHosts: [
       'optionspro-client-production.up.railway.app',
       'optionspro-admin-production.up.railway.app',
+      'optionscompass.up.railway.app',
+      'optionscompass-admin.up.railway.app',
     ],
     proxy: {
       '/api': {
@@ -20,6 +22,8 @@ export default defineConfig({
     allowedHosts: [
       'optionspro-client-production.up.railway.app',
       'optionspro-admin-production.up.railway.app',
+      'optionscompass.up.railway.app',
+      'optionscompass-admin.up.railway.app',
     ],
   },
 })
