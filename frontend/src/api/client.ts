@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
-  'https://optionspro-backend-production.up.railway.app'
+  'https://optionscompass-backend.up.railway.app'
 
 const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
