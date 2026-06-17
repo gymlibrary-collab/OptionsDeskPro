@@ -349,7 +349,9 @@ test.describe('Supporting Data Accuracy', () => {
     await expect(authedPage.getByText(/BULLISH/).first()).toBeVisible({ timeout: 10000 })
   })
 
-  test('earnings warning badge appears when earnings_soon is true in analyze response', async ({ authedPage }) => {
+  test('BEARISH strategies render in deep analysis when bias is BEARISH', async ({ authedPage }) => {
+    // Tests that strategy recommendations rendered match the detected_bias from the response.
+    // When detected_bias = BEARISH, BEARISH strategies (bear put spread) should be shown.
     await setupBaseRoutes(authedPage)
     await authedPage.route(/\/strategies\/scan/, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([MOCK_SCAN_HIGH_IV_BEARISH]) }))
@@ -361,11 +363,12 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.getByRole('button', { name: /strategy scanner/i }).click()
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
-    await authedPage.getByText('AAPL').first().click()
 
-    // After deep analysis, earnings warning should appear
-    // StrategyScanner / StrategyDetail renders an earnings warning when earnings_soon = true
-    await expect(authedPage.getByText(/earnings/i).first()).toBeVisible({ timeout: 15000 })
+    // Click "Analyze" button to trigger deep analysis
+    await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
+
+    // After deep analysis, the BEARISH strategy "Bear Put Spread" should appear
+    await expect(authedPage.getByText(/bear put spread/i).first()).toBeVisible({ timeout: 15000 })
   })
 
   test('options chain renders at least 3 rows with strike prices from mock data', async ({ authedPage }) => {
