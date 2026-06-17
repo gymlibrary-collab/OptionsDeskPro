@@ -593,7 +593,7 @@ function HealthTab() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <h3 style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 600, margin: 0 }}>System Health</h3>
         <button
-          onClick={() => fetchHealth(true)}
+          onClick={() => fetchHealth(false)}
           disabled={loading}
           style={{
             background: loading ? '#2d3148' : '#7c6af7',
@@ -611,8 +611,8 @@ function HealthTab() {
         </button>
       </div>
 
-      {/* Overall status banner */}
-      {healthData && (
+      {/* Overall status banner — suppressed when a fresh-fetch error is active (stale data would be misleading) */}
+      {healthData && !fetchError && (
         <div style={{
           background: `${bannerConfig[healthData.overall]?.color}22`,
           border: `1px solid ${bannerConfig[healthData.overall]?.color}66`,
@@ -663,8 +663,8 @@ function HealthTab() {
         <p style={{ color: '#64748b', fontSize: '13px', padding: '20px 0' }}>Checking components...</p>
       )}
 
-      {/* Component cards */}
-      {healthData && (
+      {/* Component cards — suppressed when error is active to avoid misleading stale state */}
+      {healthData && !fetchError && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
           {healthData.components.map((c: ComponentHealth) => (
             <div key={c.name} style={{
@@ -700,7 +700,7 @@ function HealthTab() {
                 </div>
                 {c.error && (
                   <div style={{ color: '#ef4444', marginTop: '6px', fontSize: '11px', whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                    {c.error}
+                    {c.error.length > 200 ? c.error.slice(0, 197) + '...' : c.error}
                   </div>
                 )}
               </div>
