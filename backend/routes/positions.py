@@ -12,21 +12,21 @@ router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 
 
 @router.get("/positions")
-def list_positions(payload: dict = Depends(verify_token)):
+async def list_positions(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
-    return user_portfolio.get_positions(user_id)
+    return await user_portfolio.get_positions(user_id)
 
 
 @router.get("/portfolio")
-def get_portfolio(payload: dict = Depends(verify_token)):
+async def get_portfolio(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
-    return user_portfolio.get_summary(user_id)
+    return await user_portfolio.get_summary(user_id)
 
 
 @router.post("/positions/snapshot")
 async def take_snapshot(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
-    user_portfolio.take_pnl_snapshot(user_id)
+    await user_portfolio.take_pnl_snapshot(user_id)
     return {"ok": True}
 
 
@@ -184,7 +184,7 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
 @router.get("/positions/risk")
 async def get_positions_risk(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
-    positions = user_portfolio.get_positions(user_id)
+    positions = await user_portfolio.get_positions(user_id)
     if not positions:
         return []
 

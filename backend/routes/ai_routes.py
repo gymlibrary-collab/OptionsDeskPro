@@ -143,7 +143,7 @@ async def ai_chat(body: ChatRequest, request: Request, payload: dict = Depends(v
     from services import user_portfolio, ai_service
 
     try:
-        positions = user_portfolio.get_positions(user_id)
+        positions = await user_portfolio.get_positions(user_id)
         positions_data = [
             {
                 "symbol": p.symbol, "option_type": p.option_type, "strike": p.strike,
@@ -157,7 +157,7 @@ async def ai_chat(body: ChatRequest, request: Request, payload: dict = Depends(v
         positions_data = []
 
     try:
-        summary = user_portfolio.get_summary(user_id)
+        summary = await user_portfolio.get_summary(user_id)
         portfolio_summary = {
             "cash": summary.cash, "positions_value": summary.positions_value,
             "total_value": summary.total_value, "total_pnl": summary.total_pnl,
@@ -568,7 +568,7 @@ async def ai_portfolio_greeks_coaching(request: Request, payload: dict = Depends
     from datetime import date as _date
 
     try:
-        positions = user_portfolio.get_positions(user_id)
+        positions = await user_portfolio.get_positions(user_id)
     except Exception as exc:
         logger.warning("get_positions failed for greeks coaching: %s", exc)
         positions = []

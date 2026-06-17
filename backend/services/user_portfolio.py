@@ -3,6 +3,7 @@ DB-backed portfolio operations. Each function takes user_id and operates
 on that user's data in Supabase. Replaces the in-memory Portfolio class
 for authenticated users.
 """
+import asyncio
 from datetime import datetime, timezone, date
 import math
 from scipy.stats import norm
@@ -150,20 +151,34 @@ def _update_position(sb, user_id: str, req, price: float):
         }).execute()
 
 
-def get_positions(user_id: str) -> list[Position]:
+async def get_positions(user_id: str) -> list[Position]:
     sb = get_supabase()
     rows = sb.table("positions").select("*").eq("user_id", user_id).execute().data
     if not rows:
         return []
 
-    # ── Batch fetches: one quote per unique symbol ────────────────────────────────────
+    # ── Concurrent fetches: all symbols in parallel ───────────────────────────────────
     unique_symbols = list({r["symbol"] for r in rows})
-    spot_cache: dict[str, float] = {}
-    for symbol in unique_symbols:
+    unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
+
+    async def _fetch_quote(symbol: str) -> tuple[str, float]:
         try:
-            spot_cache[symbol] = get_quote(symbol).get("price", 0.0)
+            q = await asyncio.to_thread(get_quote, symbol)
+            return symbol, q.get("price", 0.0)
         except Exception:
-            spot_cache[symbol] = 0.0
+            return symbol, 0.0
+
+    async def _fetch_chain(symbol: str, expiry: str) -> tuple[str, str, dict]:
+        try:
+            chain = await asyncio.to_thread(get_options_chain, symbol, expiry)
+            return symbol, expiry, chain
+        except Exception:
+            return symbol, expiry, {}
+
+    quote_results = await asyncio.gather(*[_fetch_quote(s) for s in unique_symbols])
+    chain_results = await asyncio.gather(*[_fetch_chain(s, e) for s, e in unique_chains])
+
+    spot_cache: dict[str, float] = {s: p for s, p in quote_results}
 
     # IV for BS fallback: use a sensible per-symbol default rather than
     # fetching get_iv_rank (which downloads 1y of history and is too slow here)
@@ -176,22 +191,19 @@ def get_positions(user_id: str) -> list[Position]:
 
     # Build a fast lookup: (symbol, expiry, strike, option_type) → mid price
     price_lookup: dict[tuple, float] = {}
-    unique_chains = list({(r["symbol"], r["expiry"]) for r in rows})
-    for symbol, expiry in unique_chains:
-        try:
-            chain = get_options_chain(symbol, expiry)
-            actual_expiry = chain.get("expiry") or expiry
-            for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
-                for c in contracts:
-                    bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
-                    price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)
-                    if price > 0:
-                        strike_key = round(float(c["strike"]), 2)
-                        price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
-                        if actual_expiry != expiry:
-                            price_lookup[(symbol, expiry, strike_key, otype)] = price
-        except Exception:
-            pass
+    for symbol, expiry, chain in chain_results:
+        if not chain:
+            continue
+        actual_expiry = chain.get("expiry") or expiry
+        for otype, contracts in [("call", chain.get("calls", [])), ("put", chain.get("puts", []))]:
+            for c in contracts:
+                bid, ask, last = c.get("bid", 0), c.get("ask", 0), c.get("lastPrice", 0)
+                price = round((bid + ask) / 2, 2) if bid > 0 and ask > 0 else (float(last) if last > 0 else 0.0)
+                if price > 0:
+                    strike_key = round(float(c["strike"]), 2)
+                    price_lookup[(symbol, actual_expiry, strike_key, otype)] = price
+                    if actual_expiry != expiry:
+                        price_lookup[(symbol, expiry, strike_key, otype)] = price
 
     result = []
     for pos in rows:
@@ -271,10 +283,10 @@ def get_orders(user_id: str) -> list[Order]:
     ]
 
 
-def get_summary(user_id: str) -> PortfolioSummary:
+async def get_summary(user_id: str) -> PortfolioSummary:
     sb = get_supabase()
     portfolio = ensure_portfolio(user_id)
-    positions = get_positions(user_id)
+    positions = await get_positions(user_id)
     positions_value = sum(p.current_price * p.quantity * 100 for p in positions)
     total_pnl = sum(p.pnl for p in positions)
     return PortfolioSummary(
@@ -285,10 +297,10 @@ def get_summary(user_id: str) -> PortfolioSummary:
     )
 
 
-def take_pnl_snapshot(user_id: str):
+async def take_pnl_snapshot(user_id: str):
     """Call once daily to record portfolio value. Upserts on date."""
     sb = get_supabase()
-    summary = get_summary(user_id)
+    summary = await get_summary(user_id)
     sb.table("pnl_snapshots").upsert({
         "user_id": user_id,
         "snapshot_date": date.today().isoformat(),
