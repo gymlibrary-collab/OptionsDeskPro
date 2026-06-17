@@ -18,7 +18,9 @@
 
 ## Gate 2 — Architecture Design
 
-**Decision:** Pending (PO annotations recorded below; architecture gate awaits architect review)
+**Decision:** Approved  
+**Date:** 17Jun2026  
+**Approved by:** leonard.simgt@gmail.com
 
 ### PO Gate — Product Owner Review
 
@@ -61,7 +63,7 @@ No tier gate changes required. Both features are exclusively admin-gated. No sub
 
 ## Gate 3 — Implementation
 
-**Decision:** Pending  
+**Decision:** In Progress  
 
 ---
 
