@@ -401,7 +401,7 @@ class TradeJournalReviewRequest(BaseModel):
 
 
 @router.post("/ai/trade-journal/review")
-def ai_trade_journal_review(body: TradeJournalReviewRequest, payload: dict = Depends(verify_token)):
+async def ai_trade_journal_review(body: TradeJournalReviewRequest, request: Request, payload: dict = Depends(verify_token)):
     """
     E1 — Trade Journal AI Review. Requires Pro/Enterprise (trade_journal entitlement).
 
@@ -414,6 +414,13 @@ def ai_trade_journal_review(body: TradeJournalReviewRequest, payload: dict = Dep
     """
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "trade_journal")
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "trade_journal"},
+        ip_address=extract_ip(request),
+    ))
 
     sb = get_supabase()
 
@@ -456,7 +463,7 @@ class RollAdvisorRequest(BaseModel):
 
 
 @router.post("/ai/roll-advisor")
-def ai_roll_advisor(body: RollAdvisorRequest, payload: dict = Depends(verify_token)):
+async def ai_roll_advisor(body: RollAdvisorRequest, request: Request, payload: dict = Depends(verify_token)):
     """
     E5 — Roll/Adjustment Advisor. Requires Pro/Enterprise (roll_advisor entitlement).
 
@@ -468,6 +475,13 @@ def ai_roll_advisor(body: RollAdvisorRequest, payload: dict = Depends(verify_tok
     """
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "roll_advisor")
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "roll_advisor"},
+        ip_address=extract_ip(request),
+    ))
 
     sb = get_supabase()
 
@@ -530,7 +544,7 @@ def ai_roll_advisor(body: RollAdvisorRequest, payload: dict = Depends(verify_tok
 # ── E6: Portfolio Greeks Coaching ─────────────────────────────────────────────
 
 @router.post("/ai/portfolio-greeks-coaching")
-def ai_portfolio_greeks_coaching(payload: dict = Depends(verify_token)):
+async def ai_portfolio_greeks_coaching(request: Request, payload: dict = Depends(verify_token)):
     """
     E6 — Portfolio Greeks Coaching. Requires Pro/Enterprise (greeks_coaching entitlement).
 
@@ -541,6 +555,13 @@ def ai_portfolio_greeks_coaching(payload: dict = Depends(verify_token)):
     """
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "greeks_coaching")
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "greeks_coaching"},
+        ip_address=extract_ip(request),
+    ))
 
     from services import user_portfolio, ai_service
     from services.greeks import calculate_greeks
