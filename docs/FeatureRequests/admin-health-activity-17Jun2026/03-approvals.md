@@ -63,13 +63,17 @@ No tier gate changes required. Both features are exclusively admin-gated. No sub
 
 ## Gate 3 — Implementation
 
-**Decision:** In Progress  
+**Decision:** Approved  
+**Date:** 17Jun2026  
+**Approved by:** leonard.simgt@gmail.com
 
 ---
 
 ## Gate 4 — Test
 
-**Decision:** Pending  
+**Decision:** Approved  
+**Date:** 17Jun2026  
+**Notes:** 46 manual test cases executed; 4 issues found and resolved. 54 Playwright E2E tests passing on chromium.  
 
 ---
 
@@ -83,4 +87,7 @@ No tier gate changes required. Both features are exclusively admin-gated. No sub
 
 ## Gate 6 — Release
 
-**Decision:** In Progress  
+**Decision:** Approved  
+**Date:** 17Jun2026  
+**Approved by:** leonard.simgt@gmail.com  
+**Notes:** Release note written, UserGuide.tsx updated, deployment checklist appended, operator assessment completed. CLEAR TO RELEASE.

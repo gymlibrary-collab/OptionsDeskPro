@@ -136,7 +136,18 @@ If a critical issue is discovered post-deployment:
 
 ## Operator Assessment
 
-_To be filled by operator agent._
+**Date:** 17Jun2026 — pre-release production assessment
+
+| Point | Finding | Status |
+|-------|---------|--------|
+| Migration readiness | `CREATE TABLE IF NOT EXISTS` with no ALTER on existing tables. FK to `auth.users ON DELETE CASCADE` is standard Supabase pattern. No lock risk on a live database. | CLEAR |
+| httpx dependency | `httpx>=0.27.0` present in `requirements.txt` and pinned consistently with all other dependencies. No action required. | CLEAR |
+| pg_cron | Not guaranteed on Supabase free tier. The migration is safe either way — the `DO/EXCEPTION` block converts a missing pg_cron extension to a WARNING, allowing the table creation to complete. Without pg_cron enabled, the table grows without bound; the operator must enable the extension or arrange an alternative purge mechanism. | CONDITIONAL |
+| Railway env vars | Zero new environment variables required. `GEMINI_API_KEY` absence is handled gracefully inside the health probe (reports Error status rather than crashing). | CLEAR |
+| Rollback | `DROP TABLE IF EXISTS public.user_action_log CASCADE;` is the migration rollback, plus `SELECT cron.unschedule('purge-user-action-log-30d');` if pg_cron registered. The fire-and-forget logging pattern means a rolled-back table produces WARNING log lines on Railway but zero user-facing errors. | SIMPLE |
+| Zero-downtime | No ALTER on existing tables, no route removals, `def`-to-`async def` conversion is transparent to FastAPI callers. Safe for a rolling Railway restart with no maintenance window. | CONFIRMED |
+
+**Operator decision:** CLEAR TO RELEASE — no blockers. Enable pg_cron in Supabase before or immediately after migration to activate the 30-day retention purge.
 
 ---
 
