@@ -1,8 +1,18 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import api from '../api/client'
-import { getPublicConfig, patchAdminPlatformSettings } from '../api/client'
+import {
+  getPublicConfig,
+  patchAdminPlatformSettings,
+  getHealthCheck,
+  getActivityLog,
+  type HealthCheckResponse,
+  type ComponentHealth,
+  type ActivityLogResponse,
+  type ActivityLogFilters,
+  type UserActionRow,
+} from '../api/client'
 
-type AdminTab = 'users' | 'whitelist' | 'activity' | 'leaderboard' | 'settings'
+type AdminTab = 'users' | 'whitelist' | 'activity' | 'leaderboard' | 'settings' | 'health' | 'user_actions'
 type Role = 'user' | 'admin'
 
 interface UserRow {
@@ -224,11 +234,13 @@ export default function AdminPanel() {
   }
 
   const tabs: { key: AdminTab; label: string }[] = [
-    { key: 'users', label: 'Users' },
-    { key: 'whitelist', label: 'Whitelist' },
-    { key: 'activity', label: 'Activity Log' },
-    { key: 'leaderboard', label: 'Leaderboard' },
-    { key: 'settings', label: 'Platform Settings' },
+    { key: 'users',        label: 'Users' },
+    { key: 'whitelist',    label: 'Whitelist' },
+    { key: 'activity',     label: 'Activity Log (Logins)' },
+    { key: 'leaderboard',  label: 'Leaderboard' },
+    { key: 'settings',     label: 'Platform Settings' },
+    { key: 'health',       label: 'Health' },
+    { key: 'user_actions', label: 'User Actions' },
   ]
 
   return (
@@ -501,6 +513,12 @@ export default function AdminPanel() {
             </div>
           </div>
         )}
+
+        {/* HEALTH TAB */}
+        {activeTab === 'health' && <HealthTab />}
+
+        {/* USER ACTIONS TAB */}
+        {activeTab === 'user_actions' && <UserActionsTab />}
       </div>
     </div>
   )
@@ -511,6 +529,473 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
     <div style={s.statCard}>
       <div style={s.statValue}>{value}</div>
       <div style={s.statLabel}>{label}</div>
+    </div>
+  )
+}
+
+// ─── HealthTab ────────────────────────────────────────────────────────────────
+
+const bannerConfig: Record<string, { label: string; color: string }> = {
+  healthy:  { label: 'All Systems Operational', color: '#16a34a' },
+  degraded: { label: 'Degraded',                color: '#d97706' },
+  error:    { label: 'Outage Detected',          color: '#dc2626' },
+}
+
+const statusColor: Record<string, string> = {
+  healthy:  '#16a34a',
+  degraded: '#d97706',
+  error:    '#dc2626',
+}
+
+function HealthTab() {
+  const [healthData, setHealthData] = useState<HealthCheckResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const lastFetchRef = useRef<number>(0)
+  const loadingRef = useRef(false)
+
+  const fetchHealth = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastFetchRef.current < 30_000) return
+    if (loadingRef.current) return
+    loadingRef.current = true
+    setLoading(true)
+    setFetchError(null)
+    const t0 = Date.now()
+    try {
+      const data = await getHealthCheck()
+      const apiRtt = Date.now() - t0
+      data.components = data.components.map((c: ComponentHealth) =>
+        c.name === 'Backend API' ? { ...c, response_time_ms: apiRtt } : c
+      )
+      setHealthData(data)
+      lastFetchRef.current = Date.now()
+    } catch (err: unknown) {
+      const e = err as { message?: string }
+      setFetchError(e?.message ?? 'Health check failed: network error')
+    } finally {
+      loadingRef.current = false
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchHealth(true)
+    const id = setInterval(() => fetchHealth(false), 60_000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
+
+  return (
+    <div style={{ fontFamily: font }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <h3 style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 600, margin: 0 }}>System Health</h3>
+        <button
+          onClick={() => fetchHealth(true)}
+          disabled={loading}
+          style={{
+            background: loading ? '#2d3148' : '#7c6af7',
+            border: 'none',
+            borderRadius: '6px',
+            color: loading ? '#64748b' : '#fff',
+            padding: '7px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: font,
+          }}
+        >
+          {loading ? 'Checking...' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Overall status banner */}
+      {healthData && (
+        <div style={{
+          background: `${bannerConfig[healthData.overall]?.color}22`,
+          border: `1px solid ${bannerConfig[healthData.overall]?.color}66`,
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}>
+          <span style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            background: bannerConfig[healthData.overall]?.color,
+            flexShrink: 0,
+          }} />
+          <span style={{
+            fontSize: '14px',
+            fontWeight: 700,
+            color: bannerConfig[healthData.overall]?.color,
+          }}>
+            {bannerConfig[healthData.overall]?.label}
+          </span>
+          <span style={{ fontSize: '12px', color: '#64748b', marginLeft: 'auto' }}>
+            Last checked: {new Date(healthData.checked_at).toLocaleString()}
+          </span>
+        </div>
+      )}
+
+      {/* Error state */}
+      {fetchError && (
+        <div style={{
+          background: 'rgba(220,38,38,0.1)',
+          border: '1px solid rgba(220,38,38,0.4)',
+          borderRadius: '8px',
+          padding: '16px',
+          color: '#ef4444',
+          fontSize: '13px',
+          marginBottom: '16px',
+        }}>
+          {fetchError}
+        </div>
+      )}
+
+      {/* Loading state — shown only on first load (no data yet) */}
+      {loading && !healthData && (
+        <p style={{ color: '#64748b', fontSize: '13px', padding: '20px 0' }}>Checking components...</p>
+      )}
+
+      {/* Component cards */}
+      {healthData && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+          {healthData.components.map((c: ComponentHealth) => (
+            <div key={c.name} style={{
+              background: '#1a1d27',
+              border: `1px solid ${statusColor[c.status] ?? '#2d3148'}44`,
+              borderRadius: '10px',
+              padding: '16px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>{c.name}</span>
+                <span style={{
+                  background: `${statusColor[c.status] ?? '#64748b'}22`,
+                  color: statusColor[c.status] ?? '#64748b',
+                  border: `1px solid ${statusColor[c.status] ?? '#64748b'}55`,
+                  borderRadius: '12px',
+                  padding: '2px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}>
+                  {c.status}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
+                <div>
+                  <span style={{ color: '#64748b' }}>Response: </span>
+                  {c.response_time_ms != null ? `${c.response_time_ms} ms` : '—'}
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Checked: </span>
+                  {new Date(c.checked_at).toLocaleTimeString()}
+                </div>
+                {c.error && (
+                  <div style={{ color: '#ef4444', marginTop: '6px', fontSize: '11px', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                    {c.error}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── UserActionsTab ───────────────────────────────────────────────────────────
+
+const ACTION_TYPES = [
+  'login',
+  'logout',
+  'ticker_search',
+  'strategy_scan',
+  'options_chain_view',
+  'paper_trade_placed',
+  'watchlist_update',
+  'ai_query',
+]
+
+interface ActivityFilters {
+  user_email: string
+  action_type: string
+  date_from: string
+  date_to: string
+}
+
+function renderDetail(detail: Record<string, unknown> | null): string {
+  if (!detail) return ''
+  const str = Object.entries(detail)
+    .filter(([k]) => k !== 'legs')
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .join(' ')
+  return str.length > 120 ? str.slice(0, 117) + '...' : str
+}
+
+function UserActionsTab() {
+  const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
+
+  const [filters, setFilters] = useState<ActivityFilters>({
+    user_email: '', action_type: '', date_from: '', date_to: '',
+  })
+  const [appliedFilters, setAppliedFilters] = useState<ActivityFilters>(filters)
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<ActivityLogResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [dateError, setDateError] = useState<string | null>(null)
+
+  const fetchData = useCallback(async (f: ActivityFilters, p: number) => {
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const apiFilters: ActivityLogFilters = {
+        ...(f.user_email  ? { user_email:  f.user_email }  : {}),
+        ...(f.action_type ? { action_type: f.action_type } : {}),
+        ...(f.date_from   ? { date_from:   f.date_from }   : {}),
+        ...(f.date_to     ? { date_to:     f.date_to }     : {}),
+      }
+      const result = await getActivityLog(apiFilters, p, 50)
+      setData(result)
+    } catch (err: unknown) {
+      const e = err as { message?: string }
+      setFetchError(e?.message ?? 'Failed to load activity log')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData(appliedFilters, page)
+  }, [appliedFilters, page, fetchData])
+
+  const handleApply = () => {
+    setDateError(null)
+    if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
+      setDateError('date_from must not be after date_to')
+      return
+    }
+    setAppliedFilters(filters)
+    setPage(1)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleApply()
+  }
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / 50)) : 1
+  const rangeStart = data && data.total > 0 ? (page - 1) * 50 + 1 : 0
+  const rangeEnd   = data ? Math.min(page * 50, data.total) : 0
+
+  return (
+    <div style={{ fontFamily: font }}>
+      <h3 style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: 600, margin: '0 0 16px' }}>User Action Log</h3>
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            User Email
+          </label>
+          <input
+            style={s.input}
+            placeholder="Filter by email..."
+            value={filters.user_email}
+            onChange={e => setFilters(f => ({ ...f, user_email: e.target.value }))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Action Type
+          </label>
+          <select
+            style={s.select}
+            value={filters.action_type}
+            onChange={e => setFilters(f => ({ ...f, action_type: e.target.value }))}
+          >
+            <option value="">All</option>
+            {ACTION_TYPES.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            From
+          </label>
+          <input
+            type="date"
+            style={s.input}
+            value={filters.date_from}
+            onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            To
+          </label>
+          <input
+            type="date"
+            style={s.input}
+            value={filters.date_to}
+            onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <button
+          style={{
+            background: '#7c6af7',
+            border: 'none',
+            borderRadius: '6px',
+            color: '#fff',
+            padding: '7px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: font,
+            alignSelf: 'flex-end',
+          }}
+          onClick={handleApply}
+          disabled={loading}
+        >
+          Apply
+        </button>
+      </div>
+
+      {/* Date validation error */}
+      {dateError && (
+        <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '8px' }}>{dateError}</div>
+      )}
+
+      {/* Fetch error */}
+      {fetchError && (
+        <div style={{
+          background: 'rgba(220,38,38,0.1)',
+          border: '1px solid rgba(220,38,38,0.4)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          color: '#ef4444',
+          fontSize: '13px',
+          marginBottom: '12px',
+        }}>
+          {fetchError}
+        </div>
+      )}
+
+      {/* Row count summary */}
+      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+        {data && data.total === 0
+          ? '0 events'
+          : data
+            ? `Showing ${rangeStart}–${rangeEnd} of ${data.total} results`
+            : ''}
+      </div>
+
+      {/* Table */}
+      <div style={s.tableWrap}>
+        <table style={s.table}>
+          <thead>
+            <tr>
+              {['Timestamp', 'User Email', 'Action Type', 'Detail', 'IP Address'].map(h => (
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={5} style={{ ...s.empty, color: '#64748b' }}>Loading...</td>
+              </tr>
+            )}
+            {!loading && data && data.results.length === 0 && (
+              <tr>
+                <td colSpan={5} style={s.empty}>No actions recorded matching the current filters.</td>
+              </tr>
+            )}
+            {!loading && data && data.results.map((row: UserActionRow) => (
+              <tr key={row.id} style={s.tr}>
+                <td style={{ ...s.td, whiteSpace: 'nowrap', fontSize: '12px' }}>
+                  {new Date(row.created_at).toLocaleString()}
+                </td>
+                <td style={{ ...s.td, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {row.user_email}
+                </td>
+                <td style={s.td}>
+                  <span style={{
+                    background: '#2d3148',
+                    borderRadius: '4px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#94a3b8',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {row.action_type}
+                  </span>
+                </td>
+                <td style={{ ...s.td, maxWidth: '300px', fontSize: '12px', color: '#94a3b8', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                  {renderDetail(row.detail)}
+                </td>
+                <td style={{ ...s.td, fontSize: '12px', color: '#64748b' }}>
+                  {row.ip_address || '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {data && data.total > 50 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
+          <button
+            style={{
+              background: 'transparent',
+              border: '1px solid #3a3f5c',
+              borderRadius: '6px',
+              color: page === 1 ? '#3a3f5c' : '#94a3b8',
+              padding: '5px 12px',
+              fontSize: '13px',
+              cursor: page === 1 ? 'not-allowed' : 'pointer',
+              fontFamily: font,
+            }}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            style={{
+              background: 'transparent',
+              border: '1px solid #3a3f5c',
+              borderRadius: '6px',
+              color: page >= totalPages ? '#3a3f5c' : '#94a3b8',
+              padding: '5px 12px',
+              fontSize: '13px',
+              cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+              fontFamily: font,
+            }}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   )
 }

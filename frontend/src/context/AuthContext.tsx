@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Session, User } from '@supabase/supabase-js'
-import api, { Entitlements, getEntitlements } from '../api/client'
+import api, { Entitlements, getEntitlements, postLogout } from '../api/client'
 
 interface LoginResponse {
   ok: boolean
@@ -167,6 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // Best-effort: log the logout event before invalidating the Supabase session.
+    // If the backend call fails, proceed with sign-out regardless.
+    try {
+      await postLogout()
+    } catch {
+      // fire-and-forget; never block sign-out on logging failure
+    }
     await supabase.auth.signOut()
     delete api.defaults.headers.common['Authorization']
     setProfile(null)

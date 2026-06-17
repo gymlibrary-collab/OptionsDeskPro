@@ -643,6 +643,69 @@ export const createBillingPortalSession = (): Promise<PortalResponse> =>
 export const deleteAccount = (confirmation: string): Promise<{ ok: boolean }> =>
   api.delete('/auth/account', { data: { confirmation } }).then(r => r.data)
 
+// ─── Admin Health Monitor ──────────────────────────────────────────────────
+
+export interface ComponentHealth {
+  name: string
+  status: 'healthy' | 'degraded' | 'error'
+  response_time_ms: number | null
+  checked_at: string
+  error: string | null
+}
+
+export interface HealthCheckResponse {
+  overall: 'healthy' | 'degraded' | 'error'
+  checked_at: string
+  components: ComponentHealth[]
+}
+
+export const getHealthCheck = (): Promise<HealthCheckResponse> =>
+  api.get('/admin/health-check', { timeout: 30000 }).then(r => r.data)
+
+// ─── Admin User Actions Log ────────────────────────────────────────────────
+
+export interface UserActionRow {
+  id: string
+  user_email: string
+  action_type: string
+  detail: Record<string, unknown> | null
+  ip_address: string | null
+  created_at: string
+}
+
+export interface ActivityLogFilters {
+  user_email?: string
+  action_type?: string
+  date_from?: string
+  date_to?: string
+}
+
+export interface ActivityLogResponse {
+  total: number
+  page: number
+  page_size: number
+  results: UserActionRow[]
+}
+
+export const getActivityLog = (
+  filters: ActivityLogFilters,
+  page = 1,
+  page_size = 50,
+): Promise<ActivityLogResponse> =>
+  api.get('/admin/activity-log', {
+    params: {
+      ...(filters.user_email ? { user_email: filters.user_email } : {}),
+      ...(filters.action_type ? { action_type: filters.action_type } : {}),
+      ...(filters.date_from   ? { date_from:   filters.date_from }   : {}),
+      ...(filters.date_to     ? { date_to:      filters.date_to }    : {}),
+      page,
+      page_size,
+    },
+  }).then(r => r.data)
+
+export const postLogout = (): Promise<{ ok: boolean }> =>
+  api.post('/auth/logout', {}).then(r => r.data)
+
 // ─── Platform (admin) routes ─────────────────────────────────────────────────────────────────────
 
 export interface StaffMember {
