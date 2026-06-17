@@ -386,15 +386,30 @@ async def health_check(payload: dict = Depends(admin_required)):
                 "error": str(exc)[:500],
             }
 
-    # Run all five probes concurrently; each is individually timeout-guarded
-    components = await asyncio.gather(
+    # Run all five probes concurrently. return_exceptions=True prevents a
+    # TimeoutError from asyncio.wait_for propagating as an unhandled exception
+    # and exposing internal details in a 500 response (security finding F1).
+    probe_names = ["Backend API", "Supabase Database", "yfinance Market Data", "Gemini AI", "StockTwits"]
+    results = await asyncio.gather(
         asyncio.wait_for(probe_backend(),    timeout=10.0),
         asyncio.wait_for(probe_supabase(),   timeout=10.0),
         asyncio.wait_for(probe_yfinance(),   timeout=10.0),
         asyncio.wait_for(probe_gemini(),     timeout=10.0),
         asyncio.wait_for(probe_stocktwits(), timeout=10.0),
-        return_exceptions=False,
+        return_exceptions=True,
     )
+    components = []
+    for name, result in zip(probe_names, results):
+        if isinstance(result, Exception):
+            components.append({
+                "name": name,
+                "status": "error",
+                "response_time_ms": None,
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "error": f"Probe timed out or failed: {str(result)[:200]}",
+            })
+        else:
+            components.append(result)
 
     # Derive overall status from worst-case component
     statuses = [c["status"] for c in components]

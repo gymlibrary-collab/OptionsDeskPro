@@ -42,11 +42,19 @@ alter table public.user_action_log enable row level security;
 -- 30-day rolling purge via pg_cron (requires pg_cron extension enabled in Supabase)
 -- Schedule: 3:00 AM UTC daily. Deletes rows older than 30 days.
 -- To enable: Dashboard → Database → Extensions → pg_cron → Enable
-select cron.schedule(
-  'purge-user-action-log-30d',
-  '0 3 * * *',
-  $$
-    delete from public.user_action_log
-    where created_at < now() - interval '30 days';
-  $$
-);
+-- Wrapped in DO block so a missing pg_cron extension raises a WARNING rather
+-- than failing the migration and rolling back the table creation (security finding F3).
+do $$
+begin
+  perform cron.schedule(
+    'purge-user-action-log-30d',
+    '0 3 * * *',
+    $cron$
+      delete from public.user_action_log
+      where created_at < now() - interval '30 days';
+    $cron$
+  );
+exception when others then
+  raise warning 'pg_cron not available — user_action_log 30-day purge job not scheduled. '
+                'Enable pg_cron in Supabase Dashboard → Database → Extensions and re-run this statement manually.';
+end $$;

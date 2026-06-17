@@ -115,7 +115,7 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         pass
 
     # ── Log activity ──────────────────────────────────────────────────────────
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
+    ip = extract_ip(request)  # single authoritative path; avoids duplicating XFF logic (security finding F2)
     try:
         user_portfolio.log_activity(user_id, email, ip)
     except Exception:
