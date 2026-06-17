@@ -75,10 +75,12 @@ No tier gate changes required. Both features are exclusively admin-gated. No sub
 
 ## Gate 5 — Security
 
-**Decision:** Pending  
+**Decision:** Approved  
+**Date:** 17Jun2026  
+**Notes:** All 3 findings (1 Medium, 2 Low) resolved before commit. All 13 invariants passed.
 
 ---
 
 ## Gate 6 — Release
 
-**Decision:** Pending  
+**Decision:** In Progress  

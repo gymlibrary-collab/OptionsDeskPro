@@ -137,3 +137,32 @@ If a critical issue is discovered post-deployment:
 ## Operator Assessment
 
 _To be filled by operator agent._
+
+---
+
+## Deployment Checklist
+
+Pre-deployment:
+- [ ] pg_cron extension enabled in Supabase Dashboard → Database → Extensions
+- [ ] Run migration `015_user_action_log.sql` in Supabase SQL editor
+- [ ] Confirm migration completed without errors (check for pg_cron WARNING if extension not enabled — WARNING is acceptable, ERROR is not)
+
+Deployment:
+- [ ] Push to main triggers Railway auto-deploy for backend service
+- [ ] Push to main triggers Railway auto-deploy for frontend (client + admin) services
+- [ ] Monitor Railway deploy logs for startup errors
+
+Post-deployment verification:
+- [ ] Sign in as admin, navigate to admin portal
+- [ ] Click "Health" tab — verify 5 component cards load within 15 seconds
+- [ ] Verify "All Systems Operational" banner (or expected degraded status if a service is down)
+- [ ] Click "Refresh" — verify button disables during fetch, re-enables after
+- [ ] Click "User Actions" tab — verify filter bar and table load
+- [ ] Perform a test action as a non-admin user (e.g., search a ticker)
+- [ ] Return to User Actions tab, filter by test user's email, verify event appears
+- [ ] Verify "Activity Log (Logins)" tab still works and is labelled correctly
+- [ ] Sign out — verify logout succeeds normally (postLogout() must not block signout)
+
+Rollback:
+- [ ] Revert the Railway deployment to the previous backend/frontend image via Railway dashboard
+- [ ] Migration 015 does NOT need to be rolled back — the new table is additive and unused by old code
