@@ -1,12 +1,14 @@
+import asyncio
 from datetime import datetime
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from services.auth_utils import verify_token
 from services.db import get_supabase
 from services.legal_service import legal_gate_dep
 from services.entitlements import compute_entitlements
+from services.activity_logger import log_action, extract_ip
 
 router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 logger = logging.getLogger(__name__)
@@ -110,7 +112,7 @@ async def get_watchlist(payload: dict = Depends(verify_token)):
 
 
 @router.put("/watchlist")
-async def save_watchlist(body: WatchlistSaveRequest, payload: dict = Depends(verify_token)):
+async def save_watchlist(body: WatchlistSaveRequest, request: Request, payload: dict = Depends(verify_token)):
     user_id = payload["sub"]
     symbols = [s.strip().upper() for s in body.symbols if s.strip()]
     db = get_supabase()
@@ -133,5 +135,13 @@ async def save_watchlist(body: WatchlistSaveRequest, payload: dict = Depends(ver
     err = _write_symbols(db, user_id, symbols)
     if err:
         logger.error("watchlist save error for %s: %s", user_id, err)
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=payload.get("email", ""),
+        action_type="watchlist_update",
+        detail={"symbol_count": len(symbols)},
+        ip_address=extract_ip(request),
+    ))
 
     return {"saved": len(symbols), "tier": tier}

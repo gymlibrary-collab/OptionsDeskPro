@@ -1,8 +1,10 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from services.auth_utils import verify_token, get_user_id, get_user_email, ADMIN_EMAIL
 from services.db import get_supabase
 from services import user_portfolio
+from services.activity_logger import log_action, extract_ip
 
 router = APIRouter()
 
@@ -118,6 +120,13 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         user_portfolio.log_activity(user_id, email, ip)
     except Exception:
         pass
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=email,
+        action_type="login",
+        detail={"email": email},
+        ip_address=extract_ip(request),
+    ))
 
     # ── Read back onboarding state ────────────────────────────────────────────
     onboarding_completed = True  # default for admin
@@ -153,6 +162,26 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         "is_deactivated": False,
         "pending_legal_acknowledgment": pending_legal_acknowledgment,
     }
+
+
+# ── Logout ───────────────────────────────────────────────────────────────────
+
+@router.post("/auth/logout")
+async def on_logout(request: Request, payload: dict = Depends(verify_token)):
+    """
+    Record a logout event in user_action_log, then return ok.
+    The frontend calls supabase.auth.signOut() after this to invalidate the session.
+    """
+    user_id = get_user_id(payload)
+    email = get_user_email(payload)
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=email,
+        action_type="logout",
+        detail={},
+        ip_address=extract_ip(request),
+    ))
+    return {"ok": True}
 
 
 # ── Complete onboarding ───────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials
 
 from datetime import date as _date
@@ -18,6 +18,7 @@ from services.db import get_supabase
 from services.legal_service import legal_gate_dep
 from services.tier_limits import get_user_tier, get_limits
 from services.entitlements import compute_entitlements
+from services.activity_logger import log_action, extract_ip
 import services.metrics as _metrics
 
 logger = logging.getLogger(__name__)
@@ -232,6 +233,7 @@ async def analyze_symbol(
 
 @router.get("/strategies/scan", dependencies=[Depends(legal_gate_dep)])
 async def scan_watchlist(
+    request: Request,
     symbols: str = "SPY,QQQ,AAPL,TSLA,NVDA,AMZN,GLD,TLT",
     payload: dict = Depends(verify_token),
 ):
@@ -337,4 +339,13 @@ async def scan_watchlist(
 
     # Sort by IVR descending — highest opportunity first
     results.sort(key=lambda x: x.get("iv_rank", 0.0), reverse=True)
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=payload.get("email", ""),
+        action_type="strategy_scan",
+        detail={"symbols": symbol_list},
+        ip_address=extract_ip(request),
+    ))
+
     return results

@@ -1,17 +1,51 @@
-from fastapi import APIRouter, Query, Response
+import asyncio
+from fastapi import APIRouter, Query, Request, Response, Security
+from fastapi.security import HTTPAuthorizationCredentials
 from typing import Optional
 from datetime import date
 import logging
 
 from services.market_data import get_quote, get_options_chain
 from services.greeks import calculate_greeks, fill_quote
+from services.auth_utils import security as bearer_security, get_user_id, get_user_email
+from services.activity_logger import log_action, extract_ip
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _resolve_optional_payload(credentials: Optional[HTTPAuthorizationCredentials]) -> Optional[dict]:
+    """
+    Attempt to verify optional credentials. Returns payload dict if valid, else None.
+    Never raises — unauthenticated callers simply receive None.
+    """
+    if not credentials:
+        return None
+    try:
+        from services.db import get_supabase
+        sb = get_supabase()
+        result = sb.auth.get_user(credentials.credentials)
+        user = result.user
+        if not user:
+            return None
+        return {
+            "sub": user.id,
+            "email": user.email,
+            "user_metadata": user.user_metadata or {},
+            "app_metadata": user.app_metadata or {},
+        }
+    except Exception:
+        return None
+
+
 @router.get("/options/chain/{symbol}")
-def get_chain(symbol: str, expiry: Optional[str] = Query(None), response: Response = None):
+async def get_chain(
+    symbol: str,
+    request: Request,
+    expiry: Optional[str] = Query(None),
+    response: Response = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
+):
     chain = get_options_chain(symbol.upper(), expiry)
     quote = get_quote(symbol.upper())
     S = quote["price"]
@@ -43,6 +77,17 @@ def get_chain(symbol: str, expiry: Optional[str] = Query(None), response: Respon
     if calls:
         logger.info("chain %s expiry=%s first_call bid=%s ask=%s", symbol, chain["expiry"],
                     calls[0].get("bid"), calls[0].get("ask"))
+
+    payload = _resolve_optional_payload(credentials)
+    if payload:
+        asyncio.create_task(log_action(
+            user_id=get_user_id(payload),
+            user_email=get_user_email(payload),
+            action_type="options_chain_view",
+            detail={"symbol": symbol.upper()},
+            ip_address=extract_ip(request),
+        ))
+
     return {
         "symbol": symbol.upper(),
         "quote": quote,
@@ -54,5 +99,21 @@ def get_chain(symbol: str, expiry: Optional[str] = Query(None), response: Respon
 
 
 @router.get("/options/quote/{symbol}")
-def get_stock_quote(symbol: str):
-    return get_quote(symbol.upper())
+async def get_stock_quote(
+    symbol: str,
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
+):
+    result = get_quote(symbol.upper())
+
+    payload = _resolve_optional_payload(credentials)
+    if payload:
+        asyncio.create_task(log_action(
+            user_id=get_user_id(payload),
+            user_email=get_user_email(payload),
+            action_type="ticker_search",
+            detail={"symbol": symbol.upper()},
+            ip_address=extract_ip(request),
+        ))
+
+    return result

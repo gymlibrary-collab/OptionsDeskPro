@@ -2,13 +2,15 @@
 AI feature routes — settings management and AI-powered endpoints.
 All endpoints require authentication.
 """
+import asyncio
 import logging
 from datetime import date, timezone, datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from services.auth_utils import verify_token, get_user_id
+from services.auth_utils import verify_token, get_user_id, get_user_email
 from services.db import get_supabase
 from services.legal_service import legal_gate_dep
+from services.activity_logger import log_action, extract_ip
 
 router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 logger = logging.getLogger(__name__)
@@ -123,12 +125,20 @@ def _require_ai_feature(user_id: str, feature_key: str) -> None:
 
 
 @router.post("/ai/chat")
-def ai_chat(body: ChatRequest, payload: dict = Depends(verify_token)):
+async def ai_chat(body: ChatRequest, request: Request, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "ai_chat")
     settings = _get_settings(user_id)
     if not settings.get("chat_enabled"):
         raise HTTPException(status_code=403, detail="AI Chat is disabled. Enable it in AI Settings.")
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "chat"},
+        ip_address=extract_ip(request),
+    ))
 
     from services import user_portfolio, ai_service
 
@@ -160,12 +170,20 @@ def ai_chat(body: ChatRequest, payload: dict = Depends(verify_token)):
 
 
 @router.post("/ai/risk-summary")
-def ai_risk_summary(body: RiskSummaryRequest, payload: dict = Depends(verify_token)):
+async def ai_risk_summary(body: RiskSummaryRequest, request: Request, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "ai_risk_summary")
     settings = _get_settings(user_id)
     if not settings.get("risk_summary_enabled"):
         raise HTTPException(status_code=403, detail="AI Risk Summary is disabled. Enable it in AI Settings.")
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "risk_summary"},
+        ip_address=extract_ip(request),
+    ))
 
     from services import ai_service
     summary = ai_service.synthesize_risk_summary(body.positions_risk)
@@ -173,12 +191,20 @@ def ai_risk_summary(body: RiskSummaryRequest, payload: dict = Depends(verify_tok
 
 
 @router.post("/ai/strategy-reasoning")
-def ai_strategy_reasoning(body: StrategyReasoningRequest, payload: dict = Depends(verify_token)):
+async def ai_strategy_reasoning(body: StrategyReasoningRequest, request: Request, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "ai_strategy_reasoning")
     settings = _get_settings(user_id)
     if not settings.get("strategy_reasoning_enabled"):
         raise HTTPException(status_code=403, detail="AI Strategy Reasoning is disabled. Enable it in AI Settings.")
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "reasoning"},
+        ip_address=extract_ip(request),
+    ))
 
     from services import ai_service
     reasoning = ai_service.explain_strategy_reasoning(
@@ -188,12 +214,20 @@ def ai_strategy_reasoning(body: StrategyReasoningRequest, payload: dict = Depend
 
 
 @router.post("/ai/enhance-narrative")
-def ai_enhance_narrative(body: EnhanceNarrativeRequest, payload: dict = Depends(verify_token)):
+async def ai_enhance_narrative(body: EnhanceNarrativeRequest, request: Request, payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "ai_narrative")
     settings = _get_settings(user_id)
     if not settings.get("narrative_enabled"):
         raise HTTPException(status_code=403, detail="AI Narrative is disabled. Enable it in AI Settings.")
+
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "narrative"},
+        ip_address=extract_ip(request),
+    ))
 
     from services import ai_service
     insight = ai_service.enhance_narrative(
@@ -205,7 +239,7 @@ def ai_enhance_narrative(body: EnhanceNarrativeRequest, payload: dict = Depends(
 # ── E4: Morning Briefing ─────────────────────────────────────────────────────
 
 @router.get("/ai/morning-briefing")
-def get_morning_briefing(payload: dict = Depends(verify_token)):
+async def get_morning_briefing(request: Request, payload: dict = Depends(verify_token)):
     """
     E4 — Daily Morning Briefing. Free for all authenticated users.
 
@@ -218,6 +252,13 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
     """
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "morning_briefing")
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=get_user_email(payload),
+        action_type="ai_query",
+        detail={"query_type": "morning_briefing"},
+        ip_address=extract_ip(request),
+    ))
     sb = get_supabase()
     today = date.today().isoformat()
 
@@ -333,7 +374,7 @@ def get_morning_briefing(payload: dict = Depends(verify_token)):
 
 
 @router.post("/ai/morning-briefing/refresh")
-def refresh_morning_briefing(payload: dict = Depends(verify_token)):
+async def refresh_morning_briefing(request: Request, payload: dict = Depends(verify_token)):
     """
     Force-regenerate today's morning briefing by deleting the cached entry
     then delegating to get_morning_briefing to produce a fresh one.
@@ -350,7 +391,7 @@ def refresh_morning_briefing(payload: dict = Depends(verify_token)):
         logger.warning("Could not delete cached morning briefing for %s: %s", user_id, exc)
 
     # Delegate to the main handler (reuse all watchlist-fetch + AI logic)
-    return get_morning_briefing(payload)
+    return await get_morning_briefing(request, payload)
 
 
 # ── E1: Trade Journal AI Review ───────────────────────────────────────────────
