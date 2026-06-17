@@ -145,7 +145,10 @@ export default function LoginPage() {
           transformOrigin: 'center center',
           zIndex: 0,
         }}>
-          <svg viewBox="0 -16 240 256" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+            {/* wide orbit rings */}
+            <circle cx="120" cy="120" r="155" stroke="#7c6af7" strokeWidth="0.8" opacity="0.22"/>
+            <circle cx="120" cy="120" r="150" stroke="#7c6af7" strokeWidth="0.4" opacity="0.14" strokeDasharray="1 6"/>
             {/* three concentric rings */}
             <circle cx="120" cy="120" r="114" stroke="#7c6af7" strokeWidth="2"   opacity="0.25"/>
             <circle cx="120" cy="120" r="106" stroke="#7c6af7" strokeWidth="0.5" opacity="0.16"/>
@@ -198,14 +201,14 @@ export default function LoginPage() {
             <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" strokeWidth="1.5" opacity="0.38"/>
             <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
             <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
-            {/* N label counter-rotated */}
-            <text x="120" y="7" textAnchor="middle" fontSize="12" fontWeight="900"
-              fill="#e2e8f0" opacity="0.72" fontFamily="Georgia, serif"
-              transform="rotate(-45 120 7)">N</text>
+            {/* N label — floats in gap between arrow tip and orbit ring */}
+            <text x="120" y="-22" textAnchor="middle" fontSize="13" fontWeight="900"
+              fill="#e2e8f0" opacity="0.80" fontFamily="Georgia, serif"
+              transform="rotate(-45 120 -22)">N</text>
             {/* S/E/W labels subtle */}
-            <text x="120" y="237" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 120 237)">S</text>
-            <text x="236" y="124" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 236 124)">E</text>
-            <text x="5"   y="124" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 5 124)">W</text>
+            <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 120 253)">S</text>
+            <text x="262" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 262 128)">E</text>
+            <text x="-22" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 -22 128)">W</text>
           </svg>
         </div>
 
