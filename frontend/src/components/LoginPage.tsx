@@ -138,8 +138,8 @@ export default function LoginPage() {
         }} />
         {/* Compass watermark — top-right, 45° CW, degree-ring style */}
         <div style={{
-          position: 'absolute', top: '-8%', right: '-8%',
-          width: '52%', height: '52%',
+          position: 'absolute', top: '-4%', right: '-6%',
+          width: '42%', height: '42%',
           pointerEvents: 'none',
           transform: 'rotate(45deg)',
           transformOrigin: 'center center',
