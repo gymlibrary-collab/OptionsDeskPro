@@ -110,6 +110,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#08090f', fontFamily: FONT, color: '#e2e8f0' }}>
+      <style>{`@keyframes compassSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {/* ── LEFT — marketing panel (hidden on narrow screens via CSS var) ── */}
       <div style={{
@@ -141,14 +142,29 @@ export default function LoginPage() {
           position: 'absolute', top: '20%', right: '-6%',
           width: '42%', height: '42%',
           pointerEvents: 'none',
-          transform: 'rotate(45deg)',
+          transform: 'rotate(30deg)',
           transformOrigin: 'center center',
           zIndex: 0,
         }}>
           <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-            {/* wide orbit rings */}
-            <circle cx="120" cy="120" r="155" stroke="#7c6af7" strokeWidth="0.8" opacity="0.22"/>
-            <circle cx="120" cy="120" r="150" stroke="#7c6af7" strokeWidth="0.4" opacity="0.14" strokeDasharray="1 6"/>
+            <defs>
+              <filter id="cometGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="4" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            {/* wide orbit rings — comet arc style */}
+            <circle cx="120" cy="120" r="155" stroke="#7c6af7" strokeWidth="0.6" opacity="0.18"/>
+            {/* glowing arc across the top third */}
+            <path d="M 30 -25 A 155 155 0 0 1 210 -25"
+              stroke="#c4b5fd" strokeWidth="2.5" strokeLinecap="round" opacity="0.45" filter="url(#cometGlow)" fill="none"/>
+            <path d="M 60 -32 A 155 155 0 0 1 180 -32"
+              stroke="#e2d9f3" strokeWidth="1" strokeLinecap="round" opacity="0.60" fill="none"/>
+            {/* comet spark orbiting the ring */}
+            <circle cx="120" cy="120" r="155" stroke="#a78bfa" strokeWidth="1.5"
+              strokeDasharray="30 945" strokeDashoffset="0" opacity="0.70"
+              filter="url(#cometGlow)"
+              style={{ animation: 'compassSpin 14s linear infinite', transformOrigin: '120px 120px' }}/>
             {/* three concentric rings */}
             <circle cx="120" cy="120" r="114" stroke="#7c6af7" strokeWidth="2"   opacity="0.25"/>
             <circle cx="120" cy="120" r="106" stroke="#7c6af7" strokeWidth="0.5" opacity="0.16"/>
@@ -204,11 +220,11 @@ export default function LoginPage() {
             {/* N label — floats in gap between arrow tip and orbit ring */}
             <text x="120" y="-22" textAnchor="middle" fontSize="13" fontWeight="900"
               fill="#e2e8f0" opacity="0.80" fontFamily="Georgia, serif"
-              transform="rotate(-45 120 -22)">N</text>
+              transform="rotate(-30 120 -22)">N</text>
             {/* S/E/W labels subtle */}
-            <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-45 120 253)">S</text>
-            <text x="262" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 262 128)">E</text>
-            <text x="-22" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-45 -22 128)">W</text>
+            <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-30 120 253)">S</text>
+            <text x="262" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 262 128)">E</text>
+            <text x="-22" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 -22 128)">W</text>
           </svg>
         </div>
 
