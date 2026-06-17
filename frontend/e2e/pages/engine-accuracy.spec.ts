@@ -285,8 +285,9 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
 
-    // IV rank 50 should appear in the results table
-    await expect(authedPage.getByText('50').first()).toBeVisible({ timeout: 10000 })
+    // IV rank 50 should appear in the results table — IVRBar renders the number as text
+    // Use a table cell locator to avoid matching "185.50" which also contains "50"
+    await expect(authedPage.getByText(/\b50\b/).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('premium-selling strategies appear before directional strategies in HIGH/NEUTRAL environment', async ({ authedPage }) => {
@@ -317,8 +318,8 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
 
-    // Click the AAPL row to trigger analyze
-    await authedPage.getByText('AAPL').first().click()
+    // Click the "Analyze" button in the AAPL row to trigger deep analysis
+    await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
     await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
 
     // Iron Condor (premium-selling) should appear in the results
@@ -351,7 +352,7 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /strategy scanner/i }).click()
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
-    await authedPage.getByText('AAPL').first().click()
+    await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
     await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
 
     // DTE target of 45 should be visible on the strategy card
@@ -395,7 +396,7 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /strategy scanner/i }).click()
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
-    await authedPage.getByText('AAPL').first().click()
+    await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
     await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
 
     // The legs should show delta values: call legs 0.18, 0.10 and put legs -0.18, -0.10
@@ -447,7 +448,7 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /strategy scanner/i }).click()
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
-    await authedPage.getByText('AAPL').first().click()
+    await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
     await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
 
     // The trade details show max_profit = 1.85 and max_loss = 3.15
