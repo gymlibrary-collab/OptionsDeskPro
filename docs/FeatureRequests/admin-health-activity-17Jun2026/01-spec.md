@@ -326,21 +326,35 @@ _Filled in by the product-owner agent._
 
 | Story | Priority (1=must/2=should/3=nice) | Notes |
 |-------|-----------------------------------|-------|
-| Story 1 — Overall System Health | | |
-| Story 2 — Per-Component Detail | | |
-| Story 3 — Manual Refresh | | |
-| Story 4 — Auto-Refresh | | |
-| Story 5 — Health Endpoint Auth | | |
-| Story 6 — Browse User Actions | | |
-| Story 7 — Pagination | | |
-| Story 8 — CSV Export | | |
-| Story 9 — Automatic Logging | | |
-| Story 10 — Preserve Existing Tab | | |
+| Story 1 — Overall System Health | 1 — Must Have | The banner is the entire value proposition of the Health tab. Without it the per-component cards have no summary anchor and the admin cannot triage at a glance. |
+| Story 2 — Per-Component Detail | 1 — Must Have | The specific component cards are the diagnostic payload that replaces SSH-ing into Railway logs. No cards, no value. |
+| Story 3 — Manual Refresh | 1 — Must Have | Incident recovery requires the admin to confirm that a fix has taken effect without waiting 60 seconds. The workaround (wait for auto-refresh) is operationally unacceptable during an active outage. |
+| Story 4 — Auto-Refresh | 2 — Should Have | Manual refresh (Story 3) covers the active-monitoring need. Auto-refresh is a quality-of-life improvement for when the admin leaves the tab open unattended. Worth shipping in v1 alongside the other health stories, but if scope pressure arises it is the one deferrable story in Feature 1. |
+| Story 5 — Health Endpoint Auth | 1 — Must Have | Security constraint, not a feature. Error messages from component probes can reveal service topology, API key absence, and connection strings. Must be admin-gated from day one. No exceptions. |
+| Story 6 — Browse User Actions | 1 — Must Have | The primary reason Feature 2 exists. Without the table UI, the logging infrastructure (Story 9) has nowhere to surface and the admin has zero improvement in visibility. |
+| Story 7 — Pagination | 1 — Must Have | The platform is in active growth. The table will accumulate thousands of rows within days of launch. An unpaginated view capped at 50 rows with no navigation would be misleading and unusable. Pagination is part of the correct contract for this UI from the start and the implementation cost is low relative to the alternative of retrofitting it later. |
+| Story 8 — CSV Export | 3 — Nice to Have | On day 1, the in-app filter table provides sufficient operational visibility. Stakeholder reporting and offline analysis are future concerns. This is the clearest deferral in the entire spec. |
+| Story 9 — Automatic Logging | 1 — Must Have | Without the backend injection points, the `user_action_log` table is empty and Story 6 shows zero rows. This is the engine of the entire feature. The `POST /api/auth/logout` endpoint adds modest complexity but is already scoped and documented by the architect. |
+| Story 10 — Preserve Existing Tab | 1 — Must Have | This is a constraint, not a feature. Shipping without it would be a regression in existing admin functionality. There is no workaround. |
 
-**MVP boundary:** [Stories in v1]
+**MVP boundary (v1 — ships together):**
 
-**Deferred to backlog:** [Stories deferred]
+Stories 1, 2, 3, 4, 5, 6, 7, 9, 10.
 
-**PO gate decision:** ☐ Approved ☐ Changes Requested
+This set delivers: a fully functional Health tab (all five component probes, overall banner, manual refresh, 60-second auto-refresh, admin auth gate), a fully functional User Actions tab (browsable and filterable table with pagination, backed by automatic logging across all eight action types), and preservation of the existing Activity Log (Logins) tab. The admin moves from zero in-app visibility to meaningful operational coverage in one release.
 
-_Approved by:_ &nbsp;&nbsp; _Date:_
+**Deferred to backlog:**
+
+- Story 8 — CSV Export. The backend export endpoint (`GET /api/admin/activity-log/export`) and the frontend "Export CSV" button are explicitly deferred. The `GET /api/admin/activity-log` endpoint (Story 6) is sufficient for day-1 visibility. Export should be picked up in the next admin tooling iteration, once the admin has used the filter table and can confirm what export format and filter scope they actually need in practice.
+
+**PO notes:**
+
+- Story 4 (Auto-Refresh) is Priority 2 by strict classification but is included in v1 scope. The implementation cost is a single `setInterval` / `clearInterval` in the `HealthTab` component — there is no meaningful reason to defer it given it is already fully designed. The Priority 2 rating signals that if the sprint hits a hard constraint, it is the first item to drop without breaking the feature.
+- Story 7 (Pagination) is classified Priority 1 rather than 2 despite a workaround existing (50-row hard limit on first load). The workaround is misleading: an admin who sees 50 rows has no signal that more exist. Shipping a paginated table from the start avoids a confusing v1 that has to be retrofitted. The implementation is described in full in the spec and design; there is no incremental cost argument for deferral.
+- The `logout` action type (FR-14, FR-15) and the `POST /api/auth/logout` endpoint are part of Story 9 (Priority 1). The spec's own Out of Scope clause notes that if the endpoint does not exist at implementation time, logout logging is deferred to the backend developer as part of this feature's scope. The architect has confirmed the endpoint in the design. This is not a reason to reduce Story 9's priority — it is a scoping note for the backend developer.
+- CSV Export (Story 8) is deferred not because it is technically difficult but because it adds a second backend endpoint, a streaming response implementation, truncation handling, and a UI warning banner — all for a use case (offline analysis, stakeholder reporting) that has not been demonstrated as a day-1 need for a single-admin platform in early growth. Revisit when the admin has expressed a concrete need.
+- No tier gate changes are required. Both features are admin-only. The existing `require_admin()` dependency covers backend auth. No free/starter/pro entitlement logic is touched.
+
+**PO gate decision:** Approved
+
+_Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 17Jun2026
