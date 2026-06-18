@@ -126,9 +126,13 @@ async def _get_chain_inner(
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Debug-Path"] = debug_path
 
-    # Prefer the spot price embedded in the chain response (same API call,
-    # no extra yfinance round-trip). Fall back to get_quote if missing.
-    S = chain.get("underlying_price") or quote["price"]
+    # Use the freshest available spot price for greeks / fill_quote.
+    # quote has a 30-second TTL; chain.underlying_price has a 5-minute TTL.
+    # When the stock has moved since the chain was cached, using the stale
+    # underlying_price misprices all ITM/OTM boundaries and fill_quote estimates.
+    quote_price = float(quote.get("price") or 0)
+    chain_price = float(chain.get("underlying_price") or 0)
+    S = quote_price if quote_price > 0 else chain_price
 
     # Enrich with greeks
     def enrich(contracts: list, option_type: str) -> list:

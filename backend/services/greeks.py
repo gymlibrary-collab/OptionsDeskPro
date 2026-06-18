@@ -17,8 +17,17 @@ def calculate_greeks(S: float, K: float, T: float, r: float, sigma: float, optio
     Returns:
         dict with delta, gamma, theta, vega, rho
     """
-    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+    if S <= 0 or K <= 0:
         return {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
+
+    # At expiry (T=0) return binary delta: 1 for ITM call, -1 for ITM put, 0 otherwise.
+    if T <= 0 or sigma <= 0:
+        is_call = option_type.lower() == "call"
+        if is_call:
+            delta = 1.0 if S > K else 0.0
+        else:
+            delta = -1.0 if S < K else 0.0
+        return {"delta": delta, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
 
     try:
         sqrt_T = math.sqrt(T)
@@ -76,13 +85,17 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
 
 def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 0.05) -> tuple:
     """
-    Return (bid, ask) for a contract, corrected for two free-data problems:
+    Return (bid, ask) for a contract, corrected for free-data problems:
 
-    1. Missing quote — yfinance returns 0/NaN bid/ask for illiquid contracts.
-       We substitute a Black-Scholes theoretical price ± a 2.5% spread.
+    1. Missing quote — yfinance returns 0/NaN bid/ask for illiquid or 0-DTE contracts.
+       Fallback strategy depends on time-to-expiry:
+       - 0-DTE ITM: use lastPrice (it closely tracks intrinsic; stale lastPrice is
+         still directionally correct for ITM options).
+       - 0-DTE OTM: use Black-Scholes with current S (lastPrice is stale from when
+         the option had different moneyness as the stock moved during the day).
+       - Non-0-DTE: try lastPrice, then Black-Scholes.
     2. Stale quote below intrinsic — deep-ITM contracts that barely trade can
-       carry a last-traded bid/ask below intrinsic value, which is an
-       impossible (arbitrageable) market. We clamp to the intrinsic floor.
+       carry a bid/ask below intrinsic value. We clamp to the intrinsic floor.
 
     Real, sane quotes are left untouched.
     """
@@ -95,15 +108,44 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     # Treat any value that rounds to $0.00 as missing — catches tiny yfinance
     # fractional quotes (e.g. 0.001) that are not meaningful displayed prices.
     if round(bid, 2) <= 0 and round(ask, 2) <= 0:
-        sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
-        if sigma <= 0 or sigma > 5.0:   # also reject absurd IV values from stale data
-            sigma = 0.3
-        # Use at least 0.5 days of time value so OTM options on expiry day still
-        # get a small theoretical price rather than $0.00 across the board.
-        T_bs = max(T, 0.5 / 365.0)
-        theo = black_scholes_price(S, K, T_bs, r, sigma, option_type)
-        bid = round(theo * 0.975, 2)
-        ask = round(theo * 1.025, 2)
+        if T <= 0:
+            # 0-DTE: yfinance bid/ask are absent; lastPrice can be stale in the
+            # wrong direction when the stock moved and flipped a contract's moneyness.
+            # Split on whether the contract is currently ITM or OTM:
+            # - ITM: lastPrice was from a trade that also saw intrinsic value, so it's
+            #   a reasonable proxy; floor it at intrinsic.
+            # - OTM: lastPrice was set when the contract might have been ITM (stock
+            #   moved against it); BS with current S gives a better estimate.
+            last = float(contract.get("lastPrice", 0.0) or 0.0)
+            if intrinsic > 0.01 and round(last, 2) > 0:
+                mid = max(last, intrinsic)
+                bid = round(mid * 0.975, 2)
+                ask = round(mid * 1.025, 2)
+            else:
+                sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
+                # yfinance returns near-zero IV for 0-DTE (BS inversion unstable as
+                # T→0). Any annualised equity IV below ~20% is unreliably small here.
+                if sigma < 0.20 or sigma > 5.0:
+                    sigma = 0.3
+                theo = black_scholes_price(S, K, 1.0 / 365.0, r, sigma, option_type)
+                bid = round(theo * 0.975, 2)
+                ask = round(theo * 1.025, 2)
+        else:
+            # Non-0-DTE: lastPrice is generally fresh enough relative to S changes.
+            last = float(contract.get("lastPrice", 0.0) or 0.0)
+            if round(last, 2) > 0:
+                mid = max(last, intrinsic)
+                bid = round(mid * 0.975, 2)
+                ask = round(mid * 1.025, 2)
+            else:
+                sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
+                # Minimum meaningful equity annualised IV is ~5%.
+                if sigma < 0.05 or sigma > 5.0:
+                    sigma = 0.3
+                T_bs = max(T, 1.0 / 365.0)
+                theo = black_scholes_price(S, K, T_bs, r, sigma, option_type)
+                bid = round(theo * 0.975, 2)
+                ask = round(theo * 1.025, 2)
 
     # No-arbitrage floor: an option is worth at least its intrinsic value.
     if intrinsic > 0:
