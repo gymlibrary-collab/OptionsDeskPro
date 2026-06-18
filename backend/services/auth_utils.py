@@ -183,13 +183,17 @@ def _set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
     """
     is_dev = os.getenv("ENVIRONMENT", "").lower() == "development"
     secure = not is_dev
+    # SameSite=None is required for cross-domain XHR (frontend and backend run on
+    # different Railway subdomains which browsers treat as cross-site).  SameSite=None
+    # requires Secure=True, so fall back to Lax in local dev where Secure is off.
+    samesite: str = "none" if secure else "lax"
 
     response.set_cookie(
         key="sb_access_token",
         value=access_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite=samesite,
         path="/",
         max_age=3600,
     )
@@ -198,7 +202,7 @@ def _set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
         value=refresh_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite=samesite,
         path="/",
         max_age=604800,
     )

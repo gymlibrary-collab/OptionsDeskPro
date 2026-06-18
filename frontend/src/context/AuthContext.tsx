@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse } from '../api/client'
 
 const BACKEND_URL =
@@ -39,6 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingLegalAcknowledgment, setPendingLegalAcknowledgment] = useState(false)
+  // Guard against concurrent fetchSession calls (e.g. focus event firing while
+  // the initial mount call is still in flight after the OAuth redirect).
+  const fetchSessionInFlight = useRef(false)
 
   // Re-trigger the legal gate modal if any API call returns 451.
   // This handles the case where a new legal version is published while the
@@ -66,6 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fetchSession = useCallback(async () => {
+    if (fetchSessionInFlight.current) return
+    fetchSessionInFlight.current = true
     setLoading(true)
     try {
       const data = await getSession()
@@ -95,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // other errors: keep existing state to avoid flicker on transient network issues
     } finally {
       setLoading(false)
+      fetchSessionInFlight.current = false
     }
   }, [fetchEntitlements])
 
