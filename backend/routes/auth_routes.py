@@ -200,9 +200,11 @@ async def auth_google():
         if not oauth_url:
             raise ValueError("No OAuth URL returned by Supabase")
         response = RedirectResponse(url=oauth_url, status_code=302)
-        # supabase-py 2.x uses PKCE by default; persist the code_verifier in a
-        # short-lived httpOnly cookie so the callback handler can complete the exchange.
-        code_verifier = getattr(result, "code_verifier", None)
+        # supabase-py stores the PKCE code_verifier in its in-memory client
+        # storage (not on OAuthResponse). Read it out before the client is GC'd
+        # and persist it in a short-lived cookie for the stateless callback request.
+        _sk = getattr(sb.auth, "_storage_key", "supabase.auth.token")
+        code_verifier = sb.auth._storage.get_item(f"{_sk}-code-verifier")
         if code_verifier:
             secure = os.getenv("ENVIRONMENT", "").lower() != "development"
             response.set_cookie(
