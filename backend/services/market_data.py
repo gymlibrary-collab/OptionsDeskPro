@@ -88,6 +88,13 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
             "expiry":      expiry,
             "calls":       df_to_list(chain.calls),
             "puts":        df_to_list(chain.puts),
+            # Underlying spot price from the same API response — more reliable
+            # than a separate get_quote call and avoids S=0 when that call fails.
+            "underlying_price": _safe_float(
+                (chain.underlying or {}).get("regularMarketPrice") or
+                (chain.underlying or {}).get("ask") or
+                (chain.underlying or {}).get("bid")
+            ),
         }
     except Exception as e:
         logger.warning("yfinance chain failed for %s: %s", symbol, e)

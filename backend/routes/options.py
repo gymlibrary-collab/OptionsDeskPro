@@ -61,7 +61,9 @@ async def get_chain(
         loop.run_in_executor(None, get_options_chain, symbol.upper(), expiry),
         loop.run_in_executor(None, get_quote, symbol.upper()),
     )
-    S = quote["price"]
+    # Prefer the spot price embedded in the chain response (same API call,
+    # no extra yfinance round-trip). Fall back to get_quote if missing.
+    S = chain.get("underlying_price") or quote["price"]
     if response:
         response.headers["Cache-Control"] = "no-store"
 
@@ -95,8 +97,11 @@ async def get_chain(
         except Exception:
             _T_log = -1.0
         logger.info(
-            "chain %s expiry=%s S=%.2f T=%.5f n_calls=%d first_call raw_bid=%s enriched_bid=%s ask=%s",
-            symbol, chain["expiry"], S, _T_log, len(calls),
+            "chain %s expiry=%s S=%.2f(underlying=%.2f quote=%.2f) T=%.5f n_calls=%d "
+            "first_call raw_bid=%s enriched_bid=%s ask=%s",
+            symbol, chain["expiry"], S,
+            chain.get("underlying_price") or 0.0, quote["price"],
+            _T_log, len(calls),
             chain["calls"][0].get("bid") if chain["calls"] else "n/a",
             calls[0].get("bid"), calls[0].get("ask"),
         )
