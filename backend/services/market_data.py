@@ -1,11 +1,25 @@
 import yfinance as yf
 import time
 import math
+import requests
 from datetime import datetime
 from typing import Optional
 import logging
+from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger(__name__)
+
+
+class _TimeoutAdapter(HTTPAdapter):
+    """HTTPAdapter that enforces a per-request timeout so yfinance calls never
+    hang indefinitely and trigger Railway-Hikari's 30-second proxy timeout."""
+    def send(self, request, **kwargs):
+        kwargs.setdefault("timeout", 15)
+        return super().send(request, **kwargs)
+
+_yf_session = requests.Session()
+_yf_session.mount("https://", _TimeoutAdapter())
+_yf_session.mount("http://", _TimeoutAdapter())
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -63,7 +77,7 @@ def _cache_set(key: str, data: dict):
 
 def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_yf_session)
         expirations = ticker.options
         if not expirations:
             return None
@@ -137,7 +151,7 @@ def get_quote(symbol: str) -> dict:
         return cached
 
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_yf_session)
         info = ticker.fast_info
         hist = ticker.history(period="2d")
 
