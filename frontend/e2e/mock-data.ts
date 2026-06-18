@@ -632,6 +632,30 @@ export const MOCK_LOGIN_RESPONSE_LEGAL_ONBOARDING = {
   pending_legal_acknowledgment: false,
 }
 
+// ─── Backend-auth-proxy session mock data ──────────────────────────────────────
+
+/** GET /api/auth/session response for a regular pro user */
+export const MOCK_SESSION_RESPONSE = {
+  user_id: MOCK_USER.id,
+  email: MOCK_USER.email,
+  full_name: 'Test User',
+  avatar_url: null,
+  role: 'user',
+  is_admin: false,
+  onboarding_completed: true,
+  onboarding_step: 'complete',
+  pending_legal_acknowledgment: false,
+  subscription_tier: 'pro',
+}
+
+/** GET /api/auth/session response for an admin user */
+export const MOCK_SESSION_RESPONSE_ADMIN = {
+  ...MOCK_SESSION_RESPONSE,
+  email: MOCK_ADMIN_USER.email,
+  role: 'admin',
+  is_admin: true,
+}
+
 // ─── Strategy Comparison Matrix mock data (PRD-01) ───────────────────────────
 
 /**

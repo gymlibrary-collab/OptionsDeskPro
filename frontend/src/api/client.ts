@@ -7,6 +7,7 @@ const BACKEND_URL =
 const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
   timeout: 15000,
+  withCredentials: true,
 })
 
 export interface Quote {
@@ -705,6 +706,34 @@ export const getActivityLog = (
 
 export const postLogout = (): Promise<{ ok: boolean }> =>
   api.post('/auth/logout', {}).then(r => r.data)
+
+// ─── Backend-auth-proxy session endpoints ─────────────────────────────────────
+
+export interface SessionResponse {
+  user_id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  role: string
+  is_admin: boolean
+  onboarding_completed: boolean
+  onboarding_step: string
+  pending_legal_acknowledgment: boolean
+  subscription_tier: string
+}
+
+export const getSession = (): Promise<SessionResponse> =>
+  api.get<SessionResponse>('/auth/session').then(r => r.data)
+
+export const postEmailLogin = (email: string, password: string): Promise<{
+  ok: boolean
+  email: string
+  role: string
+  onboarding_completed: boolean
+  onboarding_step: string
+  pending_legal_acknowledgment: boolean
+}> =>
+  api.post('/auth/email-login', { email, password }).then(r => r.data)
 
 // ─── Platform (admin) routes ─────────────────────────────────────────────────────────────────────
 

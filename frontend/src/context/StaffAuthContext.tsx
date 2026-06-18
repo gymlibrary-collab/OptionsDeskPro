@@ -49,7 +49,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(({ data: { session: s } }: { data: { session: Session | null } }) => {
       setStaffUser(s?.user ?? null)
       if (s) {
         initStaff(s)
@@ -58,7 +58,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: unknown, s: Session | null) => {
       setStaffUser(s?.user ?? null)
       if (s) {
         initStaff(s)
