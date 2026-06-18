@@ -154,6 +154,7 @@ export const getQuote = (symbol: string) =>
 export const getOptionsChain = (symbol: string, expiry?: string) =>
   api.get<OptionsChainResponse>(`/options/chain/${symbol}`, {
     params: expiry ? { expiry } : {},
+    timeout: 30000,
   }).then(r => r.data)
 
 export const placeOrder = (order: OrderRequest) =>
