@@ -35,11 +35,11 @@
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 17Jun2026 |
+| **Notes** | Design approved. 4 new endpoints, httpOnly cookie spec, asyncio.Lock refresh strategy, dual-mode verify_token for zero-downtime cutover, 3-phase deployment plan. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
