@@ -1,14 +1,18 @@
 import asyncio
 from fastapi import APIRouter, Query, Request, Response, Security
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from typing import Optional
 from datetime import date
 import logging
 
 from services.market_data import get_quote, get_options_chain
 from services.greeks import calculate_greeks, fill_quote
-from services.auth_utils import security as bearer_security, get_user_id, get_user_email
+from services.auth_utils import get_user_id, get_user_email
 from services.activity_logger import log_action, extract_ip
+
+# Local bearer security instance for optional-auth endpoints (public routes that
+# log activity when a valid token is present but do not require authentication).
+bearer_security = HTTPBearer(auto_error=False)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

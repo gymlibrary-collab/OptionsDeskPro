@@ -16,6 +16,8 @@ const FEATURES = [
     tagBg: 'rgba(124,106,247,0.1)',
     tagBorder: 'rgba(124,106,247,0.2)',
     tagColor: '#a78bfa',
+    mobileTitle: '31 Strategies, AI-Ranked',
+    mobileTag: '✦ AI',
   },
   {
     icon: '📡',
@@ -27,6 +29,8 @@ const FEATURES = [
     tagBg: 'rgba(6,182,212,0.1)',
     tagBorder: 'rgba(6,182,212,0.2)',
     tagColor: '#06b6d4',
+    mobileTitle: 'Market Data Every ~30s',
+    mobileTag: '↻ Live',
   },
   {
     icon: '🗺️',
@@ -38,6 +42,8 @@ const FEATURES = [
     tagBg: 'rgba(245,158,11,0.1)',
     tagBorder: 'rgba(245,158,11,0.2)',
     tagColor: '#f59e0b',
+    mobileTitle: 'Step-by-Step Entry Guide',
+    mobileTag: '📋',
   },
   {
     icon: '🤖',
@@ -49,6 +55,8 @@ const FEATURES = [
     tagBg: 'rgba(124,106,247,0.1)',
     tagBorder: 'rgba(124,106,247,0.2)',
     tagColor: '#a78bfa',
+    mobileTitle: 'AI Narrative Every Strategy',
+    mobileTag: '✦ AI',
   },
   {
     icon: '🔒',
@@ -60,6 +68,8 @@ const FEATURES = [
     tagBg: 'rgba(34,197,94,0.1)',
     tagBorder: 'rgba(34,197,94,0.2)',
     tagColor: '#22c55e',
+    mobileTitle: 'Paper Trading',
+    mobileTag: '✓ Free tier',
   },
 ]
 
@@ -71,6 +81,91 @@ const TICKERS = [
   { sym: 'NVDA', price: '138.40', chg: '▲ 1.7%',  up: true },
   { sym: 'IWM',  price: '213.50', chg: '▼ 0.5%',  up: false },
 ]
+
+function CompassSVG() {
+  return (
+    <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+      <defs>
+        <filter id="cometGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      {/* wide orbit rings — comet arc style */}
+      <circle cx="120" cy="120" r="155" stroke="#7c6af7" strokeWidth="0.6" opacity="0.18"/>
+      {/* glowing arc across the top third */}
+      <path d="M 30 -25 A 155 155 0 0 1 210 -25"
+        stroke="#c4b5fd" strokeWidth="2.5" strokeLinecap="round" opacity="0.45" filter="url(#cometGlow)" fill="none"/>
+      <path d="M 60 -32 A 155 155 0 0 1 180 -32"
+        stroke="#e2d9f3" strokeWidth="1" strokeLinecap="round" opacity="0.60" fill="none"/>
+      {/* comet spark orbiting the ring */}
+      <circle cx="120" cy="120" r="155" stroke="#a78bfa" strokeWidth="1.5"
+        strokeDasharray="30 945" strokeDashoffset="0" opacity="0.70"
+        filter="url(#cometGlow)"
+        style={{ animation: 'compassSpin 14s linear infinite', transformOrigin: '120px 120px' }}/>
+      {/* three concentric rings */}
+      <circle cx="120" cy="120" r="114" stroke="#7c6af7" strokeWidth="2"   opacity="0.25"/>
+      <circle cx="120" cy="120" r="106" stroke="#7c6af7" strokeWidth="0.5" opacity="0.16"/>
+      <circle cx="120" cy="120" r="80"  stroke="#7c6af7" strokeWidth="0.8" strokeDasharray="2 4" opacity="0.15"/>
+      <circle cx="120" cy="120" r="52"  stroke="#a78bfa" strokeWidth="0.6" opacity="0.18"/>
+      <circle cx="120" cy="120" r="22"  stroke="#7c6af7" strokeWidth="1"   fill="rgba(124,106,247,0.06)" opacity="0.25"/>
+      {/* dense tick marks */}
+      <g stroke="#7c6af7" opacity="0.16">
+        {/* major every 90° */}
+        <line x1="120" y1="6"   x2="120" y2="22"  strokeWidth="2"/>
+        <line x1="120" y1="218" x2="120" y2="234" strokeWidth="2"/>
+        <line x1="6"   y1="120" x2="22"  y2="120" strokeWidth="2"/>
+        <line x1="218" y1="120" x2="234" y2="120" strokeWidth="2"/>
+        {/* 45° */}
+        <line x1="200.6" y1="39.4" x2="193" y2="47"   strokeWidth="1.4"/>
+        <line x1="39.4"  y1="39.4" x2="47"  y2="47"   strokeWidth="1.4"/>
+        <line x1="200.6" y1="200.6" x2="193" y2="193" strokeWidth="1.4"/>
+        <line x1="39.4"  y1="200.6" x2="47"  y2="193" strokeWidth="1.4"/>
+        {/* 30° */}
+        <line x1="177"   y1="17.3" x2="173.6" y2="23.3" strokeWidth="1"/>
+        <line x1="63"    y1="17.3" x2="66.4"  y2="23.3" strokeWidth="1"/>
+        <line x1="222.7" y1="63"   x2="216.7" y2="66.4" strokeWidth="1"/>
+        <line x1="222.7" y1="177"  x2="216.7" y2="173.6" strokeWidth="1"/>
+        <line x1="17.3"  y1="63"   x2="23.3"  y2="66.4" strokeWidth="1"/>
+        <line x1="17.3"  y1="177"  x2="23.3"  y2="173.6" strokeWidth="1"/>
+        <line x1="177"   y1="222.7" x2="173.6" y2="216.7" strokeWidth="1"/>
+        <line x1="63"    y1="222.7" x2="66.4"  y2="216.7" strokeWidth="1"/>
+        {/* 15° fine ticks */}
+        <line x1="150.7" y1="9.6"   x2="149.3" y2="14.3" strokeWidth="0.6"/>
+        <line x1="89.3"  y1="9.6"   x2="90.7"  y2="14.3" strokeWidth="0.6"/>
+        <line x1="209.6" y1="89.3"  x2="204.9" y2="90.7" strokeWidth="0.6" opacity="0.6"/>
+        <line x1="209.6" y1="150.7" x2="204.9" y2="149.3" strokeWidth="0.6" opacity="0.6"/>
+        <line x1="10.4"  y1="89.3"  x2="15.1"  y2="90.7" strokeWidth="0.6" opacity="0.6"/>
+        <line x1="10.4"  y1="150.7" x2="15.1"  y2="149.3" strokeWidth="0.6" opacity="0.6"/>
+        <line x1="150.7" y1="230.4" x2="149.3" y2="225.7" strokeWidth="0.6" opacity="0.6"/>
+        <line x1="89.3"  y1="230.4" x2="90.7"  y2="225.7" strokeWidth="0.6" opacity="0.6"/>
+      </g>
+      {/* N arrow — wide fleur style */}
+      <polygon points="120,10 127,85 120,100 113,85" fill="#e2e8f0" opacity="0.58"/>
+      {/* fleur arrowhead */}
+      <polygon points="120,8 130,20 120,26 110,20" fill="#e2e8f0" opacity="0.72"/>
+      <line x1="105" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
+      <line x1="135" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
+      {/* S arrow */}
+      <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
+      {/* E/W subtle marks */}
+      <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
+      <polygon points="10,120 85,125 100,120 85,115"   fill="#7c6af7" opacity="0.18"/>
+      {/* centre */}
+      <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" strokeWidth="1.5" opacity="0.38"/>
+      <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
+      <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
+      {/* N label — floats in gap between arrow tip and orbit ring */}
+      <text x="120" y="-22" textAnchor="middle" fontSize="13" fontWeight="900"
+        fill="#e2e8f0" opacity="0.80" fontFamily="Georgia, serif"
+        transform="rotate(-30 120 -22)">N</text>
+      {/* S/E/W labels subtle */}
+      <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-30 120 253)">S</text>
+      <text x="262" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 262 128)">E</text>
+      <text x="-22" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 -22 128)">W</text>
+    </svg>
+  )
+}
 
 export default function LoginPage() {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, loading } = useAuth()
@@ -109,8 +204,57 @@ export default function LoginPage() {
   const busy = loading || submitting
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#08090f', fontFamily: FONT, color: '#e2e8f0' }}>
+    <div className="lp-root" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#08090f', fontFamily: FONT, color: '#e2e8f0' }}>
       <style>{`@keyframes compassSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── MOBILE HERO ZONE (portrait only, hidden on desktop) ── */}
+      <div className="lp-mobile-hero">
+        <div className="lp-mobile-cw"><CompassSVG /></div>
+        <div className="lp-mobile-content">
+          {/* Brand row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '17px', color: '#7c6af7' }}>⬡</span>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: '#e2e8f0' }}>
+              Options<span style={{ color: '#7c6af7' }}>Compass</span>
+            </span>
+            <div style={{
+              marginLeft: '4px', padding: '1px 6px', borderRadius: '20px',
+              background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)',
+              fontSize: '8px', color: '#22c55e', fontWeight: 700, letterSpacing: '0.04em',
+              display: 'flex', alignItems: 'center', gap: '3px',
+            }}>
+              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'ocPulse 2s ease-in-out infinite' }} />
+              LIVE
+            </div>
+          </div>
+          {/* Subtitle */}
+          <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4, marginBottom: '10px' }}>
+            Options strategy intelligence — know which trade fits today's market.
+          </div>
+          {/* Feature pills */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {FEATURES.map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '5px', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px',
+                  background: f.iconBg, border: `1px solid ${f.iconBorder}`,
+                }}>
+                  {f.icon}
+                </div>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#cbd5e1' }}>{f.mobileTitle}</span>
+                <span style={{
+                  padding: '1px 5px', borderRadius: '6px', fontSize: '8px', fontWeight: 700,
+                  background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {f.mobileTag}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* ── LEFT — marketing panel (hidden on narrow screens via CSS var) ── */}
       <div style={{
@@ -146,86 +290,7 @@ export default function LoginPage() {
           transformOrigin: 'center center',
           zIndex: 0,
         }}>
-          <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-            <defs>
-              <filter id="cometGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="4" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            {/* wide orbit rings — comet arc style */}
-            <circle cx="120" cy="120" r="155" stroke="#7c6af7" strokeWidth="0.6" opacity="0.18"/>
-            {/* glowing arc across the top third */}
-            <path d="M 30 -25 A 155 155 0 0 1 210 -25"
-              stroke="#c4b5fd" strokeWidth="2.5" strokeLinecap="round" opacity="0.45" filter="url(#cometGlow)" fill="none"/>
-            <path d="M 60 -32 A 155 155 0 0 1 180 -32"
-              stroke="#e2d9f3" strokeWidth="1" strokeLinecap="round" opacity="0.60" fill="none"/>
-            {/* comet spark orbiting the ring */}
-            <circle cx="120" cy="120" r="155" stroke="#a78bfa" strokeWidth="1.5"
-              strokeDasharray="30 945" strokeDashoffset="0" opacity="0.70"
-              filter="url(#cometGlow)"
-              style={{ animation: 'compassSpin 14s linear infinite', transformOrigin: '120px 120px' }}/>
-            {/* three concentric rings */}
-            <circle cx="120" cy="120" r="114" stroke="#7c6af7" strokeWidth="2"   opacity="0.25"/>
-            <circle cx="120" cy="120" r="106" stroke="#7c6af7" strokeWidth="0.5" opacity="0.16"/>
-            <circle cx="120" cy="120" r="80"  stroke="#7c6af7" strokeWidth="0.8" strokeDasharray="2 4" opacity="0.15"/>
-            <circle cx="120" cy="120" r="52"  stroke="#a78bfa" strokeWidth="0.6" opacity="0.18"/>
-            <circle cx="120" cy="120" r="22"  stroke="#7c6af7" strokeWidth="1"   fill="rgba(124,106,247,0.06)" opacity="0.25"/>
-            {/* dense tick marks */}
-            <g stroke="#7c6af7" opacity="0.16">
-              {/* major every 90° */}
-              <line x1="120" y1="6"   x2="120" y2="22"  strokeWidth="2"/>
-              <line x1="120" y1="218" x2="120" y2="234" strokeWidth="2"/>
-              <line x1="6"   y1="120" x2="22"  y2="120" strokeWidth="2"/>
-              <line x1="218" y1="120" x2="234" y2="120" strokeWidth="2"/>
-              {/* 45° */}
-              <line x1="200.6" y1="39.4" x2="193" y2="47"   strokeWidth="1.4"/>
-              <line x1="39.4"  y1="39.4" x2="47"  y2="47"   strokeWidth="1.4"/>
-              <line x1="200.6" y1="200.6" x2="193" y2="193" strokeWidth="1.4"/>
-              <line x1="39.4"  y1="200.6" x2="47"  y2="193" strokeWidth="1.4"/>
-              {/* 30° */}
-              <line x1="177"   y1="17.3" x2="173.6" y2="23.3" strokeWidth="1"/>
-              <line x1="63"    y1="17.3" x2="66.4"  y2="23.3" strokeWidth="1"/>
-              <line x1="222.7" y1="63"   x2="216.7" y2="66.4" strokeWidth="1"/>
-              <line x1="222.7" y1="177"  x2="216.7" y2="173.6" strokeWidth="1"/>
-              <line x1="17.3"  y1="63"   x2="23.3"  y2="66.4" strokeWidth="1"/>
-              <line x1="17.3"  y1="177"  x2="23.3"  y2="173.6" strokeWidth="1"/>
-              <line x1="177"   y1="222.7" x2="173.6" y2="216.7" strokeWidth="1"/>
-              <line x1="63"    y1="222.7" x2="66.4"  y2="216.7" strokeWidth="1"/>
-              {/* 15° fine ticks */}
-              <line x1="150.7" y1="9.6"   x2="149.3" y2="14.3" strokeWidth="0.6"/>
-              <line x1="89.3"  y1="9.6"   x2="90.7"  y2="14.3" strokeWidth="0.6"/>
-              <line x1="209.6" y1="89.3"  x2="204.9" y2="90.7" strokeWidth="0.6" opacity="0.6"/>
-              <line x1="209.6" y1="150.7" x2="204.9" y2="149.3" strokeWidth="0.6" opacity="0.6"/>
-              <line x1="10.4"  y1="89.3"  x2="15.1"  y2="90.7" strokeWidth="0.6" opacity="0.6"/>
-              <line x1="10.4"  y1="150.7" x2="15.1"  y2="149.3" strokeWidth="0.6" opacity="0.6"/>
-              <line x1="150.7" y1="230.4" x2="149.3" y2="225.7" strokeWidth="0.6" opacity="0.6"/>
-              <line x1="89.3"  y1="230.4" x2="90.7"  y2="225.7" strokeWidth="0.6" opacity="0.6"/>
-            </g>
-            {/* N arrow — wide fleur style */}
-            <polygon points="120,10 127,85 120,100 113,85" fill="#e2e8f0" opacity="0.58"/>
-            {/* fleur arrowhead */}
-            <polygon points="120,8 130,20 120,26 110,20" fill="#e2e8f0" opacity="0.72"/>
-            <line x1="105" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
-            <line x1="135" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
-            {/* S arrow */}
-            <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
-            {/* E/W subtle marks */}
-            <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
-            <polygon points="10,120 85,125 100,120 85,115"   fill="#7c6af7" opacity="0.18"/>
-            {/* centre */}
-            <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" strokeWidth="1.5" opacity="0.38"/>
-            <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
-            <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
-            {/* N label — floats in gap between arrow tip and orbit ring */}
-            <text x="120" y="-22" textAnchor="middle" fontSize="13" fontWeight="900"
-              fill="#e2e8f0" opacity="0.80" fontFamily="Georgia, serif"
-              transform="rotate(-30 120 -22)">N</text>
-            {/* S/E/W labels subtle */}
-            <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-30 120 253)">S</text>
-            <text x="262" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 262 128)">E</text>
-            <text x="-22" y="128" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.22" fontFamily="monospace" transform="rotate(-30 -22 128)">W</text>
-          </svg>
+          <CompassSVG />
         </div>
 
         {/* Chart watermark */}
@@ -328,22 +393,23 @@ export default function LoginPage() {
       </div>
 
       {/* ── RIGHT — login form ── */}
-      <div style={{ width: '460px', minWidth: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', background: '#08090f' }}>
-        <div style={{ width: '100%' }}>
+      <div className="lp-right" style={{ width: '460px', minWidth: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', background: '#08090f' }}>
+        <div className="lp-right-inner" style={{ width: '100%' }}>
 
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.5px', marginBottom: '4px' }}>
+          <div className="lp-form-title" style={{ fontSize: '26px', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.5px', marginBottom: '4px' }}>
             {mode === 'signup' ? 'Create your account' : 'Welcome back'}
           </div>
-          <div style={{ fontSize: '13px', color: '#4b5563', marginBottom: '32px' }}>
+          <div className="lp-form-sub" style={{ fontSize: '13px', color: '#4b5563', marginBottom: '32px' }}>
             {mode === 'signup' ? 'Start paper trading in under a minute' : 'Sign in to your Options Compass account'}
           </div>
 
           {/* Mode toggle */}
-          <div style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
+          <div className="lp-toggle-wrap" style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
             {(['signin', 'signup'] as Mode[]).map(m => (
               <button
                 key={m}
                 onClick={() => switchMode(m)}
+                className="lp-toggle-btn"
                 style={{
                   flex: 1, padding: '9px', border: 'none', borderRadius: '8px',
                   fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT,
@@ -362,6 +428,7 @@ export default function LoginPage() {
           <button
             onClick={signInWithGoogle}
             disabled={busy}
+            className="lp-google-btn"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%',
               padding: '13px', background: '#fff', color: '#111', border: 'none', borderRadius: '10px',
@@ -380,7 +447,7 @@ export default function LoginPage() {
           </button>
 
           {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+          <div className="lp-divider" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
             <div style={{ flex: 1, height: '1px', background: '#141727' }} />
             <span style={{ fontSize: '12px', color: '#2d3748' }}>or</span>
             <div style={{ flex: 1, height: '1px', background: '#141727' }} />
@@ -401,6 +468,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   disabled={busy}
+                  className="lp-input"
                   style={{
                     width: '100%', padding: '12px 14px 12px 40px',
                     background: '#0d0f1a', border: '1px solid #1e2235',
@@ -417,6 +485,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   disabled={busy}
+                  className="lp-input"
                   style={{
                     width: '100%', padding: '12px 14px 12px 40px',
                     background: '#0d0f1a', border: '1px solid #1e2235',
@@ -434,6 +503,7 @@ export default function LoginPage() {
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     disabled={busy}
+                    className="lp-input"
                     style={{
                       width: '100%', padding: '12px 14px 12px 40px',
                       background: '#0d0f1a', border: '1px solid #1e2235',
@@ -456,6 +526,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={busy}
+                className="lp-submit-btn"
                 style={{
                   width: '100%', padding: '13px',
                   background: '#7c6af7', border: 'none', borderRadius: '10px',
@@ -474,16 +545,16 @@ export default function LoginPage() {
           )}
 
           {/* Switch mode */}
-          <div style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
+          <div className="lp-switch-mode" style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
             {mode === 'signup'
               ? <>Already have an account? <span onClick={() => switchMode('signin')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Sign in</span></>
               : <>New to Options Compass? <span onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Create a free account</span></>}
           </div>
 
           {/* Trust row */}
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '24px', flexWrap: 'wrap' }}>
+          <div className="lp-trust-row" style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '24px', flexWrap: 'wrap' }}>
             {[['🔐', 'Secure sign-in'], ['🛡️', 'End-to-end encrypted'], ['🆓', 'Free tier available']].map(([icon, label]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#2d3748' }}>
+              <div key={label} className="lp-trust-item" style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#2d3748' }}>
                 <span>{icon}</span> {label}
               </div>
             ))}
@@ -496,8 +567,174 @@ export default function LoginPage() {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(0.8); }
         }
-        @media (max-width: 768px) {
-          .login-left-panel { display: none !important; }
+
+        /* ── Mobile hero: hidden by default (desktop) ── */
+        .lp-mobile-hero {
+          display: none;
+        }
+
+        /* ── Mobile portrait ── */
+        @media (max-width: 767px) and (orientation: portrait) {
+          .lp-root {
+            flex-direction: column !important;
+            overflow-y: auto !important;
+            height: auto !important;
+            min-height: 100vh !important;
+          }
+
+          .login-left-panel {
+            display: none !important;
+          }
+
+          /* Mobile hero zone */
+          .lp-mobile-hero {
+            display: block;
+            position: relative;
+            height: 282px;
+            flex-shrink: 0;
+            background: linear-gradient(180deg, #0d0f1e 0%, #09090f 100%);
+            overflow: hidden;
+          }
+
+          .lp-mobile-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+              linear-gradient(rgba(124,106,247,.04) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(124,106,247,.04) 1px, transparent 1px);
+            background-size: 36px 36px;
+            pointer-events: none;
+          }
+
+          .lp-mobile-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 75% 40%, rgba(124,106,247,.22) 0%, transparent 58%);
+            pointer-events: none;
+          }
+
+          .lp-mobile-cw {
+            position: absolute;
+            top: 2%;
+            right: -10%;
+            width: 66%;
+            height: 104%;
+            transform: rotate(30deg);
+            z-index: 1;
+            pointer-events: none;
+          }
+
+          .lp-mobile-content {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            width: 62%;
+            padding: 24px 0 14px 18px;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(90deg, rgba(8,9,15,.97) 0%, rgba(8,9,15,.88) 75%, transparent 100%);
+          }
+
+          /* Right panel */
+          .lp-right {
+            width: 100% !important;
+            min-width: unset !important;
+            flex: 1 !important;
+            padding: 0 !important;
+            align-items: stretch !important;
+          }
+
+          .lp-right-inner {
+            margin: 10px 14px 14px !important;
+            padding: 16px 16px 14px !important;
+            background: rgba(13,15,26,.95) !important;
+            border: 1px solid #1e2235 !important;
+            border-radius: 14px !important;
+            overflow-y: auto !important;
+          }
+
+          /* Scale down form elements */
+          .lp-form-title {
+            font-size: 15px !important;
+          }
+
+          .lp-form-sub {
+            font-size: 10px !important;
+            margin-bottom: 12px !important;
+          }
+
+          .lp-toggle-wrap {
+            margin-bottom: 12px !important;
+          }
+
+          .lp-toggle-btn {
+            padding: 7px !important;
+            font-size: 11px !important;
+          }
+
+          .lp-google-btn {
+            padding: 11px !important;
+            font-size: 12px !important;
+            margin-bottom: 12px !important;
+          }
+
+          .lp-input {
+            padding: 9px 9px 9px 30px !important;
+            font-size: 12px !important;
+          }
+
+          .lp-submit-btn {
+            padding: 11px !important;
+            font-size: 13px !important;
+          }
+
+          .lp-switch-mode {
+            margin-top: 14px !important;
+            padding-top: 12px !important;
+            font-size: 10px !important;
+          }
+
+          .lp-trust-item {
+            font-size: 9px !important;
+          }
+        }
+
+        /* ── Mobile landscape ── */
+        @media (orientation: landscape) and (max-height: 500px) {
+          .lp-mobile-hero {
+            display: none !important;
+          }
+
+          .login-left-panel {
+            display: flex !important;
+            padding: 20px 24px !important;
+          }
+
+          .lp-right {
+            width: 300px !important;
+            min-width: 260px !important;
+            padding: 14px 18px !important;
+          }
+        }
+
+        /* ── Tablet ── */
+        @media (min-width: 768px) and (max-width: 1099px) {
+          .lp-mobile-hero {
+            display: none !important;
+          }
+
+          .login-left-panel {
+            display: flex !important;
+            padding: 32px 36px !important;
+          }
+
+          .lp-right {
+            width: 360px !important;
+            min-width: 300px !important;
+            padding: 32px 28px !important;
+          }
         }
       `}</style>
     </div>

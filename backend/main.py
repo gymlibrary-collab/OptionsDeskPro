@@ -1,7 +1,7 @@
 import os
 import math
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -53,6 +53,11 @@ _client_origins = [
     "https://optionscompass.up.railway.app",
     "https://optionscompass-admin.up.railway.app",
 ]
+
+# Optional operator override for a custom frontend domain without a code deploy
+_extra_origin = os.getenv("FRONTEND_ORIGIN", "").strip()
+if _extra_origin and _extra_origin.startswith("https://"):
+    _client_origins.append(_extra_origin)
 _admin_origins = [
     o.strip()
     for o in os.getenv("ADMIN_PORTAL_ORIGINS", "").split(",")
@@ -89,6 +94,22 @@ app.include_router(platform_legal_router, prefix="/api")
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# ── Transparent refresh cookie attachment ─────────────────────────────────────
+# When verify_token performs a proactive token refresh it stores the new tokens
+# on request.state. This middleware detects that and sets the updated cookies on
+# the outgoing response without coupling any route handler to cookie logic.
+
+@app.middleware("http")
+async def attach_refreshed_cookies(request: Request, call_next):
+    response = await call_next(request)
+    new_at = getattr(request.state, "new_access_token", None)
+    new_rt = getattr(request.state, "new_refresh_token", None)
+    if new_at:
+        from services.auth_utils import _set_auth_cookies
+        _set_auth_cookies(response, new_at, new_rt)
+    return response
 
 
 if __name__ == "__main__":

@@ -47,13 +47,13 @@
 
 | | |
 |---|---|
-| **Branch / PR** | |
-| **Approved by** | |
-| **Date** | |
-| **Key files changed** | |
-| **Notes** | |
+| **Branch / PR** | `claude/modest-davinci-sxz7lv` |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 18Jun2026 |
+| **Key files changed** | `backend/services/auth_utils.py`, `backend/routes/auth_routes.py`, `backend/main.py`, `backend/routes/options.py`, `backend/routes/strategies.py`, `frontend/src/context/AuthContext.tsx`, `frontend/src/api/client.ts`, `frontend/src/lib/supabase.ts`, `frontend/e2e/fixtures/auth.ts`, `frontend/e2e/mock-data.ts` |
+| **Notes** | 4 new endpoints (GET /auth/google, GET /auth/callback, GET /auth/session, POST /auth/email-login). verify_token rewritten to cookie-first with Bearer header fallback. Per-user asyncio.Lock refresh strategy. attach_refreshed_cookies middleware in main.py. AuthContext fully rewritten to poll /api/auth/session — public interface unchanged. withCredentials: true on Axios instance. supabase.ts stubbed. E2E fixtures updated to stub GET /api/auth/session. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
@@ -62,13 +62,13 @@
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated tests added** | 35 (frontend/e2e/pages/backend-auth-proxy.spec.ts) |
+| **All AC covered** | Yes — all 8 user stories, full AC coverage |
+| **Approved by** | qa-engineer |
+| **Date** | 18Jun2026 |
+| **Notes** | 35/35 tests pass on Chromium. 0 regressions introduced. 5 manual-test-only scenarios documented (httpOnly flag inspection, cookie expiry after refresh, logout DB write, deactivation cache timing, full Google OAuth round-trip). |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
@@ -77,14 +77,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Overall decision** | PASS WITH CONDITIONS |
+| **Critical findings** | 0 |
+| **High findings** | 2 — H01 (StaffAuthContext null crash), H02 (SettingsPage null crash) — both fixed on branch before gate close |
+| **Approved by** | security-reviewer |
+| **Date** | 18Jun2026 |
+| **Notes** | M02 (_CALLBACK_URL wrong default) and M05 (refresh lock re-check stale token) also fixed. M01, M03, M04 deferred. VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be retained on Railway frontend for staff portal (supabase-staff.ts). BACKEND_URL must be set on Railway backend service. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
