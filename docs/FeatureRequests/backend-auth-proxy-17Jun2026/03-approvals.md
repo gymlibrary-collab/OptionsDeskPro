@@ -77,14 +77,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Overall decision** | PASS WITH CONDITIONS |
+| **Critical findings** | 0 |
+| **High findings** | 2 — H01 (StaffAuthContext null crash), H02 (SettingsPage null crash) — both fixed on branch before gate close |
+| **Approved by** | security-reviewer |
+| **Date** | 18Jun2026 |
+| **Notes** | M02 (_CALLBACK_URL wrong default) and M05 (refresh lock re-check stale token) also fixed. M01, M03, M04 deferred. VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be retained on Railway frontend for staff portal (supabase-staff.ts). BACKEND_URL must be set on Railway backend service. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 

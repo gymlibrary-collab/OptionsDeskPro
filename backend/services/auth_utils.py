@@ -149,9 +149,11 @@ async def _maybe_refresh(token: str, request: Request) -> dict | None:
         return None
 
     try:
-        # Re-check expiry — another coroutine may have just refreshed the token.
-        # If the token is no longer near expiry, skip the refresh.
-        current_exp = _get_token_exp(token)
+        # Re-check expiry using the current cookie value — another coroutine may
+        # have just refreshed and written a new access token to request.cookies.
+        # Reading `token` (the original parameter) would always see the old exp.
+        current_token = request.cookies.get("sb_access_token") or token
+        current_exp = _get_token_exp(current_token)
         if current_exp is not None and current_exp - time.time() >= 300:
             return None
 

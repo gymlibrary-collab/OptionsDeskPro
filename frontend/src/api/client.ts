@@ -735,6 +735,9 @@ export const postEmailLogin = (email: string, password: string): Promise<{
 }> =>
   api.post('/auth/email-login', { email, password }).then(r => r.data)
 
+export const updatePassword = (password: string): Promise<{ ok: boolean }> =>
+  api.post('/auth/update-password', { password }).then(r => r.data)
+
 // ─── Platform (admin) routes ─────────────────────────────────────────────────────────────────────
 
 export interface StaffMember {

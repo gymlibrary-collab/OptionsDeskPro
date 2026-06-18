@@ -10,10 +10,10 @@ import {
   reactivateSubscription,
   downgradePlan,
   deleteAccount,
+  updatePassword,
   Invoice,
   PaymentMethod,
 } from '../api/client'
-import { supabase } from '../lib/supabase'
 
 const C = {
   bg: '#0f1117',
@@ -130,9 +130,14 @@ function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user'
     if (newPassword.length < 8) { setPwError('Password must be at least 8 characters.'); return }
     if (newPassword !== confirmPw) { setPwError('Passwords do not match.'); return }
     setPwLoading(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    try {
+      await updatePassword(newPassword)
+    } catch (e: any) {
+      setPwLoading(false)
+      setPwError(e?.response?.data?.detail || 'Password update failed. Please try again.')
+      return
+    }
     setPwLoading(false)
-    if (error) { setPwError(error.message); return }
     setPwSuccess(true)
     setNewPassword('')
     setConfirmPw('')

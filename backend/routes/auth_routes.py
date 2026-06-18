@@ -22,7 +22,7 @@ router = APIRouter()
 
 # The backend callback URL that Supabase redirects back to after Google OAuth
 _FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://optionscompass.up.railway.app")
-_CALLBACK_URL = f"{os.getenv('BACKEND_URL', 'https://optionscompass.up.railway.app')}/api/auth/callback"
+_CALLBACK_URL = f"{os.getenv('BACKEND_URL', 'https://optionscompass-backend.up.railway.app')}/api/auth/callback"
 
 
 # ── Shared profile-sync helper ────────────────────────────────────────────────
@@ -446,6 +446,30 @@ async def on_logout(request: Request, payload: dict = Depends(verify_token)):
             max_age=0,
         )
     return response
+
+
+# ── Update password ──────────────────────────────────────────────────────────
+
+class UpdatePasswordRequest(BaseModel):
+    password: str
+
+@router.post("/auth/update-password")
+async def update_password(
+    request: Request,
+    body: UpdatePasswordRequest,
+    payload: dict = Depends(verify_token),
+):
+    """Proxy for Supabase password update — keeps supabase-js out of the browser."""
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    user_id = get_user_id(payload)
+    try:
+        sb = get_supabase()
+        sb.auth.admin.update_user_by_id(user_id, {"password": body.password})
+    except Exception as exc:
+        logger.warning("update_password: failed for user %s: %s", user_id, exc)
+        raise HTTPException(status_code=400, detail="Password update failed. Please try again.")
+    return {"ok": True}
 
 
 # ── Complete onboarding ───────────────────────────────────────────────────────

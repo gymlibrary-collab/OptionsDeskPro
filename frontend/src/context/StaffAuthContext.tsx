@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabaseStaff as supabase } from '../lib/supabase-staff'
 import { Session, User } from '@supabase/supabase-js'
 import api, { StaffMeResponse, getStaffMe } from '../api/client'
 
