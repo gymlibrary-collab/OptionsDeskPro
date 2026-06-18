@@ -338,6 +338,23 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </Sub>
       </Section>
 
+      {/* ── SIGNING IN ── */}
+      <Section title="Signing In">
+        <P>
+          OptionsDesk uses two secure sign-in methods: <strong>Google OAuth</strong> and <strong>email/password</strong>.
+        </P>
+        <Sub>
+          <P><strong>Google sign-in:</strong> Click "Sign in with Google" on the login page. You will be redirected to Google's login (or skip this step if you are already logged in to Google). Approve the permission prompt, and you will be returned to OptionDesk. Session established — no password to remember.</P>
+          <P><strong>Email/password sign-in:</strong> Toggle to "Email & Password" on the login page. Enter your email and password. If you do not have an account yet, click "Create an account" instead. Session established — you can use any password you choose.</P>
+        </Sub>
+        <Note color={C.blue}>
+          <strong>Sessions persist automatically:</strong> After you sign in, your session remains active for up to 1 hour without any action on your part. If you close the browser and reopen the app within 7 days, your session restores automatically — you will not need to sign in again. After 7 days of inactivity, or if you explicitly sign out, you will need to sign in again.
+        </Note>
+        <P>
+          <strong>Sign out:</strong> From the dashboard, click your account icon in the top-right corner and select "Sign out". Your session is immediately cleared, and the login screen is displayed.
+        </P>
+      </Section>
+
       {/* ── SIGN UP & PLAN SELECTION ── */}
       <Section title="Sign-Up and Plan Selection">
         <P>
