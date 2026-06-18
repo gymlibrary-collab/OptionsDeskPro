@@ -1,3 +1,4 @@
+import asyncio
 import os
 import math
 import json
@@ -98,18 +99,21 @@ def health():
 
 @app.on_event("startup")
 async def warm_cache():
-    """Pre-fetch SPY and QQQ so the first user request hits the in-memory cache."""
-    import asyncio as _asyncio
+    """Schedule background warm-up and return immediately so Railway health checks pass."""
+    asyncio.create_task(_background_warm_cache())
+
+
+async def _background_warm_cache():
     from services.market_data import get_options_chain, get_quote
-    loop = _asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
     for sym in ("SPY", "QQQ"):
         try:
-            await _asyncio.gather(
+            await asyncio.gather(
                 loop.run_in_executor(None, get_options_chain, sym, None),
                 loop.run_in_executor(None, get_quote, sym),
             )
         except Exception:
-            pass  # best-effort; never block startup
+            pass
 
 
 # ── Transparent refresh cookie attachment ─────────────────────────────────────
