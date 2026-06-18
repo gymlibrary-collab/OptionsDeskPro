@@ -678,6 +678,7 @@ export interface ComponentHealth {
   response_time_ms: number | null
   checked_at: string
   error: string | null
+  detail?: string | null
 }
 
 export interface HealthCheckResponse {

@@ -698,6 +698,11 @@ function HealthTab() {
                   <span style={{ color: '#64748b' }}>Checked: </span>
                   {new Date(c.checked_at).toLocaleTimeString()}
                 </div>
+                {c.detail && (
+                  <div style={{ color: '#22c55e', marginTop: '6px', fontSize: '11px' }}>
+                    {c.detail}
+                  </div>
+                )}
                 {c.error && (
                   <div style={{ color: '#ef4444', marginTop: '6px', fontSize: '11px', whiteSpace: 'normal', wordBreak: 'break-word' }}>
                     {c.error.length > 200 ? c.error.slice(0, 197) + '...' : c.error}

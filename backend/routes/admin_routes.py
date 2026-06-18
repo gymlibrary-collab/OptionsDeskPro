@@ -279,15 +279,34 @@ async def health_check(payload: dict = Depends(admin_required)):
 
             def _fetch():
                 ticker = yf.Ticker("SPY")
-                price = ticker.fast_info.get("last_price")
-                return price
+                # fast_info is a FastInfo object (not a dict) — use getattr, not .get()
+                price = getattr(ticker.fast_info, "last_price", None)
+                if price is None or (isinstance(price, float) and math.isnan(price)):
+                    # fallback: last closing price from history
+                    hist = ticker.history(period="1d")
+                    price = float(hist["Close"].iloc[-1]) if not hist.empty else None
 
-            price = await loop.run_in_executor(None, _fetch)
+                # Also verify the options chain is reachable — this is the data
+                # path that populates bid/ask prices in the options chain tab.
+                expirations = ticker.options  # tuple of date strings
+                n_expirations = len(expirations) if expirations else 0
+
+                return price, n_expirations
+
+            price, n_expirations = await loop.run_in_executor(None, _fetch)
             elapsed = int((time.monotonic() - t0) * 1000)
+
             if price is None or (isinstance(price, float) and math.isnan(price)):
                 return {
                     "name": name, "status": "degraded", "response_time_ms": elapsed,
-                    "checked_at": checked_at, "error": "Price unavailable (NaN returned)",
+                    "checked_at": checked_at,
+                    "error": "SPY price unavailable — Yahoo Finance may be rate-limiting or unreachable",
+                }
+            if n_expirations == 0:
+                return {
+                    "name": name, "status": "degraded", "response_time_ms": elapsed,
+                    "checked_at": checked_at,
+                    "error": f"SPY quote OK (${price:.2f}) but options chain returned no expirations",
                 }
             if elapsed < 3000:
                 status = "healthy"
@@ -296,15 +315,20 @@ async def health_check(payload: dict = Depends(admin_required)):
             else:
                 status = "error"
             return {
-                "name": name, "status": status,
-                "response_time_ms": elapsed, "checked_at": checked_at, "error": None,
+                "name": name, "status": status, "response_time_ms": elapsed,
+                "checked_at": checked_at, "error": None,
+                "detail": f"SPY ${price:.2f} · {n_expirations} expirations available",
             }
         except Exception as exc:
             elapsed = int((time.monotonic() - t0) * 1000)
+            err = str(exc)[:500]
+            # Surface network-egress blocks explicitly so they're obvious in the dashboard
+            if "403" in err or "allowlist" in err.lower() or "egress" in err.lower():
+                err = f"Network egress blocked — Yahoo Finance unreachable. ({err})"
             return {
                 "name": name, "status": "error",
                 "response_time_ms": elapsed, "checked_at": checked_at,
-                "error": str(exc)[:500],
+                "error": err,
             }
 
     async def probe_gemini() -> dict:
