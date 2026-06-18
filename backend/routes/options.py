@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 from fastapi import APIRouter, Query, Request, Response, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from typing import Optional
@@ -20,23 +22,27 @@ logger = logging.getLogger(__name__)
 
 def _resolve_optional_payload(credentials: Optional[HTTPAuthorizationCredentials]) -> Optional[dict]:
     """
-    Attempt to verify optional credentials. Returns payload dict if valid, else None.
-    Never raises — unauthenticated callers simply receive None.
+    Decode JWT claims locally (no network call) for activity-logging purposes.
+    We only need user_id/email — cryptographic verification is not required here
+    since these routes are public and we're just enriching the activity log.
+    Never raises — returns None if the token cannot be decoded.
     """
     if not credentials:
         return None
     try:
-        from services.db import get_supabase
-        sb = get_supabase()
-        result = sb.auth.get_user(credentials.credentials)
-        user = result.user
-        if not user:
+        token = credentials.credentials
+        payload_b64 = token.split(".")[1]
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+        user_id = claims.get("sub")
+        email = claims.get("email", "")
+        if not user_id:
             return None
         return {
-            "sub": user.id,
-            "email": user.email,
-            "user_metadata": user.user_metadata or {},
-            "app_metadata": user.app_metadata or {},
+            "sub": user_id,
+            "email": email,
+            "user_metadata": claims.get("user_metadata") or {},
+            "app_metadata": claims.get("app_metadata") or {},
         }
     except Exception:
         return None
@@ -50,8 +56,11 @@ async def get_chain(
     response: Response = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
-    chain = get_options_chain(symbol.upper(), expiry)
-    quote = get_quote(symbol.upper())
+    loop = asyncio.get_event_loop()
+    chain, quote = await asyncio.gather(
+        loop.run_in_executor(None, get_options_chain, symbol.upper(), expiry),
+        loop.run_in_executor(None, get_quote, symbol.upper()),
+    )
     S = quote["price"]
     if response:
         response.headers["Cache-Control"] = "no-store"
@@ -108,7 +117,8 @@ async def get_stock_quote(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
-    result = get_quote(symbol.upper())
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, get_quote, symbol.upper())
 
     payload = _resolve_optional_payload(credentials)
     if payload:
