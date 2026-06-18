@@ -1,29 +1,49 @@
 import asyncio
+import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
-from services.auth_utils import verify_token, get_user_id, get_user_email, ADMIN_EMAIL
+from services.auth_utils import (
+    verify_token,
+    get_user_id,
+    get_user_email,
+    get_admin_email,
+    ADMIN_EMAIL,
+    _set_auth_cookies,
+)
 from services.db import get_supabase
 from services import user_portfolio
 from services.activity_logger import log_action, extract_ip
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
+# The backend callback URL that Supabase redirects back to after Google OAuth
+_FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://optionscompass.up.railway.app")
+_CALLBACK_URL = f"{os.getenv('BACKEND_URL', 'https://optionscompass.up.railway.app')}/api/auth/callback"
 
-# ── Login ─────────────────────────────────────────────────────────────────────
 
-@router.post("/auth/login")
-async def on_login(request: Request, payload: dict = Depends(verify_token)):
+# ── Shared profile-sync helper ────────────────────────────────────────────────
+
+async def _sync_profile(request: Request, user, access_token: str) -> dict:
     """
-    Called by frontend after Google sign-in (or email/password sign-in).
-    Behaviour change from pre-SaaS:
-      - whitelist check is conditional on platform_settings.invite_only_mode (ADR-0005)
-      - if invite_only_mode = false (default), any authenticated user may log in
-      - checks deactivated_at to prevent suspended accounts from logging in
-      - returns onboarding_completed and onboarding_step so the frontend can route appropriately
+    Runs platform gate checks, upserts user_profiles, ensures portfolio, and
+    logs activity. Returns the login-response dict.
+
+    Raises HTTPException(403) on invite-only denial or account suspension.
+    Raises HTTPException(503) on maintenance mode denial.
+
+    This helper is called by:
+      - POST /api/auth/login  (existing backward-compat endpoint)
+      - GET  /api/auth/callback  (Google OAuth callback)
+      - POST /api/auth/email-login  (email/password sign-in)
     """
     sb = get_supabase()
-    user_id = get_user_id(payload)
-    email = get_user_email(payload)
+    user_id = user.id
+    email = user.email
+    user_metadata = user.user_metadata or {}
 
     # ── Platform-level gates (maintenance mode + invite-only) ─────────────────
     if email != ADMIN_EMAIL:
@@ -32,7 +52,6 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
 
         # Maintenance mode: block all non-admin, non-staff logins
         if settings.get("maintenance_mode", False):
-            # Allow platform staff through even in maintenance mode
             staff_check_maint = sb.table("platform_staff").select("id, is_active").eq("email", email).maybe_single().execute()
             is_platform_staff_maint = bool(staff_check_maint.data and staff_check_maint.data.get("is_active"))
             if not is_platform_staff_maint:
@@ -74,7 +93,6 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         pass
 
     # ── Upsert user profile ───────────────────────────────────────────────────
-    meta = payload.get("user_metadata", {}) or {}
     is_staff = email == ADMIN_EMAIL  # bootstrap: admin email always gets staff flag
 
     # Check if email is in platform_staff
@@ -87,12 +105,12 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
             pass
 
     upsert_data: dict = {
-        "id":         user_id,
-        "email":      email,
-        "full_name":  meta.get("full_name") or meta.get("name"),
-        "avatar_url": meta.get("avatar_url") or meta.get("picture"),
-        "role":       role,
-        "is_active":  True,
+        "id":           user_id,
+        "email":        email,
+        "full_name":    user_metadata.get("full_name") or user_metadata.get("name"),
+        "avatar_url":   user_metadata.get("avatar_url") or user_metadata.get("picture"),
+        "role":         role,
+        "is_active":    True,
         "last_seen_at": "now()",
     }
     if is_staff:
@@ -115,7 +133,7 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         pass
 
     # ── Log activity ──────────────────────────────────────────────────────────
-    ip = extract_ip(request)  # single authoritative path; avoids duplicating XFF logic (security finding F2)
+    ip = extract_ip(request)
     try:
         user_portfolio.log_activity(user_id, email, ip)
     except Exception:
@@ -125,7 +143,7 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         user_email=email,
         action_type="login",
         detail={"email": email},
-        ip_address=extract_ip(request),
+        ip_address=ip,
     ))
 
     # ── Read back onboarding state ────────────────────────────────────────────
@@ -147,9 +165,8 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
         from services.legal_service import get_pending_legal_acknowledgment
         pending_legal_acknowledgment = get_pending_legal_acknowledgment(user_id, email)
     except Exception as _legal_exc:
-        import logging as _logging
-        _logging.getLogger(__name__).warning(
-            "auth/login: legal acknowledgment check failed for user %s — failing open: %s",
+        logger.warning(
+            "_sync_profile: legal acknowledgment check failed for user %s — failing open: %s",
             user_id, _legal_exc,
         )
 
@@ -164,16 +181,248 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     }
 
 
+# ── Google OAuth initiation ───────────────────────────────────────────────────
+
+@router.get("/auth/google")
+async def auth_google():
+    """
+    Initiates the Google OAuth flow by constructing a Supabase OAuth URL with
+    the backend callback as the redirect_uri, then returning a 302 redirect.
+    No auth required.
+    """
+    try:
+        sb = get_supabase()
+        result = sb.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {"redirect_to": _CALLBACK_URL},
+        })
+        oauth_url = result.url
+        if not oauth_url:
+            raise ValueError("No OAuth URL returned by Supabase")
+        return RedirectResponse(url=oauth_url, status_code=302)
+    except Exception as exc:
+        logger.error("auth_google: failed to build OAuth URL: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to initiate Google sign-in")
+
+
+# ── Google OAuth callback ─────────────────────────────────────────────────────
+
+@router.get("/auth/callback")
+async def auth_callback(request: Request, code: str, state: str = None):
+    """
+    Receives the authorization code from Google (via Supabase), exchanges it for
+    tokens server-side, syncs the user profile, sets httpOnly cookies, and
+    redirects to the frontend root.
+
+    All error conditions redirect to the frontend with an auth_error query param
+    rather than returning a JSON 4xx, because the browser address bar is on the
+    backend callback URL at this point and a JSON error would show a blank screen.
+    No auth required.
+    """
+    try:
+        sb = get_supabase()
+        result = sb.auth.exchange_code_for_session({"auth_code": code})
+    except Exception as exc:
+        logger.warning("auth_callback: code exchange failed: %s", exc)
+        return RedirectResponse(
+            url=f"{_FRONTEND_ORIGIN}/?auth_error=callback_failed",
+            status_code=302,
+        )
+
+    session = result.session
+    user = result.user if hasattr(result, "user") else (session.user if session else None)
+    if not session or not user:
+        logger.warning("auth_callback: no session/user in exchange result")
+        return RedirectResponse(
+            url=f"{_FRONTEND_ORIGIN}/?auth_error=callback_failed",
+            status_code=302,
+        )
+
+    try:
+        await _sync_profile(request, user, session.access_token)
+    except HTTPException as exc:
+        # Map specific HTTP errors to redirect query params
+        if exc.status_code == 403:
+            error_code = "account_suspended"
+            # Distinguish invite-only from suspension by message content
+            if "invite-only" in exc.detail.lower():
+                error_code = "invite_only"
+            return RedirectResponse(
+                url=f"{_FRONTEND_ORIGIN}/?auth_error={error_code}",
+                status_code=302,
+            )
+        if exc.status_code == 503:
+            return RedirectResponse(
+                url=f"{_FRONTEND_ORIGIN}/?auth_error=maintenance",
+                status_code=302,
+            )
+        return RedirectResponse(
+            url=f"{_FRONTEND_ORIGIN}/?auth_error=callback_failed",
+            status_code=302,
+        )
+    except Exception as exc:
+        logger.error("auth_callback: _sync_profile failed: %s", exc)
+        return RedirectResponse(
+            url=f"{_FRONTEND_ORIGIN}/?auth_error=callback_failed",
+            status_code=302,
+        )
+
+    response = RedirectResponse(url=f"{_FRONTEND_ORIGIN}/", status_code=302)
+    _set_auth_cookies(response, session.access_token, session.refresh_token)
+    return response
+
+
+# ── Session endpoint ──────────────────────────────────────────────────────────
+
+@router.get("/auth/session")
+async def get_session(request: Request, payload: dict = Depends(verify_token)):
+    """
+    Returns the complete user context needed by the frontend to render the
+    authenticated state. Replaces supabase.auth.getSession() on the frontend.
+    Auth required via cookie (sb_access_token) or Bearer header fallback.
+    """
+    sb = get_supabase()
+    user_id = get_user_id(payload)
+    email = get_user_email(payload)
+
+    # Read user profile from DB
+    profile_data = {}
+    try:
+        result = sb.table("user_profiles").select(
+            "full_name, avatar_url, role, onboarding_completed, onboarding_step, subscription_tier"
+        ).eq("id", user_id).maybe_single().execute()
+        if result.data:
+            profile_data = result.data
+    except Exception:
+        pass
+
+    # Derive is_admin using the same logic as require_admin
+    is_admin = False
+    if email == ADMIN_EMAIL:
+        is_admin = True
+    else:
+        meta = payload.get("user_metadata", {}) or {}
+        app_meta = payload.get("app_metadata", {}) or {}
+        if meta.get("role") == "admin" or app_meta.get("role") == "admin":
+            is_admin = True
+        elif profile_data.get("role") == "admin":
+            is_admin = True
+
+    # Legal acknowledgment check — fail-open
+    pending_legal_acknowledgment = False
+    try:
+        from services.legal_service import get_pending_legal_acknowledgment
+        pending_legal_acknowledgment = get_pending_legal_acknowledgment(user_id, email)
+    except Exception:
+        pass
+
+    return {
+        "user_id": user_id,
+        "email": email,
+        "full_name": profile_data.get("full_name"),
+        "avatar_url": profile_data.get("avatar_url"),
+        "role": profile_data.get("role", "user"),
+        "is_admin": is_admin,
+        "onboarding_completed": profile_data.get("onboarding_completed", True),
+        "onboarding_step": profile_data.get("onboarding_step", "complete"),
+        "pending_legal_acknowledgment": pending_legal_acknowledgment,
+        "subscription_tier": profile_data.get("subscription_tier", "free"),
+    }
+
+
+# ── Email/password sign-in ────────────────────────────────────────────────────
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/auth/email-login")
+async def email_login(request: Request, body: EmailLoginRequest):
+    """
+    Exchanges email + password for Supabase tokens, runs _sync_profile, sets
+    httpOnly cookies, and returns the session context.
+    No auth required (credentials are in the request body).
+    """
+    try:
+        sb = get_supabase()
+        result = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
+    except Exception as exc:
+        # Supabase AuthApiError maps to 401
+        logger.warning("email_login: Supabase rejected credentials for %s: %s", body.email, exc)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    session = result.session
+    user = result.user
+    if not session or not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Run profile sync — raises HTTPException on suspension/maintenance/invite-only
+    profile_result = await _sync_profile(request, user, session.access_token)
+
+    response = JSONResponse(content=profile_result)
+    _set_auth_cookies(response, session.access_token, session.refresh_token)
+    return response
+
+
+# ── Login ─────────────────────────────────────────────────────────────────────
+
+@router.post("/auth/login")
+async def on_login(request: Request, payload: dict = Depends(verify_token)):
+    """
+    Retained for backward compatibility. Accepts the verified token payload from
+    verify_token (cookie or Bearer header), runs _sync_profile, and returns the
+    same response shape as before.
+    """
+    sb = get_supabase()
+    user_id = get_user_id(payload)
+    email = get_user_email(payload)
+
+    # Build a minimal user-like object from the JWT payload so _sync_profile
+    # can read user.id, user.email, and user.user_metadata consistently.
+    class _UserProxy:
+        def __init__(self, uid, em, meta):
+            self.id = uid
+            self.email = em
+            self.user_metadata = meta
+
+    user_proxy = _UserProxy(
+        user_id,
+        email,
+        payload.get("user_metadata", {}) or {},
+    )
+
+    # Fetch the access token from the cookie or header for profile sync context
+    access_token = request.cookies.get("sb_access_token") or ""
+    if not access_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            access_token = auth_header[7:]
+
+    return await _sync_profile(request, user_proxy, access_token)
+
+
 # ── Logout ───────────────────────────────────────────────────────────────────
 
 @router.post("/auth/logout")
 async def on_logout(request: Request, payload: dict = Depends(verify_token)):
     """
-    Record a logout event in user_action_log, then return ok.
-    The frontend calls supabase.auth.signOut() after this to invalidate the session.
+    Calls Supabase sign_out to invalidate the server-side session, logs the
+    logout event, and clears both auth cookies on the response.
     """
     user_id = get_user_id(payload)
     email = get_user_email(payload)
+
+    # Attempt Supabase server-side session invalidation; log but do not re-raise
+    # on failure — the client-side cookie is cleared regardless.
+    access_token = request.cookies.get("sb_access_token") or ""
+    if access_token:
+        try:
+            sb = get_supabase()
+            sb.auth.sign_out(access_token)
+        except Exception as exc:
+            logger.warning("on_logout: Supabase sign_out failed for user %s: %s", user_id, exc)
+
     asyncio.create_task(log_action(
         user_id=user_id,
         user_email=email,
@@ -181,7 +430,22 @@ async def on_logout(request: Request, payload: dict = Depends(verify_token)):
         detail={},
         ip_address=extract_ip(request),
     ))
-    return {"ok": True}
+
+    response = JSONResponse(content={"ok": True})
+    # Clear cookies by setting Max-Age=0
+    is_dev = os.getenv("ENVIRONMENT", "").lower() == "development"
+    secure = not is_dev
+    for cookie_name in ("sb_access_token", "sb_refresh_token"):
+        response.set_cookie(
+            key=cookie_name,
+            value="",
+            httponly=True,
+            secure=secure,
+            samesite="lax",
+            path="/",
+            max_age=0,
+        )
+    return response
 
 
 # ── Complete onboarding ───────────────────────────────────────────────────────

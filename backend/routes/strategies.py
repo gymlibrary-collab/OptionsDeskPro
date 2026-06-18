@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
@@ -13,8 +13,11 @@ from services.market_data import get_options_chain, get_quote, synthetic_options
 from services.greeks import calculate_greeks, fill_quote
 from services.interpreter import generate_narrative
 from services.market_context import get_full_market_context
-from services.auth_utils import verify_token, security as bearer_security
+from services.auth_utils import verify_token
 from services.db import get_supabase
+
+# Local bearer security instance for the optional-auth analyze endpoint.
+bearer_security = HTTPBearer(auto_error=False)
 from services.legal_service import legal_gate_dep
 from services.tier_limits import get_user_tier, get_limits
 from services.entitlements import compute_entitlements
