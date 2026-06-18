@@ -77,21 +77,31 @@ async def analyze_symbol(
     Neutral-Bearish, Omnidirectional). The user chooses their directional view.
     """
     symbol = symbol.upper()
+    loop = asyncio.get_event_loop()
 
-    iv_data = get_iv_rank(symbol)
-    bias_data = get_directional_bias(symbol)
+    # ── Phase 1: IV rank, bias, and initial options chain — all concurrent ────
+    p1 = await asyncio.gather(
+        loop.run_in_executor(None, get_iv_rank, symbol),
+        loop.run_in_executor(None, get_directional_bias, symbol),
+        loop.run_in_executor(None, _get_enriched_chain_for_symbol, symbol),
+        return_exceptions=True,
+    )
 
-    iv_env = iv_data.get("iv_environment", "MEDIUM")
-    bias = bias_data.get("bias", "NEUTRAL")
+    iv_data   = p1[0] if not isinstance(p1[0], Exception) else {"iv_environment": "MEDIUM"}
+    bias_data = p1[1] if not isinstance(p1[1], Exception) else {"bias": "NEUTRAL", "price": 0.0}
 
-    recommendations_by_category = recommend_by_category(iv_env)
-
-    try:
-        spot, enriched_chain = _get_enriched_chain_for_symbol(symbol)
-    except Exception as e:
-        logger.warning(f"Could not load options chain for {symbol}: {e}")
+    chain_result = p1[2]
+    if isinstance(chain_result, Exception) or chain_result is None:
+        logger.warning(f"Could not load options chain for {symbol}: {chain_result}")
         enriched_chain = None
         spot = bias_data.get("price", 0.0)
+    else:
+        spot, enriched_chain = chain_result
+
+    iv_env = iv_data.get("iv_environment", "MEDIUM")
+    bias   = bias_data.get("bias", "NEUTRAL")
+
+    recommendations_by_category = recommend_by_category(iv_env)
 
     if not enriched_chain or not enriched_chain.get("expirations"):
         logger.info(f"Generating synthetic options chain for {symbol} (live data unavailable)")
@@ -101,15 +111,12 @@ async def analyze_symbol(
         enriched_chain = _enrich_chain_with_greeks(raw, spot)
         enriched_chain["_synthetic"] = True
     else:
-        # Re-fetch the chain for the target expiry (closest to 45 DTE) so that
-        # build_trade has contract data for the right cycle, not just the front month.
-        expirations = enriched_chain.get("expirations", [])
-        target = _date.today()
+        # Re-fetch for the expiry closest to 45 DTE if the default differs.
         from datetime import timedelta as _td
-        ideal_date = target + _td(days=45)
+        ideal_date = _date.today() + _td(days=45)
         best_exp = None
         best_diff = None
-        for exp_str in expirations:
+        for exp_str in enriched_chain.get("expirations", []):
             try:
                 d = _date.fromisoformat(exp_str)
                 diff = abs((d - ideal_date).days)
@@ -118,36 +125,42 @@ async def analyze_symbol(
                     best_exp = exp_str
             except ValueError:
                 continue
-        loaded_exp = enriched_chain.get("expiry")
-        if best_exp and best_exp != loaded_exp:
+        if best_exp and best_exp != enriched_chain.get("expiry"):
             try:
-                _, enriched_chain = _get_enriched_chain_for_symbol(symbol, best_exp)
+                _, enriched_chain = await loop.run_in_executor(
+                    None, _get_enriched_chain_for_symbol, symbol, best_exp
+                )
                 logger.info(f"Reloaded chain for {symbol} at target expiry {best_exp}")
             except Exception as e:
                 logger.warning(f"Could not reload chain for {best_exp}: {e}")
 
-    try:
-        market_ctx = get_full_market_context(symbol, enriched_chain)
-    except Exception as e:
-        logger.warning(f"market_context failed for {symbol}: {e}")
-        market_ctx = {}
-
-    # Resolve user identity and entitlements once for all per-user AI gates
-    _user_id: str | None = None
-    _user_features: dict = {}
-    if credentials:
+    # ── Phase 2: market context + user auth — concurrent ──────────────────────
+    async def _resolve_user() -> tuple:
+        if not credentials:
+            return None, {}
         try:
             from services.db import get_supabase as _get_sb
             _sb = _get_sb()
-            _result = _sb.auth.get_user(credentials.credentials)
+            _result = await loop.run_in_executor(None, _sb.auth.get_user, credentials.credentials)
             if _result.user:
-                _user_id = _result.user.id
-                from services.entitlements import compute_entitlements as _ce
-                _user_features = _ce(_user_id).get("features", {})
+                _uid = _result.user.id
+                _feats = await loop.run_in_executor(None, compute_entitlements, _uid)
+                return _uid, _feats.get("features", {})
         except Exception:
             pass
+        return None, {}
 
-    # E2 — News Sentiment Digest (gated by news_sentiment entitlement)
+    p2 = await asyncio.gather(
+        loop.run_in_executor(None, get_full_market_context, symbol, enriched_chain),
+        _resolve_user(),
+        return_exceptions=True,
+    )
+
+    market_ctx    = p2[0] if not isinstance(p2[0], Exception) else {}
+    user_result   = p2[1] if not isinstance(p2[1], Exception) else (None, {})
+    _user_id, _user_features = user_result if isinstance(user_result, tuple) else (None, {})
+
+    # ── Phase 3: news sentiment + earnings awareness ───────────────────────────
     news_sentiment: dict = {
         "sentiment": "NEUTRAL",
         "confidence": 0.0,
@@ -159,32 +172,39 @@ async def analyze_symbol(
             raw_news = market_ctx.get("news") or []
             headlines = [item.get("title", "") for item in raw_news if item.get("title")]
             if headlines:
-                news_sentiment = _ai.classify_news_sentiment(symbol, headlines)
+                news_sentiment = await loop.run_in_executor(
+                    None, _ai.classify_news_sentiment, symbol, headlines
+                )
         except Exception as _e:
             logger.debug(f"News sentiment failed for {symbol}: {_e}")
 
-    # Check earnings awareness setting for authenticated users
     earnings_data: dict | None = None
     if _user_id:
         try:
             from services.db import get_supabase
             sb = get_supabase()
-            s = sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", _user_id).execute()
+            s = await loop.run_in_executor(
+                None,
+                lambda: sb.table("ai_settings").select("earnings_awareness_enabled").eq("user_id", _user_id).execute(),
+            )
             if s.data and s.data[0].get("earnings_awareness_enabled"):
                 earnings_data = (market_ctx or {}).get("earnings") or {}
         except Exception:
             pass
 
-    # Build trades for all unique strategy keys across categories
+    # ── Phase 4: build + narrate all unique strategy keys — concurrent ─────────
     unique_keys = {
         rec["key"]
         for strats in recommendations_by_category.values()
         for rec in strats
     }
-    trades_by_key: dict = {}
-    for strategy_key in unique_keys:
+
+    async def _build_and_narrate(strategy_key: str) -> tuple:
         try:
-            trade = build_trade(symbol, strategy_key, enriched_chain, spot, earnings_data=earnings_data)
+            trade = await loop.run_in_executor(
+                None,
+                lambda: build_trade(symbol, strategy_key, enriched_chain, spot, earnings_data=earnings_data),
+            )
             if enriched_chain.get("_synthetic"):
                 trade["_synthetic"] = True
         except Exception as e:
@@ -193,14 +213,29 @@ async def analyze_symbol(
 
         strategy_catalog_entry = {**STRATEGIES.get(strategy_key, {}), "key": strategy_key}
         try:
-            narrative = generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade, market_context=market_ctx)
+            narrative = await loop.run_in_executor(
+                None,
+                lambda: generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade, market_context=market_ctx),
+            )
         except Exception as e:
             logger.warning(f"generate_narrative failed for {strategy_key}: {e}")
             narrative = None
         if narrative:
             trade["narrative"] = narrative
+        return strategy_key, trade
 
-        trades_by_key[strategy_key] = trade
+    trade_results = await asyncio.gather(
+        *[_build_and_narrate(k) for k in unique_keys],
+        return_exceptions=True,
+    )
+
+    trades_by_key: dict = {}
+    for item in trade_results:
+        if isinstance(item, Exception):
+            logger.warning(f"build_and_narrate task failed: {item}")
+            continue
+        k, t = item
+        trades_by_key[k] = t
 
     result_categories = {
         cat: [

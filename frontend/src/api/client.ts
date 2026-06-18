@@ -312,7 +312,7 @@ export interface ScanResult {
 }
 
 export const analyzeSymbol = (symbol: string): Promise<AnalyzeSymbolResponse> =>
-  api.get(`/strategies/analyze/${symbol}`).then(r => r.data)
+  api.get(`/strategies/analyze/${symbol}`, { timeout: 45000 }).then(r => r.data)
 
 export const scanWatchlist = (symbols: string): Promise<ScanResult[]> =>
   api.get(`/strategies/scan`, { params: { symbols }, timeout: 60000 }).then(r => r.data)
