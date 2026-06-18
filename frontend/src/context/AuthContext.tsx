@@ -68,10 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (silent = false) => {
     if (fetchSessionInFlight.current) return
     fetchSessionInFlight.current = true
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const data = await getSession()
       setUser({
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       // other errors: keep existing state to avoid flicker on transient network issues
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
       fetchSessionInFlight.current = false
     }
   }, [fetchEntitlements])
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     fetchSession()
-    const handleFocus = () => fetchSession()
+    const handleFocus = () => fetchSession(true)
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [fetchSession])

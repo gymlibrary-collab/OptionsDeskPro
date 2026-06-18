@@ -56,31 +56,56 @@ async def get_chain(
     response: Response = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
+    try:
+        return await _get_chain_inner(symbol, request, expiry, response, credentials)
+    except Exception as exc:
+        # Catch-all so unhandled exceptions never escape to ServerErrorMiddleware,
+        # which strips CORS headers and causes the browser to report "Network Error"
+        # instead of showing the actual error.
+        logger.error("get_chain unhandled exception for %s: %r", symbol, exc, exc_info=True)
+        sym = symbol.upper()
+        if response:
+            response.headers["X-Debug-Error"] = type(exc).__name__
+        return {
+            "symbol": sym,
+            "quote": {"symbol": sym, "price": 0.0, "previousClose": 0.0,
+                      "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0},
+            "expiry": None, "expirations": [], "calls": [], "puts": [],
+            "_error": str(exc),
+        }
+
+
+async def _get_chain_inner(
+    symbol: str,
+    request: Request,
+    expiry: Optional[str],
+    response: Response,
+    credentials: Optional[HTTPAuthorizationCredentials],
+):
     loop = asyncio.get_running_loop()
     sym = symbol.upper()
     chain_key = f"chain:{sym}:{expiry}"
     quote_key  = f"quote:{sym}"
+    debug_path = "unknown"
 
     cached_chain = _cache_get_stale(chain_key)
     cached_quote = _cache_get_stale(quote_key)
 
     if cached_chain is not None and cached_quote is not None:
-        # Stale-while-revalidate: serve from cache immediately, refresh in background
+        debug_path = "swr-both"
         chain, quote = cached_chain, cached_quote
         if _cache_is_stale(chain_key, _TTL_CHAIN):
             asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
         if _cache_is_stale(quote_key, _TTL_QUOTE):
             asyncio.create_task(loop.run_in_executor(None, get_quote, sym))
     elif cached_chain is not None:
-        # Chain cached, quote missing — fetch quote only
+        debug_path = "swr-chain-only"
         chain = cached_chain
         quote = await loop.run_in_executor(None, get_quote, sym)
         if _cache_is_stale(chain_key, _TTL_CHAIN):
             asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
     else:
-        # Full cache miss — must wait for both (first load or after expiry change).
-        # wait_for caps wall-clock time at 25s so Railway-Hikari's 30s proxy
-        # timeout is never reached; on timeout we fall back to empty data.
+        # Full cache miss — wait_for caps wall-clock at 25s (Railway-Hikari proxy = 30s).
         try:
             chain, quote = await asyncio.wait_for(
                 asyncio.gather(
@@ -89,16 +114,21 @@ async def get_chain(
                 ),
                 timeout=25.0,
             )
+            debug_path = "cold-ok"
         except asyncio.TimeoutError:
             logger.warning("options chain fetch timed out for %s", sym)
+            debug_path = "cold-timeout"
             chain = {"expirations": [], "calls": [], "puts": [], "expiry": None, "underlying_price": 0.0}
-            quote = {"symbol": sym, "price": 0.0, "previousClose": 0.0, "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
+            quote = {"symbol": sym, "price": 0.0, "previousClose": 0.0,
+                     "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
+
+    if response:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Debug-Path"] = debug_path
 
     # Prefer the spot price embedded in the chain response (same API call,
     # no extra yfinance round-trip). Fall back to get_quote if missing.
     S = chain.get("underlying_price") or quote["price"]
-    if response:
-        response.headers["Cache-Control"] = "no-store"
 
     # Enrich with greeks
     def enrich(contracts: list, option_type: str) -> list:
@@ -123,7 +153,6 @@ async def get_chain(
     calls = enrich(chain["calls"], "call")
     puts  = enrich(chain["puts"], "put")
     if calls:
-        # Compute T for logging (same formula as enrich)
         try:
             _exp = date.fromisoformat(chain["expiry"]) if chain["expiry"] else None
             _T_log = max((_exp - date.today()).days, 0) / 365.0 if _exp else 0.0
@@ -131,12 +160,13 @@ async def get_chain(
             _T_log = -1.0
         logger.info(
             "chain %s expiry=%s S=%.2f(underlying=%.2f quote=%.2f) T=%.5f n_calls=%d "
-            "first_call raw_bid=%s enriched_bid=%s ask=%s",
+            "first_call raw_bid=%s enriched_bid=%s ask=%s path=%s",
             symbol, chain["expiry"], S,
             chain.get("underlying_price") or 0.0, quote["price"],
             _T_log, len(calls),
             chain["calls"][0].get("bid") if chain["calls"] else "n/a",
             calls[0].get("bid"), calls[0].get("ask"),
+            debug_path,
         )
 
     payload = _resolve_optional_payload(credentials)
