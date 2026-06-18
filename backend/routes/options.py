@@ -88,8 +88,18 @@ async def get_chain(
     calls = enrich(chain["calls"], "call")
     puts  = enrich(chain["puts"], "put")
     if calls:
-        logger.info("chain %s expiry=%s first_call bid=%s ask=%s", symbol, chain["expiry"],
-                    calls[0].get("bid"), calls[0].get("ask"))
+        # Compute T for logging (same formula as enrich)
+        try:
+            _exp = date.fromisoformat(chain["expiry"]) if chain["expiry"] else None
+            _T_log = max((_exp - date.today()).days, 0) / 365.0 if _exp else 0.0
+        except Exception:
+            _T_log = -1.0
+        logger.info(
+            "chain %s expiry=%s S=%.2f T=%.5f n_calls=%d first_call raw_bid=%s enriched_bid=%s ask=%s",
+            symbol, chain["expiry"], S, _T_log, len(calls),
+            chain["calls"][0].get("bid") if chain["calls"] else "n/a",
+            calls[0].get("bid"), calls[0].get("ask"),
+        )
 
     payload = _resolve_optional_payload(credentials)
     if payload:

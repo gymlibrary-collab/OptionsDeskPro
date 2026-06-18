@@ -92,11 +92,16 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     is_call = option_type.lower() == "call"
     intrinsic = max(0.0, (S - K) if is_call else (K - S))
 
-    if bid <= 0 and ask <= 0:
+    # Treat any value that rounds to $0.00 as missing — catches tiny yfinance
+    # fractional quotes (e.g. 0.001) that are not meaningful displayed prices.
+    if round(bid, 2) <= 0 and round(ask, 2) <= 0:
         sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
-        if sigma <= 0:
+        if sigma <= 0 or sigma > 5.0:   # also reject absurd IV values from stale data
             sigma = 0.3
-        theo = black_scholes_price(S, K, T, r, sigma, option_type)
+        # Use at least 0.5 days of time value so OTM options on expiry day still
+        # get a small theoretical price rather than $0.00 across the board.
+        T_bs = max(T, 0.5 / 365.0)
+        theo = black_scholes_price(S, K, T_bs, r, sigma, option_type)
         bid = round(theo * 0.975, 2)
         ask = round(theo * 1.025, 2)
 
