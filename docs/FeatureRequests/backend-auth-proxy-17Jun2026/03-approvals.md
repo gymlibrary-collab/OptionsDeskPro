@@ -47,13 +47,13 @@
 
 | | |
 |---|---|
-| **Branch / PR** | |
-| **Approved by** | |
-| **Date** | |
-| **Key files changed** | |
-| **Notes** | |
+| **Branch / PR** | `claude/modest-davinci-sxz7lv` |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 18Jun2026 |
+| **Key files changed** | `backend/services/auth_utils.py`, `backend/routes/auth_routes.py`, `backend/main.py`, `backend/routes/options.py`, `backend/routes/strategies.py`, `frontend/src/context/AuthContext.tsx`, `frontend/src/api/client.ts`, `frontend/src/lib/supabase.ts`, `frontend/e2e/fixtures/auth.ts`, `frontend/e2e/mock-data.ts` |
+| **Notes** | 4 new endpoints (GET /auth/google, GET /auth/callback, GET /auth/session, POST /auth/email-login). verify_token rewritten to cookie-first with Bearer header fallback. Per-user asyncio.Lock refresh strategy. attach_refreshed_cookies middleware in main.py. AuthContext fully rewritten to poll /api/auth/session — public interface unchanged. withCredentials: true on Axios instance. supabase.ts stubbed. E2E fixtures updated to stub GET /api/auth/session. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
