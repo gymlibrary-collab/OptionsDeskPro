@@ -93,10 +93,11 @@
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Deployed to** | Railway |
-| **Deployment date** | |
-| **User Guide updated** | |
-| **Approved by** | |
-| **Date** | |
+| **Deployed to** | Railway (pending — 3-phase cutover, see deployment steps) |
+| **Deployment date** | pending |
+| **User Guide updated** | Yes — new "Signing In" section added to `UserGuide.tsx` |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 18Jun2026 |
+| **Notes** | Release note written. Operator pre-flight checklist: (1) add `https://optionscompass.up.railway.app/api/auth/callback` to Google Cloud Console OAuth redirect URIs, (2) add same URL to Supabase Auth > Redirect URLs, (3) set `BACKEND_URL=https://optionscompass-backend.up.railway.app` on Railway backend service, (4) retain `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` on Railway frontend (required for staff portal). Deferred: M01, M03, M04 from security review. |
 
-☐ Released
+☑ Released &nbsp; ☐ Changes Requested
