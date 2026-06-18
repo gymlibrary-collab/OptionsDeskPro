@@ -62,13 +62,13 @@
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated tests added** | 35 (frontend/e2e/pages/backend-auth-proxy.spec.ts) |
+| **All AC covered** | Yes — all 8 user stories, full AC coverage |
+| **Approved by** | qa-engineer |
+| **Date** | 18Jun2026 |
+| **Notes** | 35/35 tests pass on Chromium. 0 regressions introduced. 5 manual-test-only scenarios documented (httpOnly flag inspection, cookie expiry after refresh, logout DB write, deactivation cache timing, full Google OAuth round-trip). |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
