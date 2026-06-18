@@ -10,6 +10,32 @@ const api = axios.create({
   withCredentials: true,
 })
 
+const TOKEN_KEY = 'sb_access_token'
+const REFRESH_KEY = 'sb_refresh_token'
+
+export function setLocalTokens(accessToken: string, refreshToken: string): void {
+  if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken)
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
+}
+
+export function clearLocalTokens(): void {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
+}
+
+// Send stored access token as Bearer header on every API request.
+// This is needed because the backend and frontend run on different Railway
+// subdomains — cross-domain cookies are blocked by browser privacy policies
+// (Firefox ETP, Safari ITP, etc.) even with SameSite=None.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 export interface Quote {
   symbol: string
   price: number
@@ -732,6 +758,8 @@ export const postEmailLogin = (email: string, password: string): Promise<{
   onboarding_completed: boolean
   onboarding_step: string
   pending_legal_acknowledgment: boolean
+  access_token?: string
+  refresh_token?: string
 }> =>
   api.post('/auth/email-login', { email, password }).then(r => r.data)
 

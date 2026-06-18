@@ -288,7 +288,20 @@ async def auth_callback(request: Request, code: str, state: str = None):
             status_code=302,
         )
 
-    response = RedirectResponse(url=f"{_FRONTEND_ORIGIN}/", status_code=302)
+    # Redirect to the frontend with tokens in the URL fragment so the frontend
+    # can store them in localStorage and send them as Bearer headers.  This
+    # bypasses cross-domain cookie blocking (Firefox ETP, Safari ITP, etc.)
+    # which would prevent SameSite=None cookies from being sent on XHR requests
+    # from optionscompass.up.railway.app to optionscompass-backend.up.railway.app.
+    import urllib.parse
+    at = urllib.parse.quote(session.access_token, safe='')
+    rt = urllib.parse.quote(session.refresh_token, safe='')
+    response = RedirectResponse(
+        url=f"{_FRONTEND_ORIGIN}/#sb_access_token={at}&sb_refresh_token={rt}",
+        status_code=302,
+    )
+    # Also set cookies so the same flow works if the app is ever served from the
+    # same domain as the backend (same-origin deployment).
     _set_auth_cookies(response, session.access_token, session.refresh_token)
     return response
 
@@ -380,6 +393,11 @@ async def email_login(request: Request, body: EmailLoginRequest):
 
     # Run profile sync — raises HTTPException on suspension/maintenance/invite-only
     profile_result = await _sync_profile(request, user, session.access_token)
+
+    # Include tokens in the response body so the frontend can store them in
+    # localStorage and use them as Bearer headers (cross-domain cookie fallback).
+    profile_result["access_token"] = session.access_token
+    profile_result["refresh_token"] = session.refresh_token
 
     response = JSONResponse(content=profile_result)
     _set_auth_cookies(response, session.access_token, session.refresh_token)

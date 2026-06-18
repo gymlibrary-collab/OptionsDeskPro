@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse } from '../api/client'
+import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse, setLocalTokens, clearLocalTokens } from '../api/client'
 
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
@@ -107,6 +107,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // On mount: load session once, then re-check whenever the tab regains focus
   // (handles the case where the user signs in via the backend OAuth redirect in another tab).
   useEffect(() => {
+    // After Google OAuth, the backend redirects to /#sb_access_token=...&sb_refresh_token=...
+    // Extract the tokens, store in localStorage for Bearer-header auth, and clean the URL.
+    const hash = window.location.hash
+    if (hash && hash.includes('sb_access_token=')) {
+      const params = new URLSearchParams(hash.substring(1))
+      const at = params.get('sb_access_token')
+      const rt = params.get('sb_refresh_token')
+      if (at) {
+        setLocalTokens(at, rt ?? '')
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
+    }
     fetchSession()
     const handleFocus = () => fetchSession()
     window.addEventListener('focus', handleFocus)
@@ -118,7 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithEmail = async (email: string, password: string) => {
-    await postEmailLogin(email, password)
+    const data = await postEmailLogin(email, password)
+    if (data.access_token) {
+      setLocalTokens(data.access_token, data.refresh_token ?? '')
+    }
     await fetchSession()
   }
 
@@ -134,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // fire-and-forget; never block sign-out on a logging failure
     }
+    clearLocalTokens()
     setUser(null)
     setProfile(null)
     setEntitlements(null)
