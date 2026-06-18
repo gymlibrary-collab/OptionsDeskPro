@@ -199,7 +199,22 @@ async def auth_google():
         oauth_url = result.url
         if not oauth_url:
             raise ValueError("No OAuth URL returned by Supabase")
-        return RedirectResponse(url=oauth_url, status_code=302)
+        response = RedirectResponse(url=oauth_url, status_code=302)
+        # supabase-py 2.x uses PKCE by default; persist the code_verifier in a
+        # short-lived httpOnly cookie so the callback handler can complete the exchange.
+        code_verifier = getattr(result, "code_verifier", None)
+        if code_verifier:
+            secure = os.getenv("ENVIRONMENT", "").lower() != "development"
+            response.set_cookie(
+                "pkce_code_verifier",
+                code_verifier,
+                httponly=True,
+                secure=secure,
+                max_age=600,
+                samesite="lax",
+                path="/",
+            )
+        return response
     except Exception as exc:
         logger.error("auth_google: failed to build OAuth URL: %s", exc)
         raise HTTPException(status_code=500, detail="Failed to initiate Google sign-in")
@@ -221,7 +236,11 @@ async def auth_callback(request: Request, code: str, state: str = None):
     """
     try:
         sb = get_supabase()
-        result = sb.auth.exchange_code_for_session({"auth_code": code})
+        code_verifier = request.cookies.get("pkce_code_verifier")
+        exchange_params: dict = {"auth_code": code}
+        if code_verifier:
+            exchange_params["code_verifier"] = code_verifier
+        result = sb.auth.exchange_code_for_session(exchange_params)
     except Exception as exc:
         logger.warning("auth_callback: code exchange failed: %s", exc)
         return RedirectResponse(
