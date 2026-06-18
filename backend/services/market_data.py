@@ -41,6 +41,20 @@ def _cache_get(key: str, ttl: int = _TTL_QUOTE) -> Optional[dict]:
     return None
 
 
+def _cache_get_stale(key: str) -> Optional[dict]:
+    """Return cached data regardless of age (stale-while-revalidate helper)."""
+    entry = _cache.get(key)
+    return entry["data"] if entry else None
+
+
+def _cache_is_stale(key: str, ttl: int) -> bool:
+    """True when the cache entry exists but is older than ttl."""
+    entry = _cache.get(key)
+    if not entry:
+        return False
+    return (time.time() - entry["ts"]) >= ttl
+
+
 def _cache_set(key: str, data: dict):
     _cache[key] = {"data": data, "ts": time.time()}
 

@@ -96,6 +96,22 @@ def health():
     return {"status": "ok"}
 
 
+@app.on_event("startup")
+async def warm_cache():
+    """Pre-fetch SPY and QQQ so the first user request hits the in-memory cache."""
+    import asyncio as _asyncio
+    from services.market_data import get_options_chain, get_quote
+    loop = _asyncio.get_event_loop()
+    for sym in ("SPY", "QQQ"):
+        try:
+            await _asyncio.gather(
+                loop.run_in_executor(None, get_options_chain, sym, None),
+                loop.run_in_executor(None, get_quote, sym),
+            )
+        except Exception:
+            pass  # best-effort; never block startup
+
+
 # ── Transparent refresh cookie attachment ─────────────────────────────────────
 # When verify_token performs a proactive token refresh it stores the new tokens
 # on request.state. This middleware detects that and sets the updated cookies on

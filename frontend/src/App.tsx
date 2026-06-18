@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import QuoteBar from './components/QuoteBar'
 import OptionsChain from './components/OptionsChain'
 import TradePanel from './components/TradePanel'
@@ -21,7 +21,7 @@ import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
-import { TradeStructure, getPublicConfig } from './api/client'
+import { TradeStructure, getPublicConfig, getOptionsChain, getQuote } from './api/client'
 import api from './api/client'
 import { createBillingPortalSession } from './api/client'
 
@@ -74,6 +74,19 @@ function Dashboard() {
   useEffect(() => {
     if (!aiEnabled && activeTab === 'ai') setActiveTab('chain')
   }, [aiEnabled, activeTab])
+
+  // Prefetch the chain while the user is still typing so data is ready by Go.
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleInputChange = useCallback((val: string) => {
+    const s = val.toUpperCase()
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current)
+    if (s.length >= 1) {
+      prefetchTimer.current = setTimeout(() => {
+        getOptionsChain(s).catch(() => {})
+        getQuote(s).catch(() => {})
+      }, 600)
+    }
+  }, [])
 
   const handleSearch = useCallback(() => {
     const s = inputSymbol.trim().toUpperCase()
@@ -203,7 +216,7 @@ function Dashboard() {
                 <input
                   style={{ flex: 1, background: C.input, border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.text, padding: '6px 10px', fontSize: '14px', textTransform: 'uppercase', outline: 'none' }}
                   value={inputSymbol}
-                  onChange={e => setInputSymbol(e.target.value.toUpperCase())}
+                  onChange={e => { setInputSymbol(e.target.value.toUpperCase()); handleInputChange(e.target.value) }}
                   onKeyDown={handleKeyDown}
                   placeholder="Symbol"
                 />
@@ -233,7 +246,7 @@ function Dashboard() {
                   <input
                     style={{ background: C.input, border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.text, padding: '6px 12px', fontSize: '14px', width: '120px', textTransform: 'uppercase', outline: 'none' }}
                     value={inputSymbol}
-                    onChange={e => setInputSymbol(e.target.value.toUpperCase())}
+                    onChange={e => { setInputSymbol(e.target.value.toUpperCase()); handleInputChange(e.target.value) }}
                     onKeyDown={handleKeyDown}
                     placeholder="Symbol"
                   />

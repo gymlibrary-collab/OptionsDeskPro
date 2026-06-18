@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import date
 import logging
 
-from services.market_data import get_quote, get_options_chain
+from services.market_data import get_quote, get_options_chain, _cache, _cache_get_stale, _cache_is_stale, _TTL_CHAIN, _TTL_QUOTE
 from services.greeks import calculate_greeks, fill_quote
 from services.auth_utils import get_user_id, get_user_email
 from services.activity_logger import log_action, extract_ip
@@ -57,10 +57,33 @@ async def get_chain(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
     loop = asyncio.get_event_loop()
-    chain, quote = await asyncio.gather(
-        loop.run_in_executor(None, get_options_chain, symbol.upper(), expiry),
-        loop.run_in_executor(None, get_quote, symbol.upper()),
-    )
+    sym = symbol.upper()
+    chain_key = f"chain:{sym}:{expiry}"
+    quote_key  = f"quote:{sym}"
+
+    cached_chain = _cache_get_stale(chain_key)
+    cached_quote = _cache_get_stale(quote_key)
+
+    if cached_chain is not None and cached_quote is not None:
+        # Stale-while-revalidate: serve from cache immediately, refresh in background
+        chain, quote = cached_chain, cached_quote
+        if _cache_is_stale(chain_key, _TTL_CHAIN):
+            asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
+        if _cache_is_stale(quote_key, _TTL_QUOTE):
+            asyncio.create_task(loop.run_in_executor(None, get_quote, sym))
+    elif cached_chain is not None:
+        # Chain cached, quote missing — fetch quote only
+        chain = cached_chain
+        quote = await loop.run_in_executor(None, get_quote, sym)
+        if _cache_is_stale(chain_key, _TTL_CHAIN):
+            asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
+    else:
+        # Full cache miss — must wait for both (first load or after expiry change)
+        chain, quote = await asyncio.gather(
+            loop.run_in_executor(None, get_options_chain, sym, expiry),
+            loop.run_in_executor(None, get_quote, sym),
+        )
+
     # Prefer the spot price embedded in the chain response (same API call,
     # no extra yfinance round-trip). Fall back to get_quote if missing.
     S = chain.get("underlying_price") or quote["price"]
