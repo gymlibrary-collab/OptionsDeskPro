@@ -55,10 +55,27 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
             return None
 
         if expiry is None or expiry not in expirations:
-            # Skip today's expiry — 0-DTE options have stale/unreliable bid/ask and zero greeks
+            # Skip today's expiry — 0-DTE options have stale/unreliable bid/ask and zero greeks.
+            # Also skip thin expirations (< 20 total contracts on either side) in favour of the
+            # next date that has a full chain, up to a 4-expiry look-ahead.  This avoids landing
+            # on holiday-adjacent or exotic expirations (e.g. QQQ on the Monday after Juneteenth)
+            # that yfinance returns but which have very sparse data.
             today = datetime.utcnow().strftime("%Y-%m-%d")
             future = [e for e in expirations if e > today]
-            expiry = future[0] if future else expirations[0]
+            if not future:
+                expiry = expirations[0]
+            else:
+                expiry = future[0]  # default: nearest future
+                for candidate in future[:4]:
+                    try:
+                        c = ticker.option_chain(candidate)
+                        n_calls = len(c.calls) if c.calls is not None else 0
+                        n_puts = len(c.puts) if c.puts is not None else 0
+                        if max(n_calls, n_puts) >= 20:
+                            expiry = candidate
+                            break
+                    except Exception:
+                        continue
 
         chain = ticker.option_chain(expiry)
 
