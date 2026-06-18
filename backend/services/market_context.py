@@ -5,7 +5,6 @@ IV term structure/skew, and enhanced technicals (MACD, ATR, volume trend).
 import logging
 from datetime import date
 import yfinance as yf
-from services.market_data import _yf_session
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 def get_earnings_info(symbol: str) -> dict:
     """Return next earnings date and days until it."""
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         cal = ticker.calendar
         if cal is not None and not (hasattr(cal, 'empty') and cal.empty):
             # Try as DataFrame (older yfinance)
@@ -60,7 +59,7 @@ def get_earnings_info(symbol: str) -> dict:
 def get_news_headlines(symbol: str, max_items: int = 6) -> list:
     """Return recent news headlines for the symbol."""
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         news = ticker.news or []
         headlines = []
         for item in news[:max_items]:
@@ -130,7 +129,7 @@ def get_options_flow(chain: dict) -> dict:
 def get_enhanced_technicals(symbol: str) -> dict:
     """Return MACD, ATR, and volume trend from recent price history."""
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         hist = ticker.history(period="3mo")
         if hist.empty or len(hist) < 30:
             return {}
@@ -189,7 +188,7 @@ def get_enhanced_technicals(symbol: str) -> dict:
 def get_iv_term_structure(symbol: str) -> dict:
     """Compare front-month and back-month IV; compute put skew."""
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         expirations = ticker.options
         if not expirations or len(expirations) < 2:
             return {}

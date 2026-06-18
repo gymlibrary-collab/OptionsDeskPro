@@ -3,7 +3,6 @@ import yfinance as yf
 import numpy as np
 import logging
 from datetime import date
-from services.market_data import _yf_session
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ def get_iv_rank(symbol: str) -> dict:
         iv_environment, percentile_label, and optional error field.
     """
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         hist = ticker.history(period="1y")
 
         if hist.empty or len(hist) < 35:
@@ -160,7 +159,7 @@ def get_directional_bias(symbol: str) -> dict:
         dict with symbol, price, sma20, sma50, rsi14, bias, strength, and optional error.
     """
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         hist = ticker.history(period="3mo")
 
         if hist.empty or len(hist) < 55:

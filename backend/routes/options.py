@@ -78,11 +78,21 @@ async def get_chain(
         if _cache_is_stale(chain_key, _TTL_CHAIN):
             asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
     else:
-        # Full cache miss — must wait for both (first load or after expiry change)
-        chain, quote = await asyncio.gather(
-            loop.run_in_executor(None, get_options_chain, sym, expiry),
-            loop.run_in_executor(None, get_quote, sym),
-        )
+        # Full cache miss — must wait for both (first load or after expiry change).
+        # wait_for caps wall-clock time at 25s so Railway-Hikari's 30s proxy
+        # timeout is never reached; on timeout we fall back to empty data.
+        try:
+            chain, quote = await asyncio.wait_for(
+                asyncio.gather(
+                    loop.run_in_executor(None, get_options_chain, sym, expiry),
+                    loop.run_in_executor(None, get_quote, sym),
+                ),
+                timeout=25.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("options chain fetch timed out for %s", sym)
+            chain = {"expirations": [], "calls": [], "puts": [], "expiry": None, "underlying_price": 0.0}
+            quote = {"symbol": sym, "price": 0.0, "previousClose": 0.0, "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
     # Prefer the spot price embedded in the chain response (same API call,
     # no extra yfinance round-trip). Fall back to get_quote if missing.
