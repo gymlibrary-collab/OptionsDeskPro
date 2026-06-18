@@ -189,7 +189,7 @@ async def get_positions_risk(payload: dict = Depends(verify_token)):
         return []
 
     unique_symbols = list({p.symbol for p in positions})
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     with ThreadPoolExecutor(max_workers=min(len(unique_symbols), 8)) as pool:
         tasks = [loop.run_in_executor(pool, _fetch_market_data, sym) for sym in unique_symbols]
         results = await asyncio.gather(*tasks)

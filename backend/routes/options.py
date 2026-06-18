@@ -56,7 +56,7 @@ async def get_chain(
     response: Response = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     sym = symbol.upper()
     chain_key = f"chain:{sym}:{expiry}"
     quote_key  = f"quote:{sym}"
@@ -155,7 +155,7 @@ async def get_stock_quote(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_security),
 ):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, get_quote, symbol.upper())
 
     payload = _resolve_optional_payload(credentials)

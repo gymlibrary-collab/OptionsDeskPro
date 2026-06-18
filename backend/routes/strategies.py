@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -77,7 +77,7 @@ async def analyze_symbol(
     Neutral-Bearish, Omnidirectional). The user chooses their directional view.
     """
     symbol = symbol.upper()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # ── Phase 1: IV rank, bias, and initial options chain — all concurrent ────
     p1 = await asyncio.gather(
@@ -87,6 +87,10 @@ async def analyze_symbol(
         return_exceptions=True,
     )
 
+    if isinstance(p1[0], Exception):
+        logger.warning("get_iv_rank failed for %s: %s", symbol, p1[0])
+    if isinstance(p1[1], Exception):
+        logger.warning("get_directional_bias failed for %s: %s", symbol, p1[1])
     iv_data   = p1[0] if not isinstance(p1[0], Exception) else {"iv_environment": "MEDIUM"}
     bias_data = p1[1] if not isinstance(p1[1], Exception) else {"bias": "NEUTRAL", "price": 0.0}
 
@@ -112,8 +116,7 @@ async def analyze_symbol(
         enriched_chain["_synthetic"] = True
     else:
         # Re-fetch for the expiry closest to 45 DTE if the default differs.
-        from datetime import timedelta as _td
-        ideal_date = _date.today() + _td(days=45)
+        ideal_date = _date.today() + timedelta(days=45)
         best_exp = None
         best_diff = None
         for exp_str in enriched_chain.get("expirations", []):
@@ -156,6 +159,8 @@ async def analyze_symbol(
         return_exceptions=True,
     )
 
+    if isinstance(p2[0], Exception):
+        logger.warning("market_context failed for %s: %s", symbol, p2[0])
     market_ctx    = p2[0] if not isinstance(p2[0], Exception) else {}
     user_result   = p2[1] if not isinstance(p2[1], Exception) else (None, {})
     _user_id, _user_features = user_result if isinstance(user_result, tuple) else (None, {})
@@ -198,14 +203,17 @@ async def analyze_symbol(
         for strats in recommendations_by_category.values()
         for rec in strats
     }
+    # Snapshot the chain before fanning out — each thread gets its own copy so
+    # concurrent build_trade calls cannot corrupt each other's iteration.
+    chain_snapshot = {**enriched_chain, "calls": list(enriched_chain.get("calls", [])), "puts": list(enriched_chain.get("puts", []))}
 
     async def _build_and_narrate(strategy_key: str) -> tuple:
         try:
             trade = await loop.run_in_executor(
                 None,
-                lambda: build_trade(symbol, strategy_key, enriched_chain, spot, earnings_data=earnings_data),
+                lambda: build_trade(symbol, strategy_key, chain_snapshot, spot, earnings_data=earnings_data),
             )
-            if enriched_chain.get("_synthetic"):
+            if chain_snapshot.get("_synthetic"):
                 trade["_synthetic"] = True
         except Exception as e:
             logger.warning(f"build_trade failed for {strategy_key}: {e}")
@@ -370,7 +378,7 @@ async def scan_watchlist(
                 "error": str(e),
             }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     with ThreadPoolExecutor(max_workers=min(len(symbol_list), 8)) as pool:
         tasks = [loop.run_in_executor(pool, _scan_one, sym) for sym in symbol_list]
         results = list(await asyncio.gather(*tasks))

@@ -105,7 +105,7 @@ async def warm_cache():
 
 async def _background_warm_cache():
     from services.market_data import get_options_chain, get_quote
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     for sym in ("SPY", "QQQ"):
         try:
             await asyncio.gather(

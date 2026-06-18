@@ -246,7 +246,7 @@ async def health_check(payload: dict = Depends(admin_required)):
         checked_at = datetime.now(timezone.utc).isoformat()
         try:
             sb = get_supabase()
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 None,
                 lambda: sb.table("user_profiles").select("id").limit(1).execute(),
@@ -275,7 +275,7 @@ async def health_check(payload: dict = Depends(admin_required)):
         t0 = time.monotonic()
         checked_at = datetime.now(timezone.utc).isoformat()
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             def _fetch():
                 ticker = yf.Ticker("SPY")
@@ -343,7 +343,7 @@ async def health_check(payload: dict = Depends(admin_required)):
         t0 = time.monotonic()
         try:
             import google.generativeai as genai
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             def _call():
                 genai.configure(api_key=api_key)
