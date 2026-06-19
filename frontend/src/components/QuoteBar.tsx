@@ -142,7 +142,7 @@ export default function QuoteBar({ symbol, dataSource }: Props) {
           </span>
         ) : (
           <span
-            title="Data from yfinance — prices are delayed ~15 minutes. Some illiquid contracts may show modelled bid/ask (marked with ~ in the chain)."
+            title="Quote from yfinance (refreshes every 30s). Options chain bid/ask delayed ~15 min. Some illiquid contracts show modelled prices (marked with ~ in the chain)."
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '5px',
               background: '#052e16', border: '1px solid #166534',
@@ -153,7 +153,7 @@ export default function QuoteBar({ symbol, dataSource }: Props) {
             }}
           >
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
-            yfinance · ~15 min delay
+            yfinance · options ~15m delayed
           </span>
         )
       )}
