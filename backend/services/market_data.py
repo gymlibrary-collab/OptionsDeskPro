@@ -1,4 +1,7 @@
 import yfinance as yf
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import time
 import math
 from datetime import datetime
@@ -6,6 +9,28 @@ from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Yahoo Finance blocks bare cloud-server requests (no User-Agent).
+# A persistent session with a browser UA string avoids 401/empty responses
+# from Railway and similar hosted environments.
+def _make_session() -> requests.Session:
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    })
+    adapter = HTTPAdapter(max_retries=Retry(total=3, backoff_factor=0.5,
+                                            status_forcelist=[429, 500, 502, 503, 504]))
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+_yf_session: requests.Session = _make_session()
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -63,7 +88,7 @@ def _cache_set(key: str, data: dict):
 
 def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_yf_session)
         expirations = ticker.options
         if not expirations:
             return None
@@ -137,7 +162,7 @@ def get_quote(symbol: str) -> dict:
         return cached
 
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol, session=_yf_session)
         info = ticker.fast_info
         hist = ticker.history(period="2d")
 
