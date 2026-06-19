@@ -441,6 +441,39 @@ async def on_login(request: Request, payload: dict = Depends(verify_token)):
     return await _sync_profile(request, user_proxy, access_token)
 
 
+# ── Token refresh ────────────────────────────────────────────────────────────
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/auth/refresh")
+async def refresh_token(body: RefreshRequest):
+    """
+    Exchange a Supabase refresh token for a new access/refresh token pair.
+    Called automatically by the frontend interceptor when a 401 is received,
+    so the user is never logged out just because the 1-hour access token expired.
+    No auth required — the refresh token IS the credential here.
+    """
+    try:
+        sb = get_supabase()
+        result = sb.auth.refresh_session(body.refresh_token)
+        session = result.session if hasattr(result, "session") else result
+        if not session or not getattr(session, "access_token", None):
+            raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+        response = JSONResponse(content={
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+        })
+        _set_auth_cookies(response, session.access_token, session.refresh_token)
+        return response
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("refresh_token: Supabase refresh failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Session refresh failed")
+
+
 # ── Logout ───────────────────────────────────────────────────────────────────
 
 @router.post("/auth/logout")

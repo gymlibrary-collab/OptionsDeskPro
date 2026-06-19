@@ -36,6 +36,66 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Silent token refresh on 401.
+// When the access token expires (1h Supabase default), intercept the 401,
+// call /auth/refresh with the stored refresh token, update localStorage, and
+// retry the original request — all transparently, without logging the user out.
+// Multiple concurrent 401s are queued so only one refresh call is made.
+let _refreshing = false
+let _queue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = []
+
+function _drainQueue(err: unknown, token: string | null) {
+  _queue.forEach(p => err ? p.reject(err) : p.resolve(token!))
+  _queue = []
+}
+
+api.interceptors.response.use(
+  res => res,
+  async err => {
+    const original = err.config
+    if (
+      err?.response?.status !== 401 ||
+      original?._retry ||
+      original?.url?.includes('/auth/refresh')
+    ) {
+      return Promise.reject(err)
+    }
+
+    if (_refreshing) {
+      return new Promise<string>((resolve, reject) => _queue.push({ resolve, reject }))
+        .then(token => {
+          original.headers.Authorization = `Bearer ${token}`
+          return api(original)
+        })
+    }
+
+    original._retry = true
+    _refreshing = true
+    const rt = localStorage.getItem(REFRESH_KEY)
+    if (!rt) {
+      _refreshing = false
+      _drainQueue(err, null)
+      return Promise.reject(err)
+    }
+
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/api/auth/refresh`, { refresh_token: rt })
+      const { access_token, refresh_token: newRt } = data
+      setLocalTokens(access_token, newRt)
+      api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+      original.headers.Authorization = `Bearer ${access_token}`
+      _drainQueue(null, access_token)
+      return api(original)
+    } catch (refreshErr) {
+      _drainQueue(refreshErr, null)
+      clearLocalTokens()
+      return Promise.reject(refreshErr)
+    } finally {
+      _refreshing = false
+    }
+  }
+)
+
 export interface Quote {
   symbol: string
   price: number
