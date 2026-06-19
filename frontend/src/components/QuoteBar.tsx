@@ -142,21 +142,18 @@ export default function QuoteBar({ symbol, dataSource }: Props) {
           </span>
         ) : (
           <span
-            title={dataSource.estimatedPct > 0
-              ? `Data from yfinance (delayed ~15 min). ${dataSource.estimatedPct}% of contracts had no live quote — bid/ask modelled from last trade or Black-Scholes (shown with ~ in the chain).`
-              : 'Data from yfinance (delayed ~15 min). All bid/ask prices are live market quotes.'}
+            title="Data from yfinance — prices are delayed ~15 minutes. Some illiquid contracts may show modelled bid/ask (marked with ~ in the chain)."
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '5px',
-              background: dataSource.estimatedPct > 50 ? '#1c1a07' : '#052e16',
-              border: `1px solid ${dataSource.estimatedPct > 50 ? '#a16207' : '#166534'}`,
+              background: '#052e16', border: '1px solid #166534',
               borderRadius: '999px',
               padding: '3px 10px', fontSize: '11px',
-              color: dataSource.estimatedPct > 50 ? '#fbbf24' : '#4ade80',
+              color: '#4ade80',
               fontWeight: 600, cursor: 'default', userSelect: 'none' as const,
             }}
           >
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
-            yfinance{dataSource.estimatedPct > 0 ? ` · ${dataSource.estimatedPct}% est.` : ' · live'}
+            yfinance · ~15 min delay
           </span>
         )
       )}
