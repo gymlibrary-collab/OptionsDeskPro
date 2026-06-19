@@ -325,7 +325,7 @@ export default function LoginPage() {
         </div>
 
         {/* Headline */}
-        <h1 className="lp-headline" style={{ fontSize: '19px', fontWeight: 600, lineHeight: 1.4, letterSpacing: '-0.4px', marginBottom: '10px', position: 'relative', zIndex: 1 }}>
+        <h1 className="lp-headline" style={{ fontSize: '18px', fontWeight: 600, lineHeight: 1.45, letterSpacing: '-0.3px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
           <span style={{
             background: 'linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%)',
             WebkitBackgroundClip: 'text',
@@ -335,30 +335,26 @@ export default function LoginPage() {
           </span>
         </h1>
 
-        {/* Sub-header */}
-        <p className="lp-subhead" style={{ fontSize: '13px', fontWeight: 400, lineHeight: 1.6, marginBottom: '28px', position: 'relative', zIndex: 1, color: '#64748b' }}>
-          Continuously refreshed market data powering a full strategy suite — so you always know which trade fits today's market, before you commit real capital.
-        </p>
-
         {/* Feature list */}
         <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
           {FEATURES.map((f, i) => (
             <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '10px 0',
-              borderBottom: i < FEATURES.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+              display: 'flex', alignItems: 'flex-start', gap: '12px',
+              padding: '12px 0',
+              borderBottom: i < FEATURES.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
             }}>
               <div style={{
-                width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0,
+                width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0, marginTop: '1px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px',
                 background: f.iconBg, border: `1px solid ${f.iconBorder}`,
               }}>
                 {f.icon}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.title}</div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
+                <div className="lp-feature-desc" style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
                 <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '3px', flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: '3px',
                   padding: '2px 7px', borderRadius: '10px',
                   fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
