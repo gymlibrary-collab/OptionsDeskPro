@@ -320,8 +320,8 @@ function Dashboard() {
                   {tab.locked && <span style={{ marginLeft: '4px', fontSize: '10px' }}>🔒</span>}
                 </button>
               ))}
-              {/* Data-source pill — right-aligned in the tab bar */}
-              {activeTab === 'chain' && chainDataSource && (
+              {/* Data-source pill — right-aligned in the tab bar, always visible */}
+              {chainDataSource && (
                 <div style={{ marginLeft: 'auto', paddingBottom: '6px', flexShrink: 0 }}>
                   {chainDataSource.unavailable ? (
                     <span
