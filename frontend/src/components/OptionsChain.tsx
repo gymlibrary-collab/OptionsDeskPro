@@ -3,7 +3,7 @@ import { getOptionsChain, OptionsChainResponse, OptionContract } from '../api/cl
 
 interface Props {
   symbol: string
-  onDataSource?: (info: { synthetic: boolean; estimatedPct: number }) => void
+  onDataSource?: (info: { synthetic: boolean; estimatedPct: number } | null) => void
 }
 
 function fmt(n: number | undefined, d = 2) {
@@ -164,15 +164,20 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
       setLastUpdated(new Date())
       if (onDataSource) {
         const all = [...d.calls, ...d.puts]
-        const estCount = all.filter(c => c.quote_source === 'estimated').length
-        onDataSource({
-          synthetic: d._synthetic === true,
-          estimatedPct: all.length > 0 ? Math.round(estCount / all.length * 100) : 0,
-        })
+        if (all.length > 0) {
+          const estCount = all.filter(c => c.quote_source === 'estimated').length
+          onDataSource({
+            synthetic: d._synthetic === true,
+            estimatedPct: Math.round(estCount / all.length * 100),
+          })
+        } else {
+          onDataSource(null)
+        }
       }
       setCountdown(REFRESH_INTERVAL_MS / 1000)
     } catch (e: any) {
       if (!silent) setError(e?.message || 'Failed to load options chain')
+      if (onDataSource) onDataSource(null)
     } finally {
       if (silent) setRefreshing(false)
       else setLoading(false)
