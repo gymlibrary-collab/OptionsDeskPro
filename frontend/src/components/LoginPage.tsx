@@ -351,8 +351,8 @@ export default function LoginPage() {
                 {f.icon}
               </div>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
-                <div className="lp-feature-desc" style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
+                <div className="lp-feature-desc" style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '3px',
                   padding: '2px 7px', borderRadius: '10px',
