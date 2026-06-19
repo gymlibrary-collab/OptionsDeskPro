@@ -343,7 +343,7 @@ function Dashboard() {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#052e16', border: '1px solid #166534', borderRadius: '999px', padding: '2px 10px', fontSize: '11px', color: '#4ade80', fontWeight: 600, cursor: 'default', userSelect: 'none' }}
                     >
                       <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
-                      yfinance · options ~15m delayed
+                      Yahoo Finance · options ~15m delayed
                     </span>
                   )}
                 </div>
