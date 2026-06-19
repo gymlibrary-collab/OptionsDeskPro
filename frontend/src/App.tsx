@@ -48,7 +48,7 @@ function Dashboard() {
   const [activeDesk, setActiveDesk] = useState<Desk>('options')
   const [symbol, setSymbol] = useState('SPY')
   const [inputSymbol, setInputSymbol] = useState('SPY')
-  const [chainDataSource, setChainDataSource] = useState<{ synthetic: boolean; estimatedPct: number } | null>(null)
+  const [chainDataSource, setChainDataSource] = useState<{ synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('chain')
   const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
   const [positionsRefresh, setPositionsRefresh] = useState(0)
