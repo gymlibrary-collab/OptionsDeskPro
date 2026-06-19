@@ -46,8 +46,8 @@ def _enrich_chain_with_greeks(chain: dict, spot_price: float) -> dict:
             except Exception:
                 T = 0.0
             greeks = calculate_greeks(spot_price, strike, T, 0.05, sigma, option_type)
-            bid, ask = fill_quote(c, spot_price, T, option_type)
-            enriched.append({**c, **greeks, "bid": bid, "ask": ask})
+            bid, ask, quote_source = fill_quote(c, spot_price, T, option_type)
+            enriched.append({**c, **greeks, "bid": bid, "ask": ask, "quote_source": quote_source})
         return enriched
 
     return {

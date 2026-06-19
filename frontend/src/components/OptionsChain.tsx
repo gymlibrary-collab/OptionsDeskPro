@@ -330,14 +330,24 @@ export default function OptionsChain({ symbol }: Props) {
                     onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
                     onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
                   >
-                    {call ? fmt(call.bid) : '—'}
+                    {call ? (
+                      <>
+                        {call.quote_source === 'estimated' && <span style={{ color: '#f59e0b', fontSize: '10px', marginRight: '1px' }} title="Estimated — yfinance returned no quote; price modelled from last trade or Black-Scholes">~</span>}
+                        {fmt(call.bid)}
+                      </>
+                    ) : '—'}
                   </td>
                   <td
                     style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
                     onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('call') }}
                     onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
                   >
-                    {call ? fmt(call.ask) : '—'}
+                    {call ? (
+                      <>
+                        {call.quote_source === 'estimated' && <span style={{ color: '#f59e0b', fontSize: '10px', marginRight: '1px' }} title="Estimated — yfinance returned no quote; price modelled from last trade or Black-Scholes">~</span>}
+                        {fmt(call.ask)}
+                      </>
+                    ) : '—'}
                   </td>
                   <td
                     style={{ ...td(), ...callRowStyle(callITM, hoverCall) }}
@@ -422,14 +432,24 @@ export default function OptionsChain({ symbol }: Props) {
                     onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
                     onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
                   >
-                    {put ? fmt(put.ask) : '—'}
+                    {put ? (
+                      <>
+                        {put.quote_source === 'estimated' && <span style={{ color: '#f59e0b', fontSize: '10px', marginRight: '1px' }} title="Estimated — yfinance returned no quote; price modelled from last trade or Black-Scholes">~</span>}
+                        {fmt(put.ask)}
+                      </>
+                    ) : '—'}
                   </td>
                   <td
                     style={{ ...td(), ...putRowStyle(putITM, hoverPut) }}
                     onMouseEnter={() => { setHoveredStrike(strike); setHoveredSide('put') }}
                     onMouseLeave={() => { setHoveredStrike(null); setHoveredSide(null) }}
                   >
-                    {put ? fmt(put.bid) : '—'}
+                    {put ? (
+                      <>
+                        {put.quote_source === 'estimated' && <span style={{ color: '#f59e0b', fontSize: '10px', marginRight: '1px' }} title="Estimated — yfinance returned no quote; price modelled from last trade or Black-Scholes">~</span>}
+                        {fmt(put.bid)}
+                      </>
+                    ) : '—'}
                   </td>
                 </tr>
               )

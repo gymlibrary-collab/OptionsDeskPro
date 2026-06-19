@@ -150,8 +150,8 @@ async def _get_chain_inner(
                 T = 0.0
 
             greeks = calculate_greeks(S, strike, T, 0.05, sigma, option_type)
-            bid, ask = fill_quote(c, S, T, option_type)
-            enriched.append({**c, **greeks, "bid": bid, "ask": ask})
+            bid, ask, quote_source = fill_quote(c, S, T, option_type)
+            enriched.append({**c, **greeks, "bid": bid, "ask": ask, "quote_source": quote_source})
         return enriched
 
     calls = enrich(chain["calls"], "call")

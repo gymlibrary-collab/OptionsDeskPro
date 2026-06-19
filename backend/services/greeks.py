@@ -85,7 +85,10 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
 
 def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 0.05) -> tuple:
     """
-    Return (bid, ask) for a contract, corrected for free-data problems:
+    Return (bid, ask, quote_source) for a contract, corrected for free-data problems:
+
+    quote_source is "market" when yfinance bid/ask are used directly,
+    "estimated" when a Black-Scholes or lastPrice fallback was applied.
 
     1. Missing quote — yfinance returns 0/NaN bid/ask for illiquid or 0-DTE contracts.
        Fallback strategy depends on time-to-expiry:
@@ -104,10 +107,12 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     ask = float(contract.get("ask", 0.0) or 0.0)
     is_call = option_type.lower() == "call"
     intrinsic = max(0.0, (S - K) if is_call else (K - S))
+    estimated = False
 
     # Treat any value that rounds to $0.00 as missing — catches tiny yfinance
     # fractional quotes (e.g. 0.001) that are not meaningful displayed prices.
     if round(bid, 2) <= 0 and round(ask, 2) <= 0:
+        estimated = True
         if T <= 0:
             # 0-DTE: yfinance bid/ask are absent; lastPrice can be stale in the
             # wrong direction when the stock moved and flipped a contract's moneyness.
@@ -151,8 +156,10 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     if intrinsic > 0:
         if bid < intrinsic:
             bid = round(intrinsic, 2)
+            estimated = True
     # Correct inverted spreads on all contracts (including OTM where intrinsic=0).
     if ask < bid:
         ask = bid
 
-    return round(float(bid), 2), round(float(ask), 2)
+    quote_source = "estimated" if estimated else "market"
+    return round(float(bid), 2), round(float(ask), 2), quote_source

@@ -62,6 +62,7 @@ export interface OptionContract {
   gamma: number
   theta: number
   vega: number
+  quote_source?: 'market' | 'estimated'
 }
 
 export interface OptionsChainResponse {
