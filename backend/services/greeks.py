@@ -151,7 +151,8 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     if intrinsic > 0:
         if bid < intrinsic:
             bid = round(intrinsic, 2)
-        if ask < bid:
-            ask = bid
+    # Correct inverted spreads on all contracts (including OTM where intrinsic=0).
+    if ask < bid:
+        ask = bid
 
     return round(float(bid), 2), round(float(ask), 2)

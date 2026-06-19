@@ -1370,6 +1370,22 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
                 spread_width = max(put_w, call_w)
                 max_profit = round(net, 2)
                 max_loss = round(spread_width - net, 2)
+            elif strategy_key in (
+                "call_butterfly",
+                "put_butterfly",
+                "call_broken_wing_butterfly",
+                "put_broken_wing_butterfly",
+            ):
+                # For butterflies the body strike is the short strike(s).
+                # Max profit zone is the INNER span (body to nearest wing),
+                # not the full outer span which would double-count it.
+                body = min(short_strikes)
+                inner_lower = body - min(long_strikes)   # lower wing distance
+                inner_upper = max(long_strikes) - body   # upper wing distance
+                inner_width = min(inner_lower, inner_upper)
+                max_profit = round(inner_width + net, 2)  # works for credit and debit
+                raw_loss = round(max(inner_lower, inner_upper) - inner_width - net, 2)
+                max_loss = max(raw_loss, 0)
             else:
                 width = abs(
                     max(short_strikes + long_strikes) - min(short_strikes + long_strikes)

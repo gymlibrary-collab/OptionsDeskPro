@@ -15,6 +15,7 @@ def get_earnings_info(symbol: str) -> dict:
         ticker = yf.Ticker(symbol)
         cal = ticker.calendar
         if cal is not None and not (hasattr(cal, 'empty') and cal.empty):
+            candidates = []
             # Try as DataFrame (older yfinance)
             try:
                 if hasattr(cal, 'loc') and "Earnings Date" in cal.index:
@@ -23,12 +24,7 @@ def get_earnings_info(symbol: str) -> dict:
                             ed = d.date() if hasattr(d, 'date') else d
                             days = (ed - date.today()).days
                             if days >= -3:
-                                return {
-                                    "next_earnings": ed.isoformat(),
-                                    "days_until_earnings": days,
-                                    "earnings_soon": 0 <= days <= 21,
-                                    "earnings_passed": days < 0,
-                                }
+                                candidates.append((days, ed))
                         except Exception:
                             continue
             except Exception:
@@ -43,16 +39,20 @@ def get_earnings_info(symbol: str) -> dict:
                         ed = d.date() if hasattr(d, 'date') else d
                         days = (ed - date.today()).days
                         if days >= -3:
-                            return {
-                                "next_earnings": ed.isoformat(),
-                                "days_until_earnings": days,
-                                "earnings_soon": 0 <= days <= 21,
-                                "earnings_passed": days < 0,
-                            }
+                            candidates.append((days, ed))
                     except Exception:
                         continue
+            if candidates:
+                future = [(days, ed) for days, ed in candidates if days >= 0]
+                chosen_days, chosen_ed = min(future) if future else min(candidates)
+                return {
+                    "next_earnings": chosen_ed.isoformat(),
+                    "days_until_earnings": chosen_days,
+                    "earnings_soon": 0 <= chosen_days <= 21,
+                    "earnings_passed": chosen_days < 0,
+                }
     except Exception as e:
-        logger.debug(f"Earnings info failed for {symbol}: {e}")
+        logger.warning(f"Earnings info failed for {symbol}: {e}")
     return {"next_earnings": None, "days_until_earnings": None, "earnings_soon": False, "earnings_passed": False}
 
 
@@ -76,7 +76,7 @@ def get_news_headlines(symbol: str, max_items: int = 6) -> list:
                 headlines.append({"title": title, "publisher": publisher})
         return headlines
     except Exception as e:
-        logger.debug(f"News headlines failed for {symbol}: {e}")
+        logger.warning(f"News headlines failed for {symbol}: {e}")
         return []
 
 
@@ -181,7 +181,7 @@ def get_enhanced_technicals(symbol: str) -> dict:
             "volume_ratio_5_20": vol_ratio,
         }
     except Exception as e:
-        logger.debug(f"Enhanced technicals failed for {symbol}: {e}")
+        logger.warning(f"Enhanced technicals failed for {symbol}: {e}")
         return {}
 
 
@@ -214,7 +214,16 @@ def get_iv_term_structure(symbol: str) -> dict:
 
         # Put skew: OTM put IV vs ATM call IV
         otm_puts = [p for p in front_puts if not p.get("inTheMoney", True)]
-        atm_calls = sorted(front_calls, key=lambda c: abs(c.get("delta", 0) - 0.5))
+        # Estimate spot from the ITM/OTM boundary in the calls chain; yfinance
+        # does not populate a delta column so sorting by delta is a no-op.
+        itm_strikes = [c["strike"] for c in front_calls if c.get("inTheMoney")]
+        otm_strikes = [c["strike"] for c in front_calls if not c.get("inTheMoney")]
+        if itm_strikes and otm_strikes:
+            spot_est = (max(itm_strikes) + min(otm_strikes)) / 2.0
+        else:
+            strikes = sorted(c["strike"] for c in front_calls if c.get("strike", 0) > 0)
+            spot_est = strikes[len(strikes) // 2] if strikes else 0
+        atm_calls = sorted(front_calls, key=lambda c: abs(c.get("strike", 0) - spot_est)) if spot_est > 0 else front_calls
         otm_put_iv = _median_iv(otm_puts[:6]) if otm_puts else front_iv
         atm_call_iv = _median_iv(atm_calls[:4]) if atm_calls else front_iv
         skew = round(otm_put_iv - atm_call_iv, 4) if atm_call_iv > 0 else 0.0
@@ -237,7 +246,7 @@ def get_iv_term_structure(symbol: str) -> dict:
             "skew_label": skew_label,
         }
     except Exception as e:
-        logger.debug(f"IV term structure failed for {symbol}: {e}")
+        logger.warning(f"IV term structure failed for {symbol}: {e}")
         return {}
 
 

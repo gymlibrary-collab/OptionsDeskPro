@@ -93,12 +93,13 @@ def get_iv_rank(symbol: str) -> dict:
         except Exception as e:
             logger.warning(f"Could not get ATM IV for {symbol}: {e}")
 
-        # IV Rank
+        # IV Rank: use HV for apples-to-apples comparison against the HV range.
+        # current_iv (ATM option IV) is returned separately for display.
         hv_range = hv_52wk_high - hv_52wk_low
         if hv_range < 0.001:
             iv_rank = 50.0
         else:
-            iv_rank = round((current_iv - hv_52wk_low) / hv_range * 100.0, 1)
+            iv_rank = round((current_hv - hv_52wk_low) / hv_range * 100.0, 1)
             iv_rank = max(0.0, min(100.0, iv_rank))
 
         # Classify environment

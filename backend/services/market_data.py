@@ -175,7 +175,7 @@ def get_quote(symbol: str) -> dict:
 
         change = last_price - prev_close
         change_pct = (change / prev_close * 100) if prev_close else 0.0
-        volume = int(hist["Volume"].iloc[-1]) if (not hist.empty and "Volume" in hist.columns) else 0
+        volume = _safe_int(hist["Volume"].iloc[-1]) if (not hist.empty and "Volume" in hist.columns) else 0
 
         try:
             market_cap = getattr(info, "market_cap", None) or 0
@@ -212,6 +212,11 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     result = _yfinance_chain(symbol, expiry)
     if result:
         _cache_set(cache_key, result)
+        # Also cache under the resolved expiry so requests for the actual
+        # expiry date aren't a cache miss when the requested key differed.
+        resolved = result.get("expiry")
+        if resolved and resolved != expiry:
+            _cache_set(f"chain:{symbol}:{resolved}", result)
         return result
     return {"expirations": [], "calls": [], "puts": [], "expiry": None}
 
