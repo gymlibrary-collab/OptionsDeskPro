@@ -91,6 +91,7 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
         ticker = yf.Ticker(symbol, session=_yf_session)
         expirations = ticker.options
         if not expirations:
+            logger.warning("yfinance chain: no expirations returned for %s (possible block or bad symbol)", symbol)
             return None
 
         if expiry is None or expiry not in expirations:
