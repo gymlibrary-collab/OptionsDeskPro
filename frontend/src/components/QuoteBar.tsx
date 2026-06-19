@@ -3,7 +3,7 @@ import { getQuote, Quote } from '../api/client'
 
 interface Props {
   symbol: string
-  dataSource?: { synthetic: boolean; estimatedPct: number } | null
+  dataSource?: { synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null
 }
 
 function fmt(n: number, decimals = 2) {
@@ -128,7 +128,19 @@ export default function QuoteBar({ symbol, dataSource }: Props) {
         <span style={styles.metaValue}>{fmtBig(quote.volume)}</span>
       </div>
       {dataSource && (
-        dataSource.synthetic ? (
+        dataSource.unavailable ? (
+          <span
+            title="Options chain data is unavailable — yfinance returned no contracts. Try refreshing."
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              background: '#1c1917', border: '1px solid #57534e', borderRadius: '999px',
+              padding: '3px 10px', fontSize: '11px', color: '#a8a29e',
+              fontWeight: 600, cursor: 'default', userSelect: 'none' as const,
+            }}
+          >
+            Chain unavailable
+          </span>
+        ) : dataSource.synthetic ? (
           <span
             title="yfinance returned no data — all prices are theoretical Black-Scholes estimates. Verify in your broker before trading."
             style={{

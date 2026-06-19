@@ -3,7 +3,7 @@ import { getOptionsChain, OptionsChainResponse, OptionContract } from '../api/cl
 
 interface Props {
   symbol: string
-  onDataSource?: (info: { synthetic: boolean; estimatedPct: number } | null) => void
+  onDataSource?: (info: { synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null) => void
 }
 
 function fmt(n: number | undefined, d = 2) {
@@ -171,13 +171,13 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
             estimatedPct: Math.round(estCount / all.length * 100),
           })
         } else {
-          onDataSource(null)
+          onDataSource({ synthetic: false, estimatedPct: 0, unavailable: true })
         }
       }
       setCountdown(REFRESH_INTERVAL_MS / 1000)
     } catch (e: any) {
       if (!silent) setError(e?.message || 'Failed to load options chain')
-      if (onDataSource) onDataSource(null)
+      if (onDataSource) onDataSource({ synthetic: false, estimatedPct: 0, unavailable: true })
     } finally {
       if (silent) setRefreshing(false)
       else setLoading(false)
