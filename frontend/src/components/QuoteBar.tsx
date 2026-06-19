@@ -3,7 +3,6 @@ import { getQuote, Quote } from '../api/client'
 
 interface Props {
   symbol: string
-  dataSource?: { synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null
 }
 
 function fmt(n: number, decimals = 2) {
@@ -78,7 +77,7 @@ const styles = {
   }),
 }
 
-export default function QuoteBar({ symbol, dataSource }: Props) {
+export default function QuoteBar({ symbol }: Props) {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [loading, setLoading] = useState(true)
   const intervalRef = useRef<number | null>(null)
@@ -127,48 +126,6 @@ export default function QuoteBar({ symbol, dataSource }: Props) {
         <span style={styles.metaLabel}>Volume</span>
         <span style={styles.metaValue}>{fmtBig(quote.volume)}</span>
       </div>
-      {dataSource && (
-        dataSource.unavailable ? (
-          <span
-            title="Options chain data is unavailable — yfinance returned no contracts. Try refreshing."
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '5px',
-              background: '#1c1917', border: '1px solid #57534e', borderRadius: '999px',
-              padding: '3px 10px', fontSize: '11px', color: '#a8a29e',
-              fontWeight: 600, cursor: 'default', userSelect: 'none' as const,
-            }}
-          >
-            Chain unavailable
-          </span>
-        ) : dataSource.synthetic ? (
-          <span
-            title="yfinance returned no data — all prices are theoretical Black-Scholes estimates. Verify in your broker before trading."
-            style={{
-              display: 'inline-flex', alignItems: 'center',
-              background: '#431407', border: '1px solid #c2410c', borderRadius: '999px',
-              padding: '3px 10px', fontSize: '11px', color: '#fb923c', fontWeight: 600,
-              cursor: 'default', userSelect: 'none' as const,
-            }}
-          >
-            ⚠ Synthetic · BS model
-          </span>
-        ) : (
-          <span
-            title="Quote from yfinance (refreshes every 30s). Options chain bid/ask delayed ~15 min. Some illiquid contracts show modelled prices (marked with ~ in the chain)."
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '5px',
-              background: '#052e16', border: '1px solid #166534',
-              borderRadius: '999px',
-              padding: '3px 10px', fontSize: '11px',
-              color: '#4ade80',
-              fontWeight: 600, cursor: 'default', userSelect: 'none' as const,
-            }}
-          >
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
-            yfinance · options ~15m delayed
-          </span>
-        )
-      )}
       {quote.marketCap > 0 && (
         <div style={styles.meta}>
           <span style={styles.metaLabel}>Mkt Cap</span>

@@ -232,7 +232,7 @@ function Dashboard() {
                 <button onClick={signOut} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>Out</button>
               </div>
             </div>
-            {activeDesk === 'options' && <QuoteBar symbol={symbol} dataSource={activeTab === 'chain' ? chainDataSource : null} />}
+            {activeDesk === 'options' && <QuoteBar symbol={symbol} />}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -253,7 +253,7 @@ function Dashboard() {
                   />
                   <button onClick={handleSearch} style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Go</button>
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}><QuoteBar symbol={symbol} dataSource={activeTab === 'chain' ? chainDataSource : null} /></div>
+                <div style={{ flex: 1, overflow: 'hidden' }}><QuoteBar symbol={symbol} /></div>
               </>
             )}
 
@@ -296,7 +296,7 @@ function Dashboard() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
             {/* Tab bar */}
-            <div style={{ display: 'flex', gap: '2px', padding: isMobile ? '6px 8px 0' : '8px 16px 0', background: C.surface, borderBottom: `1px solid ${C.border}`, flexShrink: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'] }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', padding: isMobile ? '6px 8px 0' : '8px 16px 0', background: C.surface, borderBottom: `1px solid ${C.border}`, flexShrink: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'] }}>
               {visibleTabs.map(tab => (
                 <button
                   key={tab.key}
@@ -320,6 +320,34 @@ function Dashboard() {
                   {tab.locked && <span style={{ marginLeft: '4px', fontSize: '10px' }}>🔒</span>}
                 </button>
               ))}
+              {/* Data-source pill — right-aligned in the tab bar */}
+              {activeTab === 'chain' && chainDataSource && (
+                <div style={{ marginLeft: 'auto', paddingBottom: '6px', flexShrink: 0 }}>
+                  {chainDataSource.unavailable ? (
+                    <span
+                      title="Options chain data is unavailable — yfinance returned no contracts. Try refreshing."
+                      style={{ display: 'inline-flex', alignItems: 'center', background: '#1c1917', border: '1px solid #57534e', borderRadius: '999px', padding: '2px 10px', fontSize: '11px', color: '#a8a29e', fontWeight: 600, cursor: 'default', userSelect: 'none' }}
+                    >
+                      Chain unavailable
+                    </span>
+                  ) : chainDataSource.synthetic ? (
+                    <span
+                      title="yfinance returned no data — all prices are theoretical Black-Scholes estimates. Verify in your broker before trading."
+                      style={{ display: 'inline-flex', alignItems: 'center', background: '#431407', border: '1px solid #c2410c', borderRadius: '999px', padding: '2px 10px', fontSize: '11px', color: '#fb923c', fontWeight: 600, cursor: 'default', userSelect: 'none' }}
+                    >
+                      ⚠ Synthetic · BS model
+                    </span>
+                  ) : (
+                    <span
+                      title="Quote from yfinance (refreshes every 30s). Options chain bid/ask delayed ~15 min. Some illiquid contracts show modelled prices (marked with ~ in the chain)."
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#052e16', border: '1px solid #166534', borderRadius: '999px', padding: '2px 10px', fontSize: '11px', color: '#4ade80', fontWeight: 600, cursor: 'default', userSelect: 'none' }}
+                    >
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
+                      yfinance · options ~15m delayed
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Tab content */}
