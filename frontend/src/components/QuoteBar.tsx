@@ -3,6 +3,7 @@ import { getQuote, Quote } from '../api/client'
 
 interface Props {
   symbol: string
+  dataSource?: { synthetic: boolean; estimatedPct: number } | null
 }
 
 function fmt(n: number, decimals = 2) {
@@ -77,7 +78,7 @@ const styles = {
   }),
 }
 
-export default function QuoteBar({ symbol }: Props) {
+export default function QuoteBar({ symbol, dataSource }: Props) {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [loading, setLoading] = useState(true)
   const intervalRef = useRef<number | null>(null)
@@ -126,6 +127,39 @@ export default function QuoteBar({ symbol }: Props) {
         <span style={styles.metaLabel}>Volume</span>
         <span style={styles.metaValue}>{fmtBig(quote.volume)}</span>
       </div>
+      {dataSource && (
+        dataSource.synthetic ? (
+          <span
+            title="yfinance returned no data — all prices are theoretical Black-Scholes estimates. Verify in your broker before trading."
+            style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: '#431407', border: '1px solid #c2410c', borderRadius: '999px',
+              padding: '3px 10px', fontSize: '11px', color: '#fb923c', fontWeight: 600,
+              cursor: 'default', userSelect: 'none' as const,
+            }}
+          >
+            ⚠ Synthetic · BS model
+          </span>
+        ) : (
+          <span
+            title={dataSource.estimatedPct > 0
+              ? `Data from yfinance (delayed ~15 min). ${dataSource.estimatedPct}% of contracts had no live quote — bid/ask modelled from last trade or Black-Scholes (shown with ~ in the chain).`
+              : 'Data from yfinance (delayed ~15 min). All bid/ask prices are live market quotes.'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              background: dataSource.estimatedPct > 50 ? '#1c1a07' : '#052e16',
+              border: `1px solid ${dataSource.estimatedPct > 50 ? '#a16207' : '#166534'}`,
+              borderRadius: '999px',
+              padding: '3px 10px', fontSize: '11px',
+              color: dataSource.estimatedPct > 50 ? '#fbbf24' : '#4ade80',
+              fontWeight: 600, cursor: 'default', userSelect: 'none' as const,
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', display: 'inline-block', flexShrink: 0 }} />
+            yfinance{dataSource.estimatedPct > 0 ? ` · ${dataSource.estimatedPct}% est.` : ' · live'}
+          </span>
+        )
+      )}
       {quote.marketCap > 0 && (
         <div style={styles.meta}>
           <span style={styles.metaLabel}>Mkt Cap</span>

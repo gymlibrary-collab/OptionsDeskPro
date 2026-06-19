@@ -3,6 +3,7 @@ import { getOptionsChain, OptionsChainResponse, OptionContract } from '../api/cl
 
 interface Props {
   symbol: string
+  onDataSource?: (info: { synthetic: boolean; estimatedPct: number }) => void
 }
 
 function fmt(n: number | undefined, d = 2) {
@@ -138,7 +139,7 @@ function ivColor(iv: number) {
 
 const REFRESH_INTERVAL_MS = 60_000
 
-export default function OptionsChain({ symbol }: Props) {
+export default function OptionsChain({ symbol, onDataSource }: Props) {
   const [data, setData] = useState<OptionsChainResponse | null>(null)
   const [selectedExpiry, setSelectedExpiry] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -161,6 +162,14 @@ export default function OptionsChain({ symbol }: Props) {
       setData(d)
       if (d.expiry && !expiry) setSelectedExpiry(d.expiry)
       setLastUpdated(new Date())
+      if (onDataSource) {
+        const all = [...d.calls, ...d.puts]
+        const estCount = all.filter(c => c.quote_source === 'estimated').length
+        onDataSource({
+          synthetic: d._synthetic === true,
+          estimatedPct: all.length > 0 ? Math.round(estCount / all.length * 100) : 0,
+        })
+      }
       setCountdown(REFRESH_INTERVAL_MS / 1000)
     } catch (e: any) {
       if (!silent) setError(e?.message || 'Failed to load options chain')
@@ -203,12 +212,6 @@ export default function OptionsChain({ symbol }: Props) {
   }
 
   const spotPrice = data.quote?.price || 0
-
-  // Data-source pill stats
-  const isSynthetic = data._synthetic === true
-  const allContracts = [...data.calls, ...data.puts]
-  const estimatedCount = allContracts.filter(c => c.quote_source === 'estimated').length
-  const estimatedPct = allContracts.length > 0 ? Math.round(estimatedCount / allContracts.length * 100) : 0
 
   // Build a merged strike list
   const callsByStrike = new Map<number, OptionContract>()
@@ -257,37 +260,6 @@ export default function OptionsChain({ symbol }: Props) {
         <span style={styles.label}>
           ATM: <strong style={{ color: '#7c6af7' }}>${fmt(atmStrike)}</strong>
         </span>
-        {/* Data-source pill */}
-        {isSynthetic ? (
-          <span
-            title="yfinance returned no data — prices are theoretical Black-Scholes estimates only. Verify in your broker before trading."
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px',
-              background: '#431407', border: '1px solid #c2410c', borderRadius: '999px',
-              padding: '2px 10px', fontSize: '11px', color: '#fb923c', fontWeight: 600,
-              cursor: 'default', userSelect: 'none',
-            }}
-          >
-            ⚠ Synthetic · BS model only
-          </span>
-        ) : (
-          <span
-            title={estimatedPct > 0
-              ? `Chain from yfinance (delayed ~15 min). ${estimatedPct}% of contracts had no live quote — those bid/ask prices are modelled (shown with ~).`
-              : 'Chain from yfinance (delayed ~15 min). All bid/ask prices are live market quotes.'}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px',
-              background: estimatedPct > 50 ? '#1c1a07' : '#052e16',
-              border: `1px solid ${estimatedPct > 50 ? '#a16207' : '#166534'}`,
-              borderRadius: '999px',
-              padding: '2px 10px', fontSize: '11px',
-              color: estimatedPct > 50 ? '#fbbf24' : '#4ade80',
-              fontWeight: 600, cursor: 'default', userSelect: 'none',
-            }}
-          >
-            {estimatedPct > 50 ? '~' : '●'} yfinance{estimatedPct > 0 ? ` · ${estimatedPct}% est.` : ' · live quotes'}
-          </span>
-        )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           {lastUpdated && (
             <span style={{ fontSize: '11px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>

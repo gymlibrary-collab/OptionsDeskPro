@@ -48,6 +48,7 @@ function Dashboard() {
   const [activeDesk, setActiveDesk] = useState<Desk>('options')
   const [symbol, setSymbol] = useState('SPY')
   const [inputSymbol, setInputSymbol] = useState('SPY')
+  const [chainDataSource, setChainDataSource] = useState<{ synthetic: boolean; estimatedPct: number } | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('chain')
   const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
   const [positionsRefresh, setPositionsRefresh] = useState(0)
@@ -90,7 +91,7 @@ function Dashboard() {
 
   const handleSearch = useCallback(() => {
     const s = inputSymbol.trim().toUpperCase()
-    if (s) setSymbol(s)
+    if (s) { setSymbol(s); setChainDataSource(null) }
   }, [inputSymbol])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -231,7 +232,7 @@ function Dashboard() {
                 <button onClick={signOut} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>Out</button>
               </div>
             </div>
-            {activeDesk === 'options' && <QuoteBar symbol={symbol} />}
+            {activeDesk === 'options' && <QuoteBar symbol={symbol} dataSource={activeTab === 'chain' ? chainDataSource : null} />}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -252,7 +253,7 @@ function Dashboard() {
                   />
                   <button onClick={handleSearch} style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 14px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Go</button>
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}><QuoteBar symbol={symbol} /></div>
+                <div style={{ flex: 1, overflow: 'hidden' }}><QuoteBar symbol={symbol} dataSource={activeTab === 'chain' ? chainDataSource : null} /></div>
               </>
             )}
 
@@ -324,7 +325,7 @@ function Dashboard() {
             {/* Tab content */}
             <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
               <div style={{ display: activeTab === 'chain' ? 'block' : 'none' }}>
-                <OptionsChain symbol={symbol} />
+                <OptionsChain symbol={symbol} onDataSource={setChainDataSource} />
               </div>
               <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>
                 {features?.positions === false ? (
