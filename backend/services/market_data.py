@@ -1,7 +1,5 @@
 import yfinance as yf
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import time
 import math
 from datetime import datetime
@@ -10,27 +8,42 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Yahoo Finance blocks bare cloud-server requests (no User-Agent).
-# A persistent session with a browser UA string avoids 401/empty responses
-# from Railway and similar hosted environments.
-def _make_session() -> requests.Session:
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-    })
-    adapter = HTTPAdapter(max_retries=Retry(total=3, backoff_factor=0.5,
-                                            status_forcelist=[429, 500, 502, 503, 504]))
-    s.mount("https://", adapter)
-    s.mount("http://", adapter)
-    return s
+# yfinance ≥ 0.2.x has its own internal session with cookie handling, rate-limit
+# backoff, and auth that is required for the options chain API to work reliably.
+# Passing a custom requests.Session() to yf.Ticker() bypasses all of that and
+# causes slow or empty responses on cloud hosts like Railway.
+# Instead, patch the User-Agent directly onto yfinance's shared session so Yahoo
+# does not reject the request as a non-browser client, without disturbing the
+# rest of yfinance's session management.
+try:
+    import yfinance.utils as _yf_utils
+    _shared = getattr(_yf_utils, "requests", None) or __import__("requests")
+    _shared.utils.default_headers()  # ensure headers object exists
+except Exception:
+    pass
 
-_yf_session: requests.Session = _make_session()
+try:
+    _UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+    # yfinance uses a requests.Session stored on the module; patch its UA header.
+    if hasattr(yf, "base") and hasattr(yf.base, "_requests"):
+        yf.base._requests.headers.update({"User-Agent": _UA})
+    # Fallback: patch via the requests package default headers (affects all sessions
+    # created after this point that don't override User-Agent).
+    import requests.utils as _ru
+    _orig_default_headers = _ru.default_headers
+
+    def _patched_headers():
+        h = _orig_default_headers()
+        h["User-Agent"] = _UA
+        return h
+
+    _ru.default_headers = _patched_headers
+except Exception as _ua_err:
+    logger.debug("UA patch skipped: %s", _ua_err)
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -88,7 +101,7 @@ def _cache_set(key: str, data: dict):
 
 def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         expirations = ticker.options
         if not expirations:
             logger.warning("yfinance chain: no expirations returned for %s (possible block or bad symbol)", symbol)
@@ -163,7 +176,7 @@ def get_quote(symbol: str) -> dict:
         return cached
 
     try:
-        ticker = yf.Ticker(symbol, session=_yf_session)
+        ticker = yf.Ticker(symbol)
         info = ticker.fast_info
         hist = ticker.history(period="2d")
 

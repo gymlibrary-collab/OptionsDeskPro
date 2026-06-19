@@ -150,6 +150,10 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL_MS / 1000)
   const expiryRef = React.useRef(selectedExpiry)
+  // Track whether the initial fetch has ever returned data for this symbol.
+  // On first-load failure we silently retry once before surfacing "Chain unavailable",
+  // avoiding a jarring red pill that self-resolves within seconds.
+  const initialAttemptRef = React.useRef(true)
 
   useEffect(() => { expiryRef.current = selectedExpiry }, [selectedExpiry])
 
@@ -165,11 +169,17 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
       if (onDataSource) {
         const all = [...d.calls, ...d.puts]
         if (all.length > 0) {
+          initialAttemptRef.current = false
           const estCount = all.filter(c => c.quote_source === 'estimated').length
           onDataSource({
             synthetic: d._synthetic === true,
             estimatedPct: Math.round(estCount / all.length * 100),
           })
+        } else if (initialAttemptRef.current) {
+          // First attempt returned empty — retry silently after 4s before
+          // showing "Chain unavailable", giving yfinance a second chance.
+          initialAttemptRef.current = false
+          setTimeout(() => fetchChain(expiry, true), 4000)
         } else {
           onDataSource({ synthetic: false, estimatedPct: 0, unavailable: true })
         }
@@ -177,7 +187,12 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
       setCountdown(REFRESH_INTERVAL_MS / 1000)
     } catch (e: any) {
       if (!silent) setError(e?.message || 'Failed to load options chain')
-      if (onDataSource) onDataSource({ synthetic: false, estimatedPct: 0, unavailable: true })
+      if (onDataSource && !initialAttemptRef.current) {
+        onDataSource({ synthetic: false, estimatedPct: 0, unavailable: true })
+      } else if (initialAttemptRef.current) {
+        initialAttemptRef.current = false
+        setTimeout(() => fetchChain(expiry, true), 4000)
+      }
     } finally {
       if (silent) setRefreshing(false)
       else setLoading(false)
@@ -187,6 +202,7 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
   useEffect(() => {
     setData(null)
     setSelectedExpiry('')
+    initialAttemptRef.current = true
     fetchChain()
   }, [symbol])
 
