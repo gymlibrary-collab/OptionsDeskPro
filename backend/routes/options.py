@@ -190,6 +190,7 @@ async def _get_chain_inner(
         "expirations": chain["expirations"],
         "calls": calls,
         "puts": puts,
+        "_synthetic": bool(chain.get("_synthetic", False)),
     }
 
 

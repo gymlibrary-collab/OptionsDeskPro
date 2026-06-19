@@ -72,6 +72,7 @@ export interface OptionsChainResponse {
   expirations: string[]
   calls: OptionContract[]
   puts: OptionContract[]
+  _synthetic?: boolean
 }
 
 export interface OrderRequest {
