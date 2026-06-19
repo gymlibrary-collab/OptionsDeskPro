@@ -310,7 +310,7 @@ export default function LoginPage() {
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px', position: 'relative', zIndex: 1 }}>
           <span style={{ fontSize: '26px', color: '#7c6af7', filter: 'drop-shadow(0 0 8px rgba(124,106,247,0.5))' }}>⬡</span>
-          <span style={{ fontSize: '36px', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.4px' }}>
+          <span style={{ fontSize: '36px', fontWeight: 700, color: '#e2e8f0', letterSpacing: '-0.4px' }}>
             Options<span style={{ color: '#7c6af7' }}>Compass</span>
           </span>
           <div style={{
@@ -325,7 +325,7 @@ export default function LoginPage() {
         </div>
 
         {/* Headline */}
-        <h1 style={{ fontSize: '24px', fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
+        <h1 className="lp-headline" style={{ fontSize: '22px', fontWeight: 600, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
           <span style={{
             background: 'linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%)',
             WebkitBackgroundClip: 'text',
@@ -336,11 +336,11 @@ export default function LoginPage() {
         </h1>
 
         {/* Sub-header */}
-        <h2 style={{ fontSize: '24px', fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1, color: '#a78bfa', whiteSpace: 'nowrap' }}>
+        <h2 className="lp-subhead" style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1, color: '#94a3b8', whiteSpace: 'nowrap' }}>
           Options strategy intelligence, built for serious learners.
         </h2>
 
-        <p style={{ fontSize: '15px', color: '#e2e8f0', lineHeight: 1.65, maxWidth: '420px', marginBottom: '36px', position: 'relative', zIndex: 1 }}>
+        <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.65, maxWidth: '420px', marginBottom: '36px', position: 'relative', zIndex: 1 }}>
           Continuously refreshed market data powering a full strategy suite — so you always know which trade fits today's market, before you commit real capital.
         </p>
 
@@ -360,8 +360,8 @@ export default function LoginPage() {
                 {f.icon}
               </div>
               <div>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: '#cbd5e1', marginBottom: '2px' }}>{f.title}</div>
-                <div style={{ fontSize: '15px', color: '#e2e8f0', lineHeight: 1.5 }}>{f.desc}</div>
+                <div style={{ fontSize: '16px', fontWeight: 500, color: '#cbd5e1', marginBottom: '2px' }}>{f.title}</div>
+                <div className="lp-feature-desc" style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5 }}>{f.desc}</div>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '4px',
                   padding: '2px 8px', borderRadius: '10px',
@@ -377,14 +377,14 @@ export default function LoginPage() {
 
         {/* Ticker strip */}
         <div style={{ position: 'relative', zIndex: 1, marginTop: '28px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-          <div style={{ fontSize: '10px', color: '#4a5568', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
+          <div style={{ fontSize: '10px', color: '#4a5568', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
             Market snapshot · refreshed throughout session
           </div>
           <div style={{ display: 'flex', gap: '24px', overflow: 'hidden' }}>
             {TICKERS.map(t => (
               <div key={t.sym} style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
-                <div style={{ fontSize: '10px', color: '#4b5563', fontWeight: 700, letterSpacing: '0.06em' }}>{t.sym}</div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>{t.price}</div>
+                <div style={{ fontSize: '10px', color: '#4b5563', fontWeight: 600, letterSpacing: '0.06em' }}>{t.sym}</div>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: '#94a3b8', fontFamily: 'monospace' }}>{t.price}</div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: t.up ? '#22c55e' : '#ef4444' }}>{t.chg}</div>
               </div>
             ))}
@@ -568,6 +568,9 @@ export default function LoginPage() {
           50% { opacity: 0.5; transform: scale(0.8); }
         }
 
+        /* ── Typography utility classes ── */
+        .lp-headline { font-size: 22px; }
+
         /* ── Mobile hero: hidden by default (desktop) ── */
         .lp-mobile-hero {
           display: none;
@@ -699,6 +702,8 @@ export default function LoginPage() {
           .lp-trust-item {
             font-size: 9px !important;
           }
+
+          .lp-feature-desc { display: none !important; }
         }
 
         /* ── Mobile landscape ── */
@@ -717,6 +722,10 @@ export default function LoginPage() {
             min-width: 260px !important;
             padding: 14px 18px !important;
           }
+
+          .lp-headline { font-size: 14px !important; }
+          .lp-subhead { display: none !important; }
+          .lp-feature-desc { display: none !important; }
         }
 
         /* ── Tablet ── */
@@ -727,7 +736,7 @@ export default function LoginPage() {
 
           .login-left-panel {
             display: flex !important;
-            padding: 32px 36px !important;
+            padding: 28px 32px !important;
           }
 
           .lp-right {
@@ -735,6 +744,10 @@ export default function LoginPage() {
             min-width: 300px !important;
             padding: 32px 28px !important;
           }
+
+          .lp-headline { font-size: 17px !important; }
+          .lp-subhead { display: none !important; }
+          .lp-feature-desc { display: none !important; }
         }
       `}</style>
     </div>
