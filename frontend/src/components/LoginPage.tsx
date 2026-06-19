@@ -325,7 +325,7 @@ export default function LoginPage() {
         </div>
 
         {/* Headline */}
-        <h1 className="lp-headline" style={{ fontSize: '22px', fontWeight: 600, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
+        <h1 className="lp-headline" style={{ fontSize: '19px', fontWeight: 600, lineHeight: 1.4, letterSpacing: '-0.4px', marginBottom: '10px', position: 'relative', zIndex: 1 }}>
           <span style={{
             background: 'linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%)',
             WebkitBackgroundClip: 'text',
@@ -336,11 +336,7 @@ export default function LoginPage() {
         </h1>
 
         {/* Sub-header */}
-        <h2 className="lp-subhead" style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.3, letterSpacing: '-0.8px', marginBottom: '16px', position: 'relative', zIndex: 1, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-          Options strategy intelligence, built for serious learners.
-        </h2>
-
-        <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.65, maxWidth: '420px', marginBottom: '36px', position: 'relative', zIndex: 1 }}>
+        <p className="lp-subhead" style={{ fontSize: '13px', fontWeight: 400, lineHeight: 1.6, marginBottom: '28px', position: 'relative', zIndex: 1, color: '#64748b' }}>
           Continuously refreshed market data powering a full strategy suite — so you always know which trade fits today's market, before you commit real capital.
         </p>
 
@@ -348,24 +344,23 @@ export default function LoginPage() {
         <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
           {FEATURES.map((f, i) => (
             <div key={i} style={{
-              display: 'flex', alignItems: 'flex-start', gap: '14px',
-              padding: '14px 0',
+              display: 'flex', alignItems: 'center', gap: '12px',
+              padding: '10px 0',
               borderBottom: i < FEATURES.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
             }}>
               <div style={{
-                width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px',
+                width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px',
                 background: f.iconBg, border: `1px solid ${f.iconBorder}`,
               }}>
                 {f.icon}
               </div>
-              <div>
-                <div style={{ fontSize: '16px', fontWeight: 500, color: '#cbd5e1', marginBottom: '2px' }}>{f.title}</div>
-                <div className="lp-feature-desc" style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5 }}>{f.desc}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.title}</div>
                 <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '4px',
-                  padding: '2px 8px', borderRadius: '10px',
-                  fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em',
+                  display: 'inline-flex', alignItems: 'center', gap: '3px', flexShrink: 0,
+                  padding: '2px 7px', borderRadius: '10px',
+                  fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
                 }}>
                   {f.tag}
@@ -376,7 +371,7 @@ export default function LoginPage() {
         </div>
 
         {/* Ticker strip */}
-        <div style={{ position: 'relative', zIndex: 1, marginTop: '28px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
           <div style={{ fontSize: '10px', color: '#4a5568', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
             Market snapshot · refreshed throughout session
           </div>
