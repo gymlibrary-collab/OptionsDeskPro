@@ -329,7 +329,7 @@ STRATEGIES = {
     },
     "put_broken_wing_butterfly": {
         "name": "Put Broken Wing Butterfly",
-        "direction": ["NEUTRAL", "NEUTRAL_BULLISH", "OMNIDIRECTIONAL"],
+        "direction": ["OMNIDIRECTIONAL"],
         "iv_environment": ["HIGH"],
         "risk_type": "DEFINED",
         "complexity": 3,
@@ -348,7 +348,7 @@ STRATEGIES = {
     },
     "call_broken_wing_butterfly": {
         "name": "Call Broken Wing Butterfly",
-        "direction": ["NEUTRAL", "NEUTRAL_BEARISH", "OMNIDIRECTIONAL"],
+        "direction": ["OMNIDIRECTIONAL"],
         "iv_environment": ["HIGH"],
         "risk_type": "DEFINED",
         "complexity": 3,

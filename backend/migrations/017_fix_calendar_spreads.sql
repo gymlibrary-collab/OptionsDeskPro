@@ -1,11 +1,12 @@
--- Fix call_calendar and put_calendar to match tastylive Options Strategy Guide 2023 (PDF).
+-- Fix catalog to match tastylive Options Strategy Guide 2023 (PDF) strictly.
 --
--- Corrections:
---   call_calendar: direction BULLISH (was NEUTRAL_BULLISH), iv_environment LOW only (was LOW+MEDIUM)
---   put_calendar:  direction BEARISH (was NEUTRAL_BEARISH), iv_environment LOW only (was LOW+MEDIUM)
---   Both: dte_min/dte_max corrected to 45 (was 30/45 → now 45/45)
+-- Corrections applied:
+--   call_calendar:           direction BULLISH (was NEUTRAL_BULLISH), iv_environment LOW only (was LOW+MEDIUM), dte 45
+--   put_calendar:            direction BEARISH (was NEUTRAL_BEARISH), iv_environment LOW only (was LOW+MEDIUM), dte 45
+--   put_broken_wing_butterfly:  direction OMNIDIRECTIONAL only (removed NEUTRAL, NEUTRAL_BULLISH expansion)
+--   call_broken_wing_butterfly: direction OMNIDIRECTIONAL only (removed NEUTRAL, NEUTRAL_BEARISH expansion)
 --
--- Source of truth: tastylive Options Strategy Guide 2023, pages 9 (Call Calendar) and 16 (Put Calendar).
+-- Source of truth: tastylive Options Strategy Guide 2023, pages 9, 16, 21, 22.
 
 UPDATE public.strategy_catalog
 SET
@@ -24,3 +25,9 @@ SET
   dte_max        = 45,
   updated_at     = now()
 WHERE slug = 'put_calendar';
+
+UPDATE public.strategy_catalog
+SET
+  direction  = array['OMNIDIRECTIONAL'],
+  updated_at = now()
+WHERE slug IN ('put_broken_wing_butterfly', 'call_broken_wing_butterfly');
