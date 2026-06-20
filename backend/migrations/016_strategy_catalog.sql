@@ -45,7 +45,7 @@ insert into strategy_catalog (slug, name, category, direction, iv_environment, d
 ('long_call_vertical',    'Long Call Vertical Spread',      'bullish',          array['BULLISH'],                                                   array['LOW','MEDIUM','HIGH'], 45,   45,   40, 60, 'debit_spread',          1),
 ('call_zebra',            'Call ZEBRA',                     'bullish',          array['BULLISH'],                                                   array['LOW','MEDIUM','HIGH'], null, null, 50, 50, 'long_debit',            2),
 ('poor_mans_covered_call','Poor Man''s Covered Call',       'bullish',          array['BULLISH'],                                                   array['LOW'],                45,   60,   50, 60, 'diagonal',              2),
-('call_calendar',         'Call Calendar Spread',           'bullish',          array['NEUTRAL_BULLISH'],                                           array['LOW','MEDIUM'],       45,   45,   null, null, 'calendar',           2),
+('call_calendar',         'Call Calendar Spread',           'bullish',          array['BULLISH'],                                                   array['LOW'],                45,   45,   null, null, 'calendar',           2),
 ('call_butterfly',        'Call Butterfly',                 'bullish',          array['BULLISH'],                                                   array['LOW','MEDIUM','HIGH'], 15,   45,   20, 40, 'butterfly',             3),
 ('big_lizard',            'Big Lizard',                     'bullish',          array['BULLISH'],                                                   array['HIGH'],               45,   45,   60, 80, 'naked_with_spread',     3)
 on conflict (slug) do update set
@@ -67,7 +67,7 @@ insert into strategy_catalog (slug, name, category, direction, iv_environment, d
 ('long_put_vertical',     'Long Put Vertical Spread',       'bearish',          array['BEARISH'],                                                   array['LOW','MEDIUM','HIGH'], 45,   45,   50, 60, 'debit_spread',          1),
 ('put_zebra',             'Put ZEBRA',                      'bearish',          array['BEARISH'],                                                   array['LOW','MEDIUM','HIGH'], null, null, 50, 50, 'long_debit',            2),
 ('poor_mans_covered_put', 'Poor Man''s Covered Put',        'bearish',          array['BEARISH'],                                                   array['LOW'],                45,   60,   50, 60, 'diagonal',              2),
-('put_calendar',          'Put Calendar Spread',            'bearish',          array['NEUTRAL_BEARISH'],                                           array['LOW','MEDIUM'],       45,   45,   null, null, 'calendar',           2),
+('put_calendar',          'Put Calendar Spread',            'bearish',          array['BEARISH'],                                                   array['LOW'],                45,   45,   null, null, 'calendar',           2),
 ('put_butterfly',         'Put Butterfly',                  'bearish',          array['BEARISH'],                                                   array['LOW','MEDIUM','HIGH'], 15,   45,   20, 40, 'butterfly',             3),
 ('reverse_big_lizard',    'Reverse Big Lizard',             'bearish',          array['BEARISH'],                                                   array['HIGH'],               45,   45,   60, 80, 'naked_with_spread',     3)
 on conflict (slug) do update set
