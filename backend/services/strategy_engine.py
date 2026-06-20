@@ -1242,7 +1242,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             }
             legs.append(back_leg)
 
-    elif strategy_key == "put_ratio_spread":
+    elif strategy_key == "put_front_ratio":
         long_put = make_leg("Long Put (OTM)", "put", -0.40, "buy")
         short1 = make_leg("Short Put (Further OTM) 1", "put", -0.20, "sell")
         if long_put:
@@ -1250,25 +1250,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         if short1:
             legs.append(short1)
             legs.append({**short1, "role": "Short Put (Further OTM) 2"})
-
-    elif strategy_key == "collar":
-        short_call = make_leg("Short Call (OTM)", "call", 0.30, "sell")
-        long_put = make_leg("Long Put (OTM)", "put", -0.30, "buy")
-        if short_call:
-            legs.append(short_call)
-        if long_put:
-            legs.append(long_put)
-        legs.append({
-            "role": "Long Stock",
-            "option_type": "stock",
-            "strike": spot_price,
-            "delta": 1.0,
-            "bid": spot_price,
-            "ask": spot_price,
-            "mid": spot_price,
-            "action": "buy",
-            "signed_mid": -spot_price,
-        })
 
     elif strategy_key == "short_naked_call":
         leg = make_leg("Short Call (OTM)", "call", 0.30, "sell")
@@ -1319,7 +1300,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             }
             legs.append(back_leg)
 
-    elif strategy_key == "call_ratio_spread":
+    elif strategy_key == "call_front_ratio":
         long_call = make_leg("Long Call (OTM)", "call", 0.40, "buy")
         short1 = make_leg("Short Call (Further OTM) 1", "call", 0.20, "sell")
         if long_call:
@@ -1348,17 +1329,79 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         if short_call1:
             legs.append({**short_call1, "role": "Short Call (OTM) 2"})
 
-    elif strategy_key == "long_strangle":
-        long_call = make_leg("Long Call (OTM)", "call", 0.30, "buy")
-        long_put = make_leg("Long Put (OTM)", "put", -0.30, "buy")
-        for l in [long_call, long_put]:
+    elif strategy_key == "covered_put":
+        leg = make_leg("Short Put (ATM/OTM)", "put", -0.30, "sell")
+        if leg:
+            legs.append(leg)
+        legs.append({
+            "role": "Short Stock",
+            "option_type": "stock",
+            "strike": spot_price,
+            "delta": -1.0,
+            "bid": spot_price,
+            "ask": spot_price,
+            "mid": spot_price,
+            "action": "sell",
+            "signed_mid": spot_price,
+        })
+
+    elif strategy_key == "call_zebra":
+        long1 = make_leg("Long Call (ITM) 1", "call", 0.70, "buy")
+        short_atm = make_leg("Short Call (ATM)", "call", 0.50, "sell")
+        if long1:
+            legs.append(long1)
+            legs.append({**long1, "role": "Long Call (ITM) 2"})
+        if short_atm:
+            legs.append(short_atm)
+
+    elif strategy_key == "put_zebra":
+        long1 = make_leg("Long Put (ITM) 1", "put", -0.70, "buy")
+        short_atm = make_leg("Short Put (ATM)", "put", -0.50, "sell")
+        if long1:
+            legs.append(long1)
+            legs.append({**long1, "role": "Long Put (ITM) 2"})
+        if short_atm:
+            legs.append(short_atm)
+
+    elif strategy_key == "poor_mans_covered_put":
+        long_leg = make_leg("Long Put (LEAPS ITM)", "put", -0.70, "buy")
+        short_leg = make_leg("Short Put (OTM front)", "put", -0.30, "sell")
+        back_expiry_pmcp = next(
+            (e for e in sorted(expirations)
+             if e > expiry and (date.fromisoformat(e) - date.fromisoformat(expiry)).days >= 45),
+            expirations[-1] if expirations else expiry
+        )
+        if long_leg:
+            long_leg["expiry"] = back_expiry_pmcp
+            legs.append(long_leg)
+        if short_leg:
+            short_leg["expiry"] = expiry
+            legs.append(short_leg)
+
+    elif strategy_key == "dynamic_width_iron_condor":
+        short_put = make_leg("Short Put", "put", -0.16, "sell")
+        long_put = make_leg("Long Put (wide wing)", "put", -0.05, "buy")
+        short_call = make_leg("Short Call", "call", 0.16, "sell")
+        long_call = make_leg("Long Call (wing)", "call", 0.08, "buy")
+        for l in [short_put, long_put, short_call, long_call]:
             if l:
                 legs.append(l)
 
-    elif strategy_key == "long_straddle":
-        long_call = make_leg("Long Call (ATM)", "call", 0.50, "buy")
-        long_put = make_leg("Long Put (ATM)", "put", -0.50, "buy")
-        for l in [long_call, long_put]:
+    elif strategy_key == "call_broken_heart_butterfly":
+        long_call_n = make_leg("Long Call (near OTM)", "call", 0.40, "buy")
+        short_call_n = make_leg("Short Call (OTM)", "call", 0.30, "sell")
+        short_call_w = make_leg("Short Call (further OTM)", "call", 0.20, "sell")
+        long_call_w = make_leg("Long Call (wide wing)", "call", 0.10, "buy")
+        for l in [long_call_n, short_call_n, short_call_w, long_call_w]:
+            if l:
+                legs.append(l)
+
+    elif strategy_key == "put_broken_heart_butterfly":
+        long_put_n = make_leg("Long Put (near OTM)", "put", -0.40, "buy")
+        short_put_n = make_leg("Short Put (OTM)", "put", -0.30, "sell")
+        short_put_w = make_leg("Short Put (further OTM)", "put", -0.20, "sell")
+        long_put_w = make_leg("Long Put (wide wing)", "put", -0.10, "buy")
+        for l in [long_put_n, short_put_n, short_put_w, long_put_w]:
             if l:
                 legs.append(l)
 
@@ -1387,7 +1430,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     if strat["risk_type"] == "DEFINED":
         # Width of spread as proxy for max loss
         if short_strikes and long_strikes:
-            if strategy_key in ("iron_condor", "iron_fly"):
+            if strategy_key in ("iron_condor", "dynamic_width_iron_condor", "iron_fly"):
                 # Max loss = wider individual spread width minus total credit.
                 # Using the total outer-strike span would overstate max_loss by ~6×.
                 put_strikes_all = [l["strike"] for l in legs if l["option_type"] == "put"]
@@ -1402,6 +1445,8 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
                 "put_butterfly",
                 "call_broken_wing_butterfly",
                 "put_broken_wing_butterfly",
+                "call_broken_heart_butterfly",
+                "put_broken_heart_butterfly",
             ):
                 # For butterflies the body strike is the short strike(s).
                 # Max profit zone is the INNER span (body to nearest wing),
@@ -1444,7 +1489,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         breakeven_low = round(min(short_strikes) - abs(net), 2)
     elif strategy_key in ("short_naked_call",) and short_strikes:
         breakeven_high = round(max(short_strikes) + abs(net), 2)
-    elif strategy_key in ("short_strangle", "short_straddle", "iron_condor", "iron_fly") and short_strikes:
+    elif strategy_key in ("short_strangle", "short_straddle", "iron_condor", "dynamic_width_iron_condor", "iron_fly") and short_strikes:
         low_strike = min(short_strikes)
         high_strike = max(short_strikes)
         breakeven_low = round(low_strike - abs(net), 2)
