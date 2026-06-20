@@ -6,6 +6,7 @@ import { useEntitlements } from '../context/EntitlementsContext'
 
 interface Props {
   onSelectTrade?: (symbol: string, trade: TradeStructure) => void
+  onMethodologyClick?: () => void
 }
 
 const LS_KEY = 'optionsdesk_watchlist'
@@ -217,7 +218,7 @@ function WatchlistEditor({
   )
 }
 
-export default function StrategyScanner({ onSelectTrade }: Props) {
+export default function StrategyScanner({ onSelectTrade, onMethodologyClick }: Props) {
   const { entitlements } = useEntitlements()
   const briefingUnlocked = entitlements?.features?.morning_briefing ?? false
   const [symbols, setSymbols] = useState<string[]>(() => {
@@ -334,6 +335,17 @@ export default function StrategyScanner({ onSelectTrade }: Props) {
             Watchlist
           </span>
           {watchlistState && <TierBadge tier={tier} />}
+          <button
+            onClick={() => onMethodologyClick?.()}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              color: '#7c6af7', fontSize: '11px', fontWeight: 600,
+              cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px',
+              whiteSpace: 'nowrap' as const,
+            }}
+          >
+            Learn how strategies are selected →
+          </button>
           <div style={{ display: 'flex', gap: '16px', marginLeft: 'auto', flexWrap: 'wrap' }}>
             {watchlistState && (
               <>

@@ -1,16 +1,26 @@
 """
 Strategy engine for OptionsDesk.
-Provides a 31-strategy catalog with textbook-defined condition metadata,
-a comparison matrix builder, and strike selection from the live options chain.
+
+SOURCE OF TRUTH: backend/migrations/016_strategy_catalog.sql and
+docs/strategy-selection-spec.md (tastylive Options Strategy Guide 2023).
+
+The STRATEGIES dict below MIRRORS the strategy_catalog DB table.
+Any change to direction, iv_environment, complexity, dte_target, or pop_range
+MUST be accompanied by a migration that updates strategy_catalog FIRST.
+
+Selection algorithm: IV Environment (HIGH/MEDIUM/LOW) + Directional Bias
+scored via score_and_rank(). DTE, POP, P&L are outputs attached post-selection.
 """
 import logging
 from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-# Full strategy catalog — 31 strategies
+# ── Strategy catalog — 31 strategies ────────────────────────────────────────
+# Mirrors strategy_catalog DB table (migration 016). To change any selection
+# attribute (direction, iv_environment, complexity) open a migration FIRST.
 STRATEGIES = {
-    # ── Bullish ────────────────────────────────────────────────────
+    # ── Bullish ────────────────────────────────────────────────────────────
     "covered_call": {
         "name": "Covered Call",
         "direction": ["BULLISH"],
@@ -49,6 +59,25 @@ STRATEGIES = {
             "because the debit paid is capped; lower IV reduces cost basis."
         ),
     },
+    "call_zebra": {
+        "name": "Call ZEBRA",
+        "direction": ["BULLISH"],
+        "iv_environment": ["LOW", "MEDIUM", "HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 45,
+        "pop_range": (50, 50),
+        "profit_target_pct": 50,
+        "description": "Buy 2 ITM calls + sell 1 ATM call. Zero extrinsic value back-ratio with 100-delta upside exposure and defined risk.",
+        "legs": ["long_2_calls_itm", "short_call_atm"],
+        "delta_targets": {"long_call": 70, "short_call": 50},
+        "designed_for_iv": "any",
+        "designed_for_direction": "bullish",
+        "condition_explanation": (
+            "The Call ZEBRA (Zero Extrinsic value BacK RAtio) removes all extrinsic cost by "
+            "buying two deep ITM calls and selling one ATM call, replicating 100 long shares with defined downside risk."
+        ),
+    },
     "poor_mans_covered_call": {
         "name": "Poor Man's Covered Call",
         "direction": ["BULLISH"],
@@ -66,6 +95,25 @@ STRATEGIES = {
         "condition_explanation": (
             "The Poor Man's Covered Call uses a long LEAPS call as a stock substitute; "
             "low IV makes the back-month long call cheaper to purchase, reducing capital outlay."
+        ),
+    },
+    "call_calendar": {
+        "name": "Call Calendar Spread",
+        "direction": ["NEUTRAL_BULLISH"],
+        "iv_environment": ["LOW", "MEDIUM"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 30,
+        "pop_range": (50, 60),
+        "profit_target_pct": 25,
+        "description": "Sell near-term ATM call + buy back-month ATM call at same strike. Profits from time decay differential.",
+        "legs": ["short_call_front", "long_call_back"],
+        "delta_targets": {"short_call": 0.50, "long_call": 0.50},
+        "designed_for_iv": "low",
+        "designed_for_direction": "bullish",
+        "condition_explanation": (
+            "Call calendar spreads profit from the front-month call decaying faster than the back-month call; "
+            "low IV keeps the back-month long call affordable and the structure net debit small."
         ),
     },
     "call_butterfly": {
@@ -106,45 +154,26 @@ STRATEGIES = {
             "allow the collected credit to exceed the call spread width, eliminating upside risk."
         ),
     },
-    "long_call": {
-        "name": "Long Call",
-        "direction": ["BULLISH"],
-        "iv_environment": ["LOW"],
-        "risk_type": "DEFINED",
+    # ── Bearish ────────────────────────────────────────────────────────────
+    "covered_put": {
+        "name": "Covered Put",
+        "direction": ["BEARISH"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "UNDEFINED",
         "complexity": 1,
         "dte_target": 45,
-        "pop_range": (40, 60),
-        "profit_target_pct": 100,
-        "description": "Buy ATM call outright. Simple bullish directional bet with defined risk in low IV.",
-        "legs": ["long_call_atm"],
-        "delta_targets": {"long_call": 0.50},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bullish",
-        "condition_explanation": (
-            "Long calls are designed for low IV environments where option premiums are cheap; "
-            "high IV inflates the debit paid and requires a larger move to profit."
-        ),
-    },
-    "call_diagonal": {
-        "name": "Call Diagonal Spread",
-        "direction": ["BULLISH"],
-        "iv_environment": ["LOW", "MEDIUM"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 30,
-        "pop_range": (50, 65),
+        "pop_range": (50, 70),
         "profit_target_pct": 50,
-        "description": "Sell near-term OTM call + buy back-month ITM call. Diagonal bullish spread that benefits from time decay.",
-        "legs": ["short_call_otm_front", "long_call_itm_back"],
-        "delta_targets": {"short_call": 0.30, "long_call": 0.70},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bullish",
+        "description": "Sell ATM/OTM put against 100 short shares to reduce cost basis.",
+        "legs": ["short_stock", "short_put_otm"],
+        "delta_targets": {"short_put": -30},
+        "designed_for_iv": "high",
+        "designed_for_direction": "bearish",
         "condition_explanation": (
-            "Call diagonal spreads profit from time decay of the short front-month leg; "
-            "low to medium IV keeps the back-month long call affordable while the short leg decays."
+            "Covered puts collect elevated premium when implied volatility is high "
+            "and expire worthless when the underlying stays flat or falls modestly."
         ),
     },
-    # ── Bearish ─────────────────────────────────────────────────────
     "long_put_vertical": {
         "name": "Long Put Vertical Spread",
         "direction": ["BEARISH"],
@@ -162,6 +191,63 @@ STRATEGIES = {
         "condition_explanation": (
             "Long put verticals are defined-risk bearish spreads that cap both the maximum loss "
             "and the cost of entry, making them applicable across IV environments."
+        ),
+    },
+    "put_zebra": {
+        "name": "Put ZEBRA",
+        "direction": ["BEARISH"],
+        "iv_environment": ["LOW", "MEDIUM", "HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 45,
+        "pop_range": (50, 50),
+        "profit_target_pct": 50,
+        "description": "Buy 2 ITM puts + sell 1 ATM put. Zero extrinsic value back-ratio with 100-delta downside exposure and defined risk.",
+        "legs": ["long_2_puts_itm", "short_put_atm"],
+        "delta_targets": {"long_put": -70, "short_put": -50},
+        "designed_for_iv": "any",
+        "designed_for_direction": "bearish",
+        "condition_explanation": (
+            "The Put ZEBRA removes all extrinsic cost by buying two deep ITM puts and selling one "
+            "ATM put, replicating 100 short shares with defined upside risk."
+        ),
+    },
+    "poor_mans_covered_put": {
+        "name": "Poor Man's Covered Put",
+        "direction": ["BEARISH"],
+        "iv_environment": ["LOW"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 45,
+        "pop_range": (50, 60),
+        "profit_target_pct": 50,
+        "description": "Buy long-term ITM put + sell near-term OTM put. Low IV synthetic covered put.",
+        "legs": ["long_put_itm_back", "short_put_otm_front"],
+        "delta_targets": {"long_put": -70, "short_put": -30},
+        "designed_for_iv": "low",
+        "designed_for_direction": "bearish",
+        "condition_explanation": (
+            "The Poor Man's Covered Put uses a long LEAPS put as a short-stock substitute; "
+            "low IV makes the back-month long put cheaper to purchase, reducing capital outlay."
+        ),
+    },
+    "put_calendar": {
+        "name": "Put Calendar Spread",
+        "direction": ["NEUTRAL_BEARISH"],
+        "iv_environment": ["LOW", "MEDIUM"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 30,
+        "pop_range": (50, 60),
+        "profit_target_pct": 25,
+        "description": "Sell near-term ATM put + buy back-month ATM put at same strike. Profits from time decay differential.",
+        "legs": ["short_put_front", "long_put_back"],
+        "delta_targets": {"short_put": -0.50, "long_put": -0.50},
+        "designed_for_iv": "low",
+        "designed_for_direction": "bearish",
+        "condition_explanation": (
+            "Put calendar spreads profit from the front-month put decaying faster than the back-month put; "
+            "low IV keeps the back-month long put affordable and the structure net debit small."
         ),
     },
     "put_butterfly": {
@@ -202,45 +288,122 @@ STRATEGIES = {
             "allow the collected credit to exceed the put spread width, eliminating downside risk."
         ),
     },
-    "long_put": {
-        "name": "Long Put",
-        "direction": ["BEARISH"],
-        "iv_environment": ["LOW"],
-        "risk_type": "DEFINED",
-        "complexity": 1,
-        "dte_target": 45,
-        "pop_range": (40, 60),
-        "profit_target_pct": 100,
-        "description": "Buy ATM put outright. Simple bearish directional bet with defined risk in low IV.",
-        "legs": ["long_put_atm"],
-        "delta_targets": {"long_put": -0.50},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bearish",
-        "condition_explanation": (
-            "Long puts are designed for low IV environments where option premiums are inexpensive; "
-            "elevated IV inflates the debit paid and requires a larger downward move to profit."
-        ),
-    },
-    "put_diagonal": {
-        "name": "Put Diagonal Spread",
-        "direction": ["BEARISH"],
-        "iv_environment": ["LOW", "MEDIUM"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
+    # ── Omnidirectional ────────────────────────────────────────────────────
+    "put_front_ratio": {
+        "name": "Put Front-Ratio Spread",
+        "direction": ["OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "UNDEFINED",
+        "complexity": 3,
         "dte_target": 30,
-        "pop_range": (50, 65),
+        "pop_range": (60, 80),
         "profit_target_pct": 50,
-        "description": "Sell near-term OTM put + buy back-month ITM put. Diagonal bearish spread that benefits from time decay.",
-        "legs": ["short_put_otm_front", "long_put_itm_back"],
-        "delta_targets": {"short_put": -0.30, "long_put": -0.70},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bearish",
+        "description": "Buy 1 OTM put + sell 2 further OTM puts. Profits from IV contraction; net credit in high IV.",
+        "legs": ["long_put_otm", "short_2_puts_further_otm"],
+        "delta_targets": {"long_put": -0.40, "short_put": -0.20},
+        "designed_for_iv": "high",
+        "designed_for_direction": "any",
         "condition_explanation": (
-            "Put diagonal spreads profit from time decay of the short front-month leg; "
-            "low to medium IV keeps the back-month long put affordable while the short leg decays."
+            "Put front-ratio spreads sell more puts than bought; high IV produces a net credit "
+            "and the strategy profits when the underlying stays above the short put strikes."
         ),
     },
-    # ── Neutral ─────────────────────────────────────────────────────
+    "call_front_ratio": {
+        "name": "Call Front-Ratio Spread",
+        "direction": ["OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "UNDEFINED",
+        "complexity": 3,
+        "dte_target": 30,
+        "pop_range": (60, 80),
+        "profit_target_pct": 50,
+        "description": "Buy 1 OTM call + sell 2 further OTM calls. Profits from IV contraction; net credit in high IV.",
+        "legs": ["long_call_otm", "short_2_calls_further_otm"],
+        "delta_targets": {"long_call": 0.40, "short_call": 0.20},
+        "designed_for_iv": "high",
+        "designed_for_direction": "any",
+        "condition_explanation": (
+            "Call front-ratio spreads sell more calls than bought; high IV produces a net credit "
+            "and the strategy profits when the underlying stays below the short call strikes."
+        ),
+    },
+    "put_broken_wing_butterfly": {
+        "name": "Put Broken Wing Butterfly",
+        "direction": ["NEUTRAL", "NEUTRAL_BULLISH", "OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 3,
+        "dte_target": 30,
+        "pop_range": (60, 80),
+        "profit_target_pct": 50,
+        "description": "Long put spread + wider short put spread for credit. No upside risk, max profit at short strikes.",
+        "legs": ["long_put_atm", "short_2_puts_otm", "long_put_further_otm_wide"],
+        "delta_targets": {"long_put": -50, "short_puts": -30, "wing": -10},
+        "designed_for_iv": "high",
+        "designed_for_direction": "neutral",
+        "condition_explanation": (
+            "Put broken wing butterflies are structured for credit in high IV; "
+            "elevated premiums allow the skewed wing placement to produce a net credit rather than a debit."
+        ),
+    },
+    "call_broken_wing_butterfly": {
+        "name": "Call Broken Wing Butterfly",
+        "direction": ["NEUTRAL", "NEUTRAL_BEARISH", "OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 3,
+        "dte_target": 30,
+        "pop_range": (60, 80),
+        "profit_target_pct": 50,
+        "description": "Long call spread + wider short call spread for credit. No downside risk, max profit at short strikes.",
+        "legs": ["long_call_atm", "short_2_calls_otm", "long_call_further_otm_wide"],
+        "delta_targets": {"long_call": 50, "short_calls": 30, "wing": 10},
+        "designed_for_iv": "high",
+        "designed_for_direction": "neutral",
+        "condition_explanation": (
+            "Call broken wing butterflies are structured for credit in high IV; "
+            "elevated premiums allow the skewed wing placement to produce a net credit rather than a debit."
+        ),
+    },
+    "call_broken_heart_butterfly": {
+        "name": "Call Broken Heart Butterfly",
+        "direction": ["OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 3,
+        "dte_target": 45,
+        "pop_range": (60, 80),
+        "profit_target_pct": 25,
+        "description": "Buy narrow near-OTM call spread + sell wider further OTM call spread for net credit. Wide upside profit zone.",
+        "legs": ["long_call_spread_narrow", "short_call_spread_wide"],
+        "delta_targets": {"long_call": 0.40, "short_call_narrow": 0.30, "short_call_wide": 0.20, "long_call_wide": 0.10},
+        "designed_for_iv": "high",
+        "designed_for_direction": "neutral",
+        "condition_explanation": (
+            "The Call Broken Heart Butterfly disconnects the two call spreads to create a wide upside "
+            "profit zone; high IV allows routing the structure for a credit with high probability of success."
+        ),
+    },
+    "put_broken_heart_butterfly": {
+        "name": "Put Broken Heart Butterfly",
+        "direction": ["OMNIDIRECTIONAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 3,
+        "dte_target": 45,
+        "pop_range": (60, 80),
+        "profit_target_pct": 25,
+        "description": "Buy narrow near-OTM put spread + sell wider further OTM put spread for net credit. Wide downside profit zone.",
+        "legs": ["long_put_spread_narrow", "short_put_spread_wide"],
+        "delta_targets": {"long_put": -0.40, "short_put_narrow": -0.30, "short_put_wide": -0.20, "long_put_wide": -0.10},
+        "designed_for_iv": "high",
+        "designed_for_direction": "neutral",
+        "condition_explanation": (
+            "The Put Broken Heart Butterfly disconnects the two put spreads to create a wide downside "
+            "profit zone; high IV allows routing the structure for a credit with high probability of success."
+        ),
+    },
+    # ── Neutral ────────────────────────────────────────────────────────────
     "short_strangle": {
         "name": "Short Strangle",
         "direction": ["NEUTRAL"],
@@ -298,6 +461,25 @@ STRATEGIES = {
             "short strikes and increases the credit received relative to the capital at risk."
         ),
     },
+    "dynamic_width_iron_condor": {
+        "name": "Dynamic Width Iron Condor",
+        "direction": ["NEUTRAL"],
+        "iv_environment": ["HIGH"],
+        "risk_type": "DEFINED",
+        "complexity": 2,
+        "dte_target": 45,
+        "pop_range": (60, 80),
+        "profit_target_pct": 50,
+        "description": "Sell OTM put spread + OTM call spread with asymmetric wing widths sized to skew and liquidity.",
+        "legs": ["short_put_spread_wide", "short_call_spread_standard"],
+        "delta_targets": {"short_put": -16, "short_call": 16},
+        "designed_for_iv": "high",
+        "designed_for_direction": "neutral",
+        "condition_explanation": (
+            "Dynamic width iron condors adjust put and call wing widths independently based on skew; "
+            "high IV provides sufficient credit even with asymmetric wing placement."
+        ),
+    },
     "iron_fly": {
         "name": "Iron Fly",
         "direction": ["NEUTRAL"],
@@ -317,7 +499,7 @@ STRATEGIES = {
             "high IV inflates ATM option prices, increasing the credit collected at the short strikes."
         ),
     },
-    # ── Neutral-Bullish ─────────────────────────────────────────────────────
+    # ── Neutral-Bullish ────────────────────────────────────────────────────
     "short_naked_put": {
         "name": "Short Naked Put",
         "direction": ["NEUTRAL_BULLISH"],
@@ -375,64 +557,7 @@ STRATEGIES = {
             "high IV allows the combined credit to exceed the call spread width, eliminating upside risk."
         ),
     },
-    "put_calendar": {
-        "name": "Put Calendar Spread",
-        "direction": ["NEUTRAL_BEARISH"],
-        "iv_environment": ["LOW", "MEDIUM"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 30,
-        "pop_range": (50, 60),
-        "profit_target_pct": 25,
-        "description": "Sell near-term ATM put + buy back-month ATM put at same strike. Profits from time decay differential.",
-        "legs": ["short_put_front", "long_put_back"],
-        "delta_targets": {"short_put": -0.50, "long_put": -0.50},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bearish",
-        "condition_explanation": (
-            "Put calendar spreads profit from the front-month put decaying faster than the back-month put; "
-            "low IV keeps the back-month long put affordable and the structure net debit small."
-        ),
-    },
-    "put_ratio_spread": {
-        "name": "Put Ratio Spread",
-        "direction": ["NEUTRAL_BULLISH"],
-        "iv_environment": ["HIGH"],
-        "risk_type": "UNDEFINED",
-        "complexity": 3,
-        "dte_target": 45,
-        "pop_range": (60, 75),
-        "profit_target_pct": 50,
-        "description": "Buy 1 OTM put + sell 2 further OTM puts. Profits from IV contraction; net credit in high IV.",
-        "legs": ["long_put_otm", "short_2_puts_further_otm"],
-        "delta_targets": {"long_put": -0.40, "short_put": -0.20},
-        "designed_for_iv": "high",
-        "designed_for_direction": "bullish",
-        "condition_explanation": (
-            "Put ratio spreads sell more puts than bought; high IV produces a net credit "
-            "and the strategy profits when the underlying stays above the short put strikes."
-        ),
-    },
-    "collar": {
-        "name": "Collar",
-        "direction": ["NEUTRAL_BULLISH"],
-        "iv_environment": ["HIGH"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 45,
-        "pop_range": (50, 70),
-        "profit_target_pct": 50,
-        "description": "Long stock + sell OTM call + buy OTM put. Hedges downside while giving up some upside.",
-        "legs": ["long_stock", "short_call_otm", "long_put_otm"],
-        "delta_targets": {"short_call": 0.30, "long_put": -0.30},
-        "designed_for_iv": "high",
-        "designed_for_direction": "bullish",
-        "condition_explanation": (
-            "Collars use high put premiums to fund downside protection cheaply; "
-            "elevated IV increases the value of the long put hedge relative to its cost."
-        ),
-    },
-    # ── Neutral-Bearish ─────────────────────────────────────────────────────
+    # ── Neutral-Bearish ────────────────────────────────────────────────────
     "short_naked_call": {
         "name": "Short Naked Call",
         "direction": ["NEUTRAL_BEARISH"],
@@ -490,128 +615,18 @@ STRATEGIES = {
             "high IV allows the combined credit to exceed the put spread width, eliminating downside risk."
         ),
     },
-    "call_calendar": {
-        "name": "Call Calendar Spread",
-        "direction": ["NEUTRAL_BULLISH"],
-        "iv_environment": ["LOW", "MEDIUM"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 30,
-        "pop_range": (50, 60),
-        "profit_target_pct": 25,
-        "description": "Sell near-term ATM call + buy back-month ATM call at same strike. Profits from time decay differential.",
-        "legs": ["short_call_front", "long_call_back"],
-        "delta_targets": {"short_call": 0.50, "long_call": 0.50},
-        "designed_for_iv": "low",
-        "designed_for_direction": "bullish",
-        "condition_explanation": (
-            "Call calendar spreads profit from the front-month call decaying faster than the back-month call; "
-            "low IV keeps the back-month long call affordable and the structure net debit small."
-        ),
-    },
-    "call_ratio_spread": {
-        "name": "Call Ratio Spread",
-        "direction": ["NEUTRAL_BEARISH"],
-        "iv_environment": ["HIGH"],
-        "risk_type": "UNDEFINED",
-        "complexity": 3,
-        "dte_target": 45,
-        "pop_range": (60, 75),
-        "profit_target_pct": 50,
-        "description": "Buy 1 OTM call + sell 2 further OTM calls. Profits from IV contraction; net credit in high IV.",
-        "legs": ["long_call_otm", "short_2_calls_further_otm"],
-        "delta_targets": {"long_call": 0.40, "short_call": 0.20},
-        "designed_for_iv": "high",
-        "designed_for_direction": "bearish",
-        "condition_explanation": (
-            "Call ratio spreads sell more calls than bought; high IV produces a net credit "
-            "and the strategy profits when the underlying stays below the short call strikes."
-        ),
-    },
-    # ── Omnidirectional ─────────────────────────────────────────────────────
-    "put_broken_wing_butterfly": {
-        "name": "Put Broken Wing Butterfly",
-        "direction": ["NEUTRAL", "NEUTRAL_BULLISH", "OMNIDIRECTIONAL"],
-        "iv_environment": ["HIGH"],
-        "risk_type": "DEFINED",
-        "complexity": 3,
-        "dte_target": 30,
-        "pop_range": (60, 80),
-        "profit_target_pct": 50,
-        "description": "Long put spread + wider short put spread for credit. No upside risk, max profit at short strikes.",
-        "legs": ["long_put_atm", "short_2_puts_otm", "long_put_further_otm_wide"],
-        "delta_targets": {"long_put": -50, "short_puts": -30, "wing": -10},
-        "designed_for_iv": "high",
-        "designed_for_direction": "neutral",
-        "condition_explanation": (
-            "Put broken wing butterflies are structured for credit in high IV; "
-            "elevated premiums allow the skewed wing placement to produce a net credit rather than a debit."
-        ),
-    },
-    "call_broken_wing_butterfly": {
-        "name": "Call Broken Wing Butterfly",
-        "direction": ["NEUTRAL", "NEUTRAL_BEARISH", "OMNIDIRECTIONAL"],
-        "iv_environment": ["HIGH"],
-        "risk_type": "DEFINED",
-        "complexity": 3,
-        "dte_target": 30,
-        "pop_range": (60, 80),
-        "profit_target_pct": 50,
-        "description": "Long call spread + wider short call spread for credit. No downside risk, max profit at short strikes.",
-        "legs": ["long_call_atm", "short_2_calls_otm", "long_call_further_otm_wide"],
-        "delta_targets": {"long_call": 50, "short_calls": 30, "wing": 10},
-        "designed_for_iv": "high",
-        "designed_for_direction": "neutral",
-        "condition_explanation": (
-            "Call broken wing butterflies are structured for credit in high IV; "
-            "elevated premiums allow the skewed wing placement to produce a net credit rather than a debit."
-        ),
-    },
-    "long_strangle": {
-        "name": "Long Strangle",
-        "direction": ["OMNIDIRECTIONAL"],
-        "iv_environment": ["LOW"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 45,
-        "pop_range": (30, 50),
-        "profit_target_pct": 100,
-        "description": "Buy OTM call + OTM put. Profits from large moves in either direction in low IV.",
-        "legs": ["long_call_otm", "long_put_otm"],
-        "delta_targets": {"long_call": 0.30, "long_put": -0.30},
-        "designed_for_iv": "low",
-        "designed_for_direction": "volatile",
-        "condition_explanation": (
-            "Long strangles buy OTM options on both sides to profit from large directional moves; "
-            "low IV reduces the debit paid, lowering the breakeven distance required."
-        ),
-    },
-    "long_straddle": {
-        "name": "Long Straddle",
-        "direction": ["OMNIDIRECTIONAL"],
-        "iv_environment": ["LOW"],
-        "risk_type": "DEFINED",
-        "complexity": 2,
-        "dte_target": 45,
-        "pop_range": (30, 50),
-        "profit_target_pct": 100,
-        "description": "Buy ATM call + ATM put. Maximum sensitivity to large moves in either direction.",
-        "legs": ["long_call_atm", "long_put_atm"],
-        "delta_targets": {"long_call": 0.50, "long_put": -0.50},
-        "designed_for_iv": "low",
-        "designed_for_direction": "volatile",
-        "condition_explanation": (
-            "Long straddles buy ATM calls and puts to profit from large moves in either direction; "
-            "low IV reduces the total debit paid and lowers the breakeven threshold."
-        ),
-    },
 }
 
 SELLER_STRATEGIES = {
-    "covered_call", "short_naked_put", "short_put_vertical", "jade_lizard",
+    "covered_call", "covered_put",
+    "short_naked_put", "short_put_vertical", "jade_lizard",
     "short_naked_call", "short_call_vertical", "reverse_jade_lizard",
-    "short_strangle", "short_straddle", "iron_condor", "iron_fly",
+    "short_strangle", "short_straddle", "iron_condor", "dynamic_width_iron_condor", "iron_fly",
     "put_calendar", "call_calendar",
+    "put_front_ratio", "call_front_ratio",
+    "put_broken_wing_butterfly", "call_broken_wing_butterfly",
+    "call_broken_heart_butterfly", "put_broken_heart_butterfly",
+    "big_lizard", "reverse_big_lizard",
 }
 
 # Bias compatibility mapping: a given bias can also match broader categories
@@ -642,6 +657,58 @@ def _iv_matches(designed_for_iv: str, current_iv_env: str) -> bool:
 
 def _direction_matches(designed_for_direction: str, current_bias: str) -> bool:
     return current_bias in _DIRECTION_MAP.get(designed_for_direction, set())
+
+
+def score_and_rank(iv_env: str, bias: str, top_n: int = 5) -> list[dict]:
+    """
+    Score and rank all strategies per docs/strategy-selection-spec.md §4.
+    Returns the top_n strategies sorted by score descending.
+
+    Scoring:
+      +2  IV environment match
+      +3  exact direction match
+      +1  adjacent direction match (from BIAS_COMPATIBILITY)
+      -0.1 * complexity  tiebreak toward simpler structures
+
+    Strategies matching neither axis are excluded.
+    """
+    compatible = BIAS_COMPATIBILITY.get(bias, [bias])
+    scored: list[tuple] = []
+    for key, strat in STRATEGIES.items():
+        iv_match        = iv_env in strat["iv_environment"]
+        direction_match = bias in strat["direction"]
+        partial_match   = any(c in strat["direction"] for c in compatible)
+
+        if not iv_match and not partial_match:
+            continue
+
+        score: float = 0.0
+        if iv_match:
+            score += 2
+        if direction_match:
+            score += 3
+        elif partial_match:
+            score += 1
+        score -= strat["complexity"] * 0.1
+
+        scored.append((score, key, strat))
+
+    scored.sort(key=lambda x: -x[0])
+    return [
+        {
+            "key": k,
+            "name": s["name"],
+            "score": round(sc, 2),
+            "direction": s["direction"],
+            "iv_environment": s["iv_environment"],
+            "risk_type": s["risk_type"],
+            "complexity": s["complexity"],
+            "dte_target": s["dte_target"],
+            "pop_range": s["pop_range"],
+            "profit_target_pct": s["profit_target_pct"],
+        }
+        for sc, k, s in scored[:top_n]
+    ]
 
 
 def recommend_by_category(iv_env: str) -> dict:
@@ -1067,26 +1134,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             if l:
                 legs.append(l)
 
-    elif strategy_key == "long_call":
-        leg = make_leg("Long Call (ATM)", "call", 0.50, "buy")
-        if leg:
-            legs.append(leg)
-
-    elif strategy_key == "call_diagonal":
-        short_call = make_leg("Short Call (OTM, Front)", "call", 0.30, "sell")
-        long_call = make_leg("Long Call (ITM, Back)", "call", 0.70, "buy")
-        back_expiry_diag = next(
-            (e for e in sorted(expirations)
-             if e > expiry and (date.fromisoformat(e) - date.fromisoformat(expiry)).days >= 28),
-            expirations[-1] if expirations else expiry
-        )
-        if short_call:
-            short_call["expiry"] = expiry
-            legs.append(short_call)
-        if long_call:
-            long_call["expiry"] = back_expiry_diag
-            legs.append(long_call)
-
     elif strategy_key == "long_put_vertical":
         long_leg = make_leg("Long Put (ITM)", "put", -0.70, "buy")
         short_leg = make_leg("Short Put (OTM)", "put", -0.30, "sell")
@@ -1113,26 +1160,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         for l in [short_call, short_put, long_put]:
             if l:
                 legs.append(l)
-
-    elif strategy_key == "long_put":
-        leg = make_leg("Long Put (ATM)", "put", -0.50, "buy")
-        if leg:
-            legs.append(leg)
-
-    elif strategy_key == "put_diagonal":
-        short_put = make_leg("Short Put (OTM, Front)", "put", -0.30, "sell")
-        long_put = make_leg("Long Put (ITM, Back)", "put", -0.70, "buy")
-        back_expiry_pdiag = next(
-            (e for e in sorted(expirations)
-             if e > expiry and (date.fromisoformat(e) - date.fromisoformat(expiry)).days >= 28),
-            expirations[-1] if expirations else expiry
-        )
-        if short_put:
-            short_put["expiry"] = expiry
-            legs.append(short_put)
-        if long_put:
-            long_put["expiry"] = back_expiry_pdiag
-            legs.append(long_put)
 
     elif strategy_key == "short_strangle":
         short_put = make_leg("Short Put (OTM)", "put", -0.16, "sell")
@@ -1215,7 +1242,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             }
             legs.append(back_leg)
 
-    elif strategy_key == "put_ratio_spread":
+    elif strategy_key == "put_front_ratio":
         long_put = make_leg("Long Put (OTM)", "put", -0.40, "buy")
         short1 = make_leg("Short Put (Further OTM) 1", "put", -0.20, "sell")
         if long_put:
@@ -1223,25 +1250,6 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         if short1:
             legs.append(short1)
             legs.append({**short1, "role": "Short Put (Further OTM) 2"})
-
-    elif strategy_key == "collar":
-        short_call = make_leg("Short Call (OTM)", "call", 0.30, "sell")
-        long_put = make_leg("Long Put (OTM)", "put", -0.30, "buy")
-        if short_call:
-            legs.append(short_call)
-        if long_put:
-            legs.append(long_put)
-        legs.append({
-            "role": "Long Stock",
-            "option_type": "stock",
-            "strike": spot_price,
-            "delta": 1.0,
-            "bid": spot_price,
-            "ask": spot_price,
-            "mid": spot_price,
-            "action": "buy",
-            "signed_mid": -spot_price,
-        })
 
     elif strategy_key == "short_naked_call":
         leg = make_leg("Short Call (OTM)", "call", 0.30, "sell")
@@ -1292,7 +1300,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             }
             legs.append(back_leg)
 
-    elif strategy_key == "call_ratio_spread":
+    elif strategy_key == "call_front_ratio":
         long_call = make_leg("Long Call (OTM)", "call", 0.40, "buy")
         short1 = make_leg("Short Call (Further OTM) 1", "call", 0.20, "sell")
         if long_call:
@@ -1321,17 +1329,79 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         if short_call1:
             legs.append({**short_call1, "role": "Short Call (OTM) 2"})
 
-    elif strategy_key == "long_strangle":
-        long_call = make_leg("Long Call (OTM)", "call", 0.30, "buy")
-        long_put = make_leg("Long Put (OTM)", "put", -0.30, "buy")
-        for l in [long_call, long_put]:
+    elif strategy_key == "covered_put":
+        leg = make_leg("Short Put (ATM/OTM)", "put", -0.30, "sell")
+        if leg:
+            legs.append(leg)
+        legs.append({
+            "role": "Short Stock",
+            "option_type": "stock",
+            "strike": spot_price,
+            "delta": -1.0,
+            "bid": spot_price,
+            "ask": spot_price,
+            "mid": spot_price,
+            "action": "sell",
+            "signed_mid": spot_price,
+        })
+
+    elif strategy_key == "call_zebra":
+        long1 = make_leg("Long Call (ITM) 1", "call", 0.70, "buy")
+        short_atm = make_leg("Short Call (ATM)", "call", 0.50, "sell")
+        if long1:
+            legs.append(long1)
+            legs.append({**long1, "role": "Long Call (ITM) 2"})
+        if short_atm:
+            legs.append(short_atm)
+
+    elif strategy_key == "put_zebra":
+        long1 = make_leg("Long Put (ITM) 1", "put", -0.70, "buy")
+        short_atm = make_leg("Short Put (ATM)", "put", -0.50, "sell")
+        if long1:
+            legs.append(long1)
+            legs.append({**long1, "role": "Long Put (ITM) 2"})
+        if short_atm:
+            legs.append(short_atm)
+
+    elif strategy_key == "poor_mans_covered_put":
+        long_leg = make_leg("Long Put (LEAPS ITM)", "put", -0.70, "buy")
+        short_leg = make_leg("Short Put (OTM front)", "put", -0.30, "sell")
+        back_expiry_pmcp = next(
+            (e for e in sorted(expirations)
+             if e > expiry and (date.fromisoformat(e) - date.fromisoformat(expiry)).days >= 45),
+            expirations[-1] if expirations else expiry
+        )
+        if long_leg:
+            long_leg["expiry"] = back_expiry_pmcp
+            legs.append(long_leg)
+        if short_leg:
+            short_leg["expiry"] = expiry
+            legs.append(short_leg)
+
+    elif strategy_key == "dynamic_width_iron_condor":
+        short_put = make_leg("Short Put", "put", -0.16, "sell")
+        long_put = make_leg("Long Put (wide wing)", "put", -0.05, "buy")
+        short_call = make_leg("Short Call", "call", 0.16, "sell")
+        long_call = make_leg("Long Call (wing)", "call", 0.08, "buy")
+        for l in [short_put, long_put, short_call, long_call]:
             if l:
                 legs.append(l)
 
-    elif strategy_key == "long_straddle":
-        long_call = make_leg("Long Call (ATM)", "call", 0.50, "buy")
-        long_put = make_leg("Long Put (ATM)", "put", -0.50, "buy")
-        for l in [long_call, long_put]:
+    elif strategy_key == "call_broken_heart_butterfly":
+        long_call_n = make_leg("Long Call (near OTM)", "call", 0.40, "buy")
+        short_call_n = make_leg("Short Call (OTM)", "call", 0.30, "sell")
+        short_call_w = make_leg("Short Call (further OTM)", "call", 0.20, "sell")
+        long_call_w = make_leg("Long Call (wide wing)", "call", 0.10, "buy")
+        for l in [long_call_n, short_call_n, short_call_w, long_call_w]:
+            if l:
+                legs.append(l)
+
+    elif strategy_key == "put_broken_heart_butterfly":
+        long_put_n = make_leg("Long Put (near OTM)", "put", -0.40, "buy")
+        short_put_n = make_leg("Short Put (OTM)", "put", -0.30, "sell")
+        short_put_w = make_leg("Short Put (further OTM)", "put", -0.20, "sell")
+        long_put_w = make_leg("Long Put (wide wing)", "put", -0.10, "buy")
+        for l in [long_put_n, short_put_n, short_put_w, long_put_w]:
             if l:
                 legs.append(l)
 
@@ -1360,7 +1430,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
     if strat["risk_type"] == "DEFINED":
         # Width of spread as proxy for max loss
         if short_strikes and long_strikes:
-            if strategy_key in ("iron_condor", "iron_fly"):
+            if strategy_key in ("iron_condor", "dynamic_width_iron_condor", "iron_fly"):
                 # Max loss = wider individual spread width minus total credit.
                 # Using the total outer-strike span would overstate max_loss by ~6×.
                 put_strikes_all = [l["strike"] for l in legs if l["option_type"] == "put"]
@@ -1375,6 +1445,8 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
                 "put_butterfly",
                 "call_broken_wing_butterfly",
                 "put_broken_wing_butterfly",
+                "call_broken_heart_butterfly",
+                "put_broken_heart_butterfly",
             ):
                 # For butterflies the body strike is the short strike(s).
                 # Max profit zone is the INNER span (body to nearest wing),
@@ -1417,7 +1489,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         breakeven_low = round(min(short_strikes) - abs(net), 2)
     elif strategy_key in ("short_naked_call",) and short_strikes:
         breakeven_high = round(max(short_strikes) + abs(net), 2)
-    elif strategy_key in ("short_strangle", "short_straddle", "iron_condor", "iron_fly") and short_strikes:
+    elif strategy_key in ("short_strangle", "short_straddle", "iron_condor", "dynamic_width_iron_condor", "iron_fly") and short_strikes:
         low_strike = min(short_strikes)
         high_strike = max(short_strikes)
         breakeven_low = round(low_strike - abs(net), 2)

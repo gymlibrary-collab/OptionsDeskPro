@@ -197,6 +197,23 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </Note>
       </Section>
 
+      {/* ── METHODOLOGY ── */}
+      <Section title="Methodology — How Strategies Are Selected">
+        <P>
+          The <strong>Methodology</strong> tab (labelled <strong>How</strong> on mobile) explains the complete strategy selection engine:
+          the IV environment formula, directional bias calculation, the two-gate filtering logic, and the 31-strategy catalog.
+          Available to all authenticated users; no tier gate.
+        </P>
+        <Sub>
+          <P><strong>Why this exists:</strong> Scan results show "8 strategies available" and "3 condition matches", but those numbers mean nothing without context. The Methodology page teaches you what they mean.</P>
+          <P><strong>What it covers:</strong> IV Rank formula and thresholds (HIGH &gt; 50, MEDIUM 30–50, LOW &lt; 30). Directional bias from SMA20/50 crossover + RSI(14). The scoring rules: +2 for IV match, +3 for exact direction, +1 for partial match, −0.1×complexity. All 31 strategies grouped by direction, with IV environment, DTE, P&L family. Earnings awareness and options flow context.</P>
+          <P><strong>How to access:</strong> Click the <strong>Methodology</strong> (or <strong>How</strong> on mobile) tab in the main tab bar. You can also click "Learn how strategies are selected →" in the Scanner tab header to jump straight there.</P>
+        </Sub>
+        <Note color={C.blue}>
+          <strong>This is educational content:</strong> The methodology page does not run a scan or make any API calls. It is static, instant, and available offline (if your session is active).
+        </Note>
+      </Section>
+
       {/* ── DEEP ANALYSIS ── */}
       <Section title="Deep Analysis — Strategy Comparison Matrix and Narrative">
         <P>
