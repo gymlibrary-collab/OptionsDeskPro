@@ -20,6 +20,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+async def _warm_watchlist(user_id: str) -> None:
+    """Pre-fetch options chains for the user's watchlist symbols after login."""
+    try:
+        from services.db import get_supabase
+        from services.market_data import get_options_chain
+        sb = get_supabase()
+        result = sb.table("user_watchlists").select("symbols").eq("user_id", user_id).maybe_single().execute()
+        symbols: list[str] = []
+        if result and result.data:
+            symbols = result.data.get("symbols") or []
+        if not symbols:
+            return
+        loop = asyncio.get_running_loop()
+        await asyncio.gather(
+            *[loop.run_in_executor(None, get_options_chain, sym, None) for sym in symbols],
+            return_exceptions=True,
+        )
+        logger.info("Watchlist pre-warm done for user %s (%d symbols)", user_id, len(symbols))
+    except Exception as exc:
+        logger.debug("Watchlist pre-warm failed for user %s: %s", user_id, exc)
+
 # The backend callback URL that Supabase redirects back to after Google OAuth
 _FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://optionscompass.up.railway.app")
 _CALLBACK_URL = f"{os.getenv('BACKEND_URL', 'https://optionscompass-backend.up.railway.app')}/api/auth/callback"
@@ -169,6 +191,11 @@ async def _sync_profile(request: Request, user, access_token: str) -> dict:
             "_sync_profile: legal acknowledgment check failed for user %s — failing open: %s",
             user_id, _legal_exc,
         )
+
+    # Pre-warm the options chain cache for the user's watchlist symbols in the
+    # background. The login response returns immediately; fetches run concurrently
+    # so chains are ready by the time the user navigates to the Options Chain tab.
+    asyncio.create_task(_warm_watchlist(user_id))
 
     return {
         "ok": True,
