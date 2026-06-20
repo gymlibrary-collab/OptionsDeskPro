@@ -257,6 +257,14 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
         if resolved and resolved != expiry:
             _cache_set(f"chain:{symbol}:{resolved}", result)
         return result
+
+    # yfinance blipped — serve the last known good chain rather than empty,
+    # which would cause "chain unavailable" and wipe quotes from the UI.
+    stale = _cache_get_stale(cache_key)
+    if stale:
+        logger.warning("yfinance chain failed for %s; serving stale cache", symbol)
+        return stale
+
     return {"expirations": [], "calls": [], "puts": [], "expiry": None}
 
 
