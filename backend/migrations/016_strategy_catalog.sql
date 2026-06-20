@@ -110,7 +110,7 @@ insert into strategy_catalog (slug, name, category, direction, iv_environment, d
 ('short_strangle',              'Short Strangle',                  'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   60, 80, 'naked_double',          2),
 ('short_straddle',              'Short Straddle',                  'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   50, 60, 'naked_double',          2),
 ('iron_condor',                 'Iron Condor',                     'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   60, 80, 'iron_condor',           2),
-('dynamic_width_iron_condor',   'Dynamic Width Iron Condor',       'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   60, 80, 'iron_condor',           2),
+('dynamic_width_iron_condor',   'Dynamic Width Iron Condor',       'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   60, 80, 'iron_condor',           3),
 ('iron_fly',                    'Iron Fly',                        'neutral',          array['NEUTRAL'],                                                   array['HIGH'],               45,   45,   60, 80, 'iron_fly',              2)
 on conflict (slug) do update set
     name           = excluded.name,
