@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import date
 import logging
 
-from services.market_data import get_quote, get_options_chain, _cache, _cache_get_stale, _cache_is_stale, _TTL_CHAIN, _TTL_QUOTE
+from services.market_data import get_quote, get_options_chain
 from services.greeks import calculate_greeks, fill_quote
 from services.auth_utils import get_user_id, get_user_email
 from services.activity_logger import log_action, extract_ip
@@ -84,43 +84,25 @@ async def _get_chain_inner(
 ):
     loop = asyncio.get_running_loop()
     sym = symbol.upper()
-    chain_key = f"chain:{sym}:{expiry}"
-    quote_key  = f"quote:{sym}"
     debug_path = "unknown"
 
-    cached_chain = _cache_get_stale(chain_key)
-    cached_quote = _cache_get_stale(quote_key)
-
-    if cached_chain is not None and cached_quote is not None:
-        debug_path = "swr-both"
-        chain, quote = cached_chain, cached_quote
-        if _cache_is_stale(chain_key, _TTL_CHAIN):
-            asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
-        if _cache_is_stale(quote_key, _TTL_QUOTE):
-            asyncio.create_task(loop.run_in_executor(None, get_quote, sym))
-    elif cached_chain is not None:
-        debug_path = "swr-chain-only"
-        chain = cached_chain
-        quote = await loop.run_in_executor(None, get_quote, sym)
-        if _cache_is_stale(chain_key, _TTL_CHAIN):
-            asyncio.create_task(loop.run_in_executor(None, get_options_chain, sym, expiry))
-    else:
-        # Full cache miss — wait_for caps wall-clock at 25s (Railway-Hikari proxy = 30s).
-        try:
-            chain, quote = await asyncio.wait_for(
-                asyncio.gather(
-                    loop.run_in_executor(None, get_options_chain, sym, expiry),
-                    loop.run_in_executor(None, get_quote, sym),
-                ),
-                timeout=25.0,
-            )
-            debug_path = "cold-ok"
-        except asyncio.TimeoutError:
-            logger.warning("options chain fetch timed out for %s", sym)
-            debug_path = "cold-timeout"
-            chain = {"expirations": [], "calls": [], "puts": [], "expiry": None, "underlying_price": 0.0}
-            quote = {"symbol": sym, "price": 0.0, "previousClose": 0.0,
-                     "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
+    # get_options_chain and get_quote handle caching internally (120s TTL).
+    # Returns cached data instantly on hit; fetches in parallel on miss.
+    try:
+        chain, quote = await asyncio.wait_for(
+            asyncio.gather(
+                loop.run_in_executor(None, get_options_chain, sym, expiry),
+                loop.run_in_executor(None, get_quote, sym),
+            ),
+            timeout=25.0,
+        )
+        debug_path = "ok"
+    except asyncio.TimeoutError:
+        logger.warning("options chain fetch timed out for %s", sym)
+        debug_path = "timeout"
+        chain = {"expirations": [], "calls": [], "puts": [], "expiry": None, "underlying_price": 0.0}
+        quote = {"symbol": sym, "price": 0.0, "previousClose": 0.0,
+                 "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
     if response:
         response.headers["Cache-Control"] = "no-store"

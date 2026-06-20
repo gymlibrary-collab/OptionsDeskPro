@@ -3,35 +3,16 @@ import requests
 import threading
 import time
 import math
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
-# When curl_cffi is installed yfinance uses it automatically for TLS fingerprint
-# impersonation, which is what Yahoo Finance's bot detection checks. The UA patch
-# below is a belt-and-suspenders fallback for environments where curl_cffi is not
-# yet available (e.g. first deploy before pip install completes). It is harmless
-# when curl_cffi is active because yfinance's curl session ignores the requests
-# default headers.
-try:
-    _UA = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
-    import requests.utils as _ru
-    _orig_default_headers = _ru.default_headers
-
-    def _patched_headers():
-        h = _orig_default_headers()
-        h["User-Agent"] = _UA
-        return h
-
-    _ru.default_headers = _patched_headers
-except Exception as _ua_err:
-    logger.debug("UA patch skipped: %s", _ua_err)
+# IMPORTANT: do NOT pass a custom requests.Session to yf.Ticker(). yfinance
+# uses curl_cffi internally to impersonate a real browser's TLS fingerprint —
+# which is what Yahoo Finance's bot detection actually checks.
+# UA patching a plain requests.Session does NOT fix the TLS fingerprint.
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -53,36 +34,39 @@ def _safe_float(val, default: float = 0.0) -> float:
     except (ValueError, TypeError):
         return default
 
+
 _cache: dict = {}
-_TTL_QUOTE = 30      # 30 s — quotes need to be fresh
-_TTL_CHAIN = 300     # 5 min — chains are expensive; positions/risk/options tab share the cache
+_TTL_YFINANCE = 120  # 2 min — single TTL for both quotes and chains
 
 
-def _cache_get(key: str, ttl: int = _TTL_QUOTE) -> Optional[dict]:
+def _cache_get(key: str) -> Optional[dict]:
     entry = _cache.get(key)
     if not entry:
         return None
-    if (time.time() - entry["ts"]) < ttl:
+    if (time.time() - entry["ts"]) < _TTL_YFINANCE:
         return entry["data"]
     return None
 
 
-def _cache_get_stale(key: str) -> Optional[dict]:
-    """Return cached data regardless of age (stale-while-revalidate helper)."""
-    entry = _cache.get(key)
-    return entry["data"] if entry else None
-
-
-def _cache_is_stale(key: str, ttl: int) -> bool:
-    """True when the cache entry exists but is older than ttl."""
-    entry = _cache.get(key)
-    if not entry:
-        return False
-    return (time.time() - entry["ts"]) >= ttl
-
-
 def _cache_set(key: str, data: dict):
     _cache[key] = {"data": data, "ts": time.time()}
+
+
+def _stooq_quote(symbol: str) -> float:
+    """Lightweight spot price fallback via Stooq CSV (no auth, no TLS issues)."""
+    try:
+        url = f"https://stooq.com/q/l/?s={symbol.lower()}.us&f=sd2t2ohlcv&h&e=csv"
+        resp = requests.get(url, timeout=5)
+        if resp.ok:
+            lines = resp.text.strip().splitlines()
+            if len(lines) >= 2:
+                parts = lines[1].split(",")
+                close = float(parts[6])
+                if close > 0:
+                    return close
+    except Exception as e:
+        logger.debug("Stooq fallback failed for %s: %s", symbol, e)
+    return 0.0
 
 
 # ── yfinance (options chain source) ──────────────────────────────────────────
@@ -98,23 +82,12 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
                 logger.warning("yfinance chain: no expirations for %s (possible block or bad symbol)", symbol)
                 return
 
-            if expiry is None or expiry not in expirations:
-                # Default to nearest expiry at least 45 days out — standard monthly
-                # cycle with liquid markets. Falls back to nearest future date.
-                from datetime import date as _date
-                today_dt = _date.today()
-                at_least_45 = [
-                    e for e in expirations
-                    if (_date.fromisoformat(e) - today_dt).days >= 45
-                ]
-                if at_least_45:
-                    target = at_least_45[0]
-                else:
-                    today = today_dt.strftime("%Y-%m-%d")
-                    future = [e for e in expirations if e > today]
-                    target = future[0] if future else expirations[0]
-            else:
+            _today = date.today()
+            _goal = _today + timedelta(days=45)
+            if expiry and expiry in expirations:
                 target = expiry
+            else:
+                target = min(expirations, key=lambda e: abs((date.fromisoformat(e) - _goal).days))
 
             chain = ticker.option_chain(target)
 
@@ -155,7 +128,7 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
-    t.join(15)  # 15s timeout — gives yfinance room on Railway while leaving time for synthetic fallback
+    t.join(5)  # 5s hard timeout — fail fast so synthetic fallback runs within proxy timeout
     if t.is_alive():
         logger.warning("yfinance chain timed out for %s", symbol)
     return result[0]
@@ -163,19 +136,18 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
-def get_quote(symbol: str) -> dict:
+def get_quote(symbol: str, force: bool = False) -> dict:
     cache_key = f"quote:{symbol}"
-    cached = _cache_get(cache_key)
-    if cached:
-        return cached
+    if not force:
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
 
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.fast_info
         hist = ticker.history(period="2d")
 
-        # Prefer the real-time last price from fast_info; fall back to the
-        # most recent daily close only if it's unavailable.
         last_price = None
         try:
             lp = getattr(info, "last_price", None)
@@ -193,7 +165,6 @@ def get_quote(symbol: str) -> dict:
                 return _empty_quote(symbol)
             last_price = hist_close
 
-        # Previous close: prefer fast_info, else the prior daily bar.
         prev_close = None
         try:
             pc = getattr(info, "previous_close", None)
@@ -236,30 +207,27 @@ def _empty_quote(symbol: str) -> dict:
             "change": 0.0, "changePercent": 0.0, "volume": 0, "marketCap": 0}
 
 
-def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
+def get_options_chain(symbol: str, expiry: Optional[str] = None, force: bool = False) -> dict:
     cache_key = f"chain:{symbol}:{expiry}"
-    cached = _cache_get(cache_key, ttl=_TTL_CHAIN)
-    if cached:
-        return cached
+    if not force:
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
 
     # Tier 1: yfinance — real data, 5s hard timeout
     result = _yfinance_chain(symbol, expiry)
-    if result:
+    if result and (result.get("calls") or result.get("puts")):
         _cache_set(cache_key, result)
         resolved = result.get("expiry")
         if resolved and resolved != expiry:
             _cache_set(f"chain:{symbol}:{resolved}", result)
         return result
 
-    # Tier 2: stale cache — last known good chain from this session
-    stale = _cache_get_stale(cache_key)
-    if stale:
-        logger.warning("yfinance chain failed for %s; serving stale cache", symbol)
-        return stale
-
-    # Tier 3: Black-Scholes synthetic chain — always works, flagged _synthetic=True
+    # Tier 2: Black-Scholes synthetic chain — always works, flagged _synthetic=True
     try:
-        spot = get_quote(symbol).get("price", 0.0)
+        spot = get_quote(symbol, force=force).get("price", 0.0)
+        if spot == 0.0:
+            spot = _stooq_quote(symbol)
         if spot > 0:
             synth = synthetic_options_chain(symbol, spot, 0.30)
             if synth.get("calls") or synth.get("puts"):
