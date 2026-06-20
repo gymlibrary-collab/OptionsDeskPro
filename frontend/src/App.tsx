@@ -353,8 +353,8 @@ function Dashboard() {
             </div>
 
             {/* Tab content */}
-            <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '10px' : '16px' }}>
-              <div style={{ display: activeTab === 'chain' ? 'block' : 'none' }}>
+            <div style={{ flex: 1, overflow: activeTab === 'chain' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', padding: isMobile ? '10px' : '16px' }}>
+              <div style={{ display: activeTab === 'chain' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
                 <OptionsChain symbol={symbol} onDataSource={setChainDataSource} />
               </div>
               <div style={{ display: activeTab === 'positions' ? 'block' : 'none' }}>

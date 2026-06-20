@@ -32,7 +32,7 @@ const C = {
 }
 
 const styles = {
-  wrap: { display: 'flex', flexDirection: 'column' as const, gap: '12px' },
+  wrap: { display: 'flex', flexDirection: 'column' as const, gap: '12px', flex: 1, minHeight: 0 },
   controls: {
     display: 'flex',
     alignItems: 'center',
@@ -50,7 +50,7 @@ const styles = {
     cursor: 'pointer',
   },
   label: { fontSize: '13px', color: C.muted },
-  tableWrap: { overflowX: 'auto' as const, overflowY: 'auto' as const, maxHeight: '70vh' },
+  tableWrap: { overflowX: 'auto' as const, overflowY: 'auto' as const, flex: 1, minHeight: 0 },
   table: {
     width: '100%',
     borderCollapse: 'collapse' as const,
