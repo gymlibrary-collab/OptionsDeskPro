@@ -52,11 +52,12 @@ def get_iv_rank(symbol: str) -> dict:
                 "error": "Insufficient historical data",
                 "iv_environment": "MEDIUM",
                 "iv_rank": 50,
+                "iv_source": "hv_proxy",
                 "current_iv": 0.3,
                 "hv_30d": 0.3,
                 "hv_52wk_high": 0.4,
                 "hv_52wk_low": 0.2,
-                "percentile_label": "IVR N/A — Medium IV",
+                "percentile_label": "HV Rank N/A — Medium IV",
             }
 
         closes = hist["Close"].values
@@ -74,14 +75,16 @@ def get_iv_rank(symbol: str) -> dict:
         hv_52wk_high = float(np.max(hv_series))
         hv_52wk_low = float(np.min(hv_series))
 
-        # Get current ATM IV from nearest expiry options chain
-        current_iv = current_hv  # fallback
+        # Get current ATM IV from nearest expiry options chain.
+        # ATM IV is the numerator in the IVR formula when available.
+        # Falls back to current_hv when the chain is unavailable.
+        current_iv = current_hv
+        iv_source = "hv_proxy"
         try:
             expirations = ticker.options
             if expirations:
                 chain = ticker.option_chain(expirations[0])
                 spot = float(closes[-1])
-                # Find ATM call (strike closest to spot)
                 calls_df = chain.calls
                 if not calls_df.empty:
                     calls_df = calls_df.copy()
@@ -90,16 +93,16 @@ def get_iv_rank(symbol: str) -> dict:
                     atm_iv = float(atm_row.get("impliedVolatility", 0))
                     if atm_iv > 0.01:
                         current_iv = atm_iv
+                        iv_source = "option_chain"
         except Exception as e:
             logger.warning(f"Could not get ATM IV for {symbol}: {e}")
 
-        # IV Rank: use HV for apples-to-apples comparison against the HV range.
-        # current_iv (ATM option IV) is returned separately for display.
+        # IVR: ATM IV (or HV proxy) ranked against the 52-week HV range.
         hv_range = hv_52wk_high - hv_52wk_low
         if hv_range < 0.001:
             iv_rank = 50.0
         else:
-            iv_rank = round((current_hv - hv_52wk_low) / hv_range * 100.0, 1)
+            iv_rank = round((current_iv - hv_52wk_low) / hv_range * 100.0, 1)
             iv_rank = max(0.0, min(100.0, iv_rank))
 
         # Classify environment
@@ -110,12 +113,14 @@ def get_iv_rank(symbol: str) -> dict:
         else:
             iv_environment = "MEDIUM"
 
-        percentile_label = f"IVR {iv_rank:.0f} — {iv_environment.capitalize()} IV"
+        rank_label = "IVR" if iv_source == "option_chain" else "HV Rank"
+        percentile_label = f"{rank_label} {iv_rank:.0f} — {iv_environment.capitalize()} IV"
 
         return {
             "symbol": symbol,
             "current_iv": round(current_iv, 4),
             "iv_rank": iv_rank,
+            "iv_source": iv_source,
             "hv_30d": round(current_hv, 4),
             "hv_52wk_high": round(hv_52wk_high, 4),
             "hv_52wk_low": round(hv_52wk_low, 4),
@@ -130,11 +135,12 @@ def get_iv_rank(symbol: str) -> dict:
             "error": str(e),
             "iv_environment": "MEDIUM",
             "iv_rank": 50.0,
+            "iv_source": "hv_proxy",
             "current_iv": 0.3,
             "hv_30d": 0.3,
             "hv_52wk_high": 0.4,
             "hv_52wk_low": 0.2,
-            "percentile_label": "IVR N/A — Medium IV",
+            "percentile_label": "HV Rank N/A — Medium IV",
         }
 
 
