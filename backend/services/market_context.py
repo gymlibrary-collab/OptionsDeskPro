@@ -3,6 +3,7 @@ Supplementary market context: earnings dates, news headlines, options flow,
 IV term structure/skew, and enhanced technicals (MACD, ATR, volume trend).
 """
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 import yfinance as yf
 
@@ -201,12 +202,14 @@ def get_iv_term_structure(symbol: str) -> dict:
         def _chain_to_records(df):
             return df.to_dict("records") if df is not None and not df.empty else []
 
-        front = ticker.option_chain(expirations[0])
+        back_idx = min(2, len(expirations) - 1)
+        with ThreadPoolExecutor(max_workers=2) as _pool:
+            _f_front = _pool.submit(ticker.option_chain, expirations[0])
+            _f_back  = _pool.submit(ticker.option_chain, expirations[back_idx])
+            front = _f_front.result()
+            back  = _f_back.result()
         front_calls = _chain_to_records(front.calls)
         front_puts = _chain_to_records(front.puts)
-
-        back_idx = min(2, len(expirations) - 1)
-        back = ticker.option_chain(expirations[back_idx])
         back_calls = _chain_to_records(back.calls)
 
         front_iv = _median_iv(front_calls)
@@ -252,10 +255,15 @@ def get_iv_term_structure(symbol: str) -> dict:
 
 def get_full_market_context(symbol: str, chain: dict | None = None) -> dict:
     """Aggregate all supplementary context into one dict."""
-    return {
-        "earnings": get_earnings_info(symbol),
-        "news": get_news_headlines(symbol),
-        "technicals": get_enhanced_technicals(symbol),
-        "term_structure": get_iv_term_structure(symbol),
-        "flow": get_options_flow(chain) if chain else {},
-    }
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_earnings   = pool.submit(get_earnings_info, symbol)
+        f_news       = pool.submit(get_news_headlines, symbol)
+        f_technicals = pool.submit(get_enhanced_technicals, symbol)
+        f_term       = pool.submit(get_iv_term_structure, symbol)
+        return {
+            "earnings":      f_earnings.result(),
+            "news":          f_news.result(),
+            "technicals":    f_technicals.result(),
+            "term_structure": f_term.result(),
+            "flow":          get_options_flow(chain) if chain else {},
+        }
