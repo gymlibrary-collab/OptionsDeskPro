@@ -208,6 +208,42 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
           DTE (45 days), Probability of Profit, and Max Profit/Loss are <strong style={{ color: C.text }}>outputs</strong> attached
           after a strategy is chosen. They are never used as scoring inputs and do not affect rank.
         </p>
+
+        {/* Two-gate explanation */}
+        <div style={{ fontSize: '13px', fontWeight: 600, color: C.text }}>What the numbers in scan results mean</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{
+            background: C.surface2, border: `1px solid ${C.border}`,
+            borderRadius: '6px', padding: '12px 16px',
+            display: 'flex', flexDirection: 'column', gap: '4px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.accent, whiteSpace: 'nowrap' as const }}>Gate 1 → "Strategies Available"</span>
+              <span style={{ fontSize: '11px', color: C.muted }}>hard IV filter</span>
+            </div>
+            <p style={{ fontSize: '12px', color: C.muted, margin: 0, lineHeight: '1.6' }}>
+              Count of strategies whose <strong style={{ color: C.text }}>IV environment tag</strong> matches the current IV environment.
+              A strategy with no IV match is excluded entirely — it cannot appear in results regardless of direction.
+            </p>
+          </div>
+          <div style={{
+            background: C.surface2, border: `1px solid ${C.border}`,
+            borderRadius: '6px', padding: '12px 16px',
+            display: 'flex', flexDirection: 'column', gap: '4px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.yellow, whiteSpace: 'nowrap' as const }}>Gate 2 → "Condition Matches"</span>
+              <span style={{ fontSize: '11px', color: C.muted }}>soft direction match</span>
+            </div>
+            <p style={{ fontSize: '12px', color: C.muted, margin: 0, lineHeight: '1.6' }}>
+              Count of Gate 1 strategies that also match the current <strong style={{ color: C.text }}>directional bias</strong> (exactly or via adjacent compatibility).
+              Strategies outside this count still appear but rank lower.
+            </p>
+          </div>
+        </div>
+        <p style={{ ...bodyText, fontSize: '12px' }}>
+          Earnings data and options flow do <strong style={{ color: C.text }}>not</strong> change either count — they enrich the AI narrative only.
+        </p>
       </div>
 
       {/* Section 2 — IV Environment */}
@@ -446,20 +482,45 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
               </tr>
             </thead>
             <tbody>
-              {catalog.map((row, i) => (
-                <tr
-                  key={row.num}
-                  style={{ borderBottom: i < catalog.length - 1 ? `1px solid ${C.border}22` : 'none' }}
-                >
-                  <td style={{ ...td, color: C.muted, fontVariantNumeric: 'tabular-nums', width: '32px' }}>{row.num}</td>
-                  <td style={{ ...td, fontWeight: 600 }}>{row.name}</td>
-                  <td style={td}><DirectionCell dir={row.dir} /></td>
-                  <td style={{ ...td, fontSize: '12px', color: C.muted }}>{row.iv}</td>
-                  <td style={{ ...td, fontSize: '12px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{row.dte}</td>
-                  <td style={{ ...td, fontSize: '12px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{row.pop}</td>
-                  <td style={{ ...td, fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>{row.family}</td>
-                </tr>
-              ))}
+              {(() => {
+                const groupHeaders: Record<number, string> = { 1: 'Bullish', 8: 'Bearish', 15: 'Omnidirectional', 21: 'Neutral / Income', 26: 'Neutral-Bullish', 29: 'Neutral-Bearish' }
+                const groupColors: Record<string, string> = { 'Bullish': C.green, 'Bearish': C.red, 'Omnidirectional': C.accent, 'Neutral / Income': C.yellow, 'Neutral-Bullish': '#86efac', 'Neutral-Bearish': '#fca5a5' }
+                return catalog.flatMap((row, i) => {
+                  const header = groupHeaders[row.num]
+                  const rows = []
+                  if (header) {
+                    rows.push(
+                      <tr key={`g-${row.num}`}>
+                        <td colSpan={7} style={{
+                          padding: '8px 14px 6px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: groupColors[header],
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.08em',
+                          background: C.surface,
+                          borderTop: `2px solid ${C.border}`,
+                          borderBottom: `1px solid ${C.border}33`,
+                        }}>
+                          {header}
+                        </td>
+                      </tr>
+                    )
+                  }
+                  rows.push(
+                    <tr key={row.num} style={{ borderBottom: i < catalog.length - 1 ? `1px solid ${C.border}22` : 'none' }}>
+                      <td style={{ ...td, color: C.muted, fontVariantNumeric: 'tabular-nums', width: '32px' }}>{row.num}</td>
+                      <td style={{ ...td, fontWeight: 600 }}>{row.name}</td>
+                      <td style={td}><DirectionCell dir={row.dir} /></td>
+                      <td style={{ ...td, fontSize: '12px', color: C.muted }}>{row.iv}</td>
+                      <td style={{ ...td, fontSize: '12px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{row.dte}</td>
+                      <td style={{ ...td, fontSize: '12px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{row.pop}</td>
+                      <td style={{ ...td, fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>{row.family}</td>
+                    </tr>
+                  )
+                  return rows
+                })
+              })()}
             </tbody>
           </table>
         </div>
@@ -474,7 +535,8 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
         <div style={sectionTitle}>6. Earnings Awareness</div>
 
         <p style={bodyText}>
-          The system pulls the next earnings date from the data feed and adjusts the expiry selection accordingly:
+          The system pulls the next earnings date from the data feed. When that date falls within the current
+          45-day DTE window, the engine adjusts expiry selection — earnings outside that window are ignored.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -540,10 +602,51 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
             border: `1px solid ${C.border}`,
             borderRadius: '6px',
             padding: '12px 16px',
+            display: 'flex', flexDirection: 'column', gap: '8px',
           }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>Unusual Options Activity</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Put/Call Ratio (PCR)</div>
             <p style={{ fontSize: '13px', color: C.muted, margin: 0, lineHeight: '1.6' }}>
-              Large sweeps and block trades provide additional market context. These signals appear in the AI narrative only.
+              Aggregated put volume divided by call volume across the options chain. Interpreted as:
+            </p>
+            <div style={{ overflowX: 'auto' as const }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '380px' }}>
+                <thead>
+                  <tr>
+                    <th style={th}>PCR range</th>
+                    <th style={th}>Signal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['< 0.6',      'Strongly bullish (heavy call buying)'],
+                    ['0.6 – 0.85', 'Bullish'],
+                    ['0.85 – 1.1', 'Neutral'],
+                    ['1.1 – 1.5',  'Bearish'],
+                    ['> 1.5',      'Strongly bearish (heavy put buying)'],
+                  ].map(([range, signal], i) => (
+                    <tr key={i}>
+                      <td style={{ ...td, fontFamily: 'monospace', fontSize: '12px' }}>{range}</td>
+                      <td style={{ ...td, color: C.muted, fontSize: '12px' }}>{signal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{
+            background: C.surface2,
+            border: `1px solid ${C.border}`,
+            borderRadius: '6px',
+            padding: '12px 16px',
+            display: 'flex', flexDirection: 'column', gap: '6px',
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Unusual Options Activity</div>
+            <p style={{ fontSize: '13px', color: C.muted, margin: 0, lineHeight: '1.6' }}>
+              A contract is flagged as unusual when{' '}
+              <span style={{ fontFamily: 'monospace', background: C.bg, padding: '1px 6px', borderRadius: '3px', color: C.text }}>
+                volume &gt; open interest AND volume &gt; 500
+              </span>.
+              Large sweeps and block trades meeting this threshold provide additional market context and appear in the AI narrative.
             </p>
           </div>
         </div>
