@@ -1,5 +1,6 @@
 import yfinance as yf
 import requests
+import threading
 import time
 import math
 from datetime import datetime
@@ -8,42 +9,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# yfinance ≥ 0.2.x has its own internal session with cookie handling, rate-limit
-# backoff, and auth that is required for the options chain API to work reliably.
-# Passing a custom requests.Session() to yf.Ticker() bypasses all of that and
-# causes slow or empty responses on cloud hosts like Railway.
-# Instead, patch the User-Agent directly onto yfinance's shared session so Yahoo
-# does not reject the request as a non-browser client, without disturbing the
-# rest of yfinance's session management.
-try:
-    import yfinance.utils as _yf_utils
-    _shared = getattr(_yf_utils, "requests", None) or __import__("requests")
-    _shared.utils.default_headers()  # ensure headers object exists
-except Exception:
-    pass
-
-try:
-    _UA = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
-    # yfinance uses a requests.Session stored on the module; patch its UA header.
-    if hasattr(yf, "base") and hasattr(yf.base, "_requests"):
-        yf.base._requests.headers.update({"User-Agent": _UA})
-    # Fallback: patch via the requests package default headers (affects all sessions
-    # created after this point that don't override User-Agent).
-    import requests.utils as _ru
-    _orig_default_headers = _ru.default_headers
-
-    def _patched_headers():
-        h = _orig_default_headers()
-        h["User-Agent"] = _UA
-        return h
-
-    _ru.default_headers = _patched_headers
-except Exception as _ua_err:
-    logger.debug("UA patch skipped: %s", _ua_err)
+# Do NOT patch yfinance's session or User-Agent. When curl_cffi is installed
+# (see requirements.txt), yfinance uses it automatically to impersonate a real
+# browser's TLS fingerprint — which is what Yahoo Finance's bot detection checks.
+# Overriding the session with a plain requests.Session disables that impersonation
+# and causes Yahoo to return an HTML block page instead of JSON.
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -100,71 +70,77 @@ def _cache_set(key: str, data: dict):
 # ── yfinance (options chain source) ──────────────────────────────────────────
 
 def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]:
-    try:
-        ticker = yf.Ticker(symbol)
-        expirations = ticker.options
-        if not expirations:
-            logger.warning("yfinance chain: no expirations returned for %s (possible block or bad symbol)", symbol)
-            return None
+    result: list = [None]
 
-        if expiry is None or expiry not in expirations:
-            # Default to the nearest expiry that is at least 45 days out.
-            # This lands on a standard monthly/LEAPS cycle with liquid, two-sided
-            # markets and meaningful time value — short-dated weeklies have
-            # unreliable bid/ask and near-zero greeks for most strategies.
-            # Fall back to the nearest future date if nothing is far enough out.
-            from datetime import date as _date
-            today_dt = _date.today()
-            at_least_45 = [
-                e for e in expirations
-                if (_date.fromisoformat(e) - today_dt).days >= 45
-            ]
-            if at_least_45:
-                expiry = at_least_45[0]
+    def _run():
+        try:
+            ticker = yf.Ticker(symbol)
+            expirations = ticker.options
+            if not expirations:
+                logger.warning("yfinance chain: no expirations for %s (possible block or bad symbol)", symbol)
+                return
+
+            if expiry is None or expiry not in expirations:
+                # Default to nearest expiry at least 45 days out — standard monthly
+                # cycle with liquid markets. Falls back to nearest future date.
+                from datetime import date as _date
+                today_dt = _date.today()
+                at_least_45 = [
+                    e for e in expirations
+                    if (_date.fromisoformat(e) - today_dt).days >= 45
+                ]
+                if at_least_45:
+                    target = at_least_45[0]
+                else:
+                    today = today_dt.strftime("%Y-%m-%d")
+                    future = [e for e in expirations if e > today]
+                    target = future[0] if future else expirations[0]
             else:
-                today = today_dt.strftime("%Y-%m-%d")
-                future = [e for e in expirations if e > today]
-                expiry = future[0] if future else expirations[0]
+                target = expiry
 
-        chain = ticker.option_chain(expiry)
+            chain = ticker.option_chain(target)
 
-        def df_to_list(df) -> list:
-            rows = []
-            for _, row in df.iterrows():
-                # Raw quotes only. Missing/stale bid-ask is corrected downstream
-                # in greeks.fill_quote (BS theoretical + intrinsic-value floor),
-                # where spot price and time-to-expiry are available.
-                rows.append({
-                    "contractSymbol":    str(row.get("contractSymbol", "")),
-                    "strike":            _safe_float(row.get("strike")),
-                    "lastPrice":         _safe_float(row.get("lastPrice")),
-                    "bid":               _safe_float(row.get("bid")),
-                    "ask":               _safe_float(row.get("ask")),
-                    "change":            _safe_float(row.get("change")),
-                    "percentChange":     _safe_float(row.get("percentChange")),
-                    "volume":            _safe_int(row.get("volume")),
-                    "openInterest":      _safe_int(row.get("openInterest")),
-                    "impliedVolatility": _safe_float(row.get("impliedVolatility")),
-                    "inTheMoney":        bool(row.get("inTheMoney", False)),
-                })
-            return rows
+            def df_to_list(df) -> list:
+                rows = []
+                for _, row in df.iterrows():
+                    # Raw quotes only — bid/ask corrected downstream in greeks.fill_quote.
+                    rows.append({
+                        "contractSymbol":    str(row.get("contractSymbol", "")),
+                        "strike":            _safe_float(row.get("strike")),
+                        "lastPrice":         _safe_float(row.get("lastPrice")),
+                        "bid":               _safe_float(row.get("bid")),
+                        "ask":               _safe_float(row.get("ask")),
+                        "change":            _safe_float(row.get("change")),
+                        "percentChange":     _safe_float(row.get("percentChange")),
+                        "volume":            _safe_int(row.get("volume")),
+                        "openInterest":      _safe_int(row.get("openInterest")),
+                        "impliedVolatility": _safe_float(row.get("impliedVolatility")),
+                        "inTheMoney":        bool(row.get("inTheMoney", False)),
+                    })
+                return rows
 
-        return {
-            "expirations": list(expirations),
-            "expiry":      expiry,
-            "calls":       df_to_list(chain.calls),
-            "puts":        df_to_list(chain.puts),
-            # Underlying spot price from the same API response — more reliable
-            # than a separate get_quote call and avoids S=0 when that call fails.
-            "underlying_price": _safe_float(
-                (chain.underlying or {}).get("regularMarketPrice") or
-                (chain.underlying or {}).get("ask") or
-                (chain.underlying or {}).get("bid")
-            ),
-        }
-    except Exception as e:
-        logger.warning("yfinance chain failed for %s: %s", symbol, e)
-        return None
+            r = {
+                "expirations": list(expirations),
+                "expiry":      target,
+                "calls":       df_to_list(chain.calls),
+                "puts":        df_to_list(chain.puts),
+                "underlying_price": _safe_float(
+                    (chain.underlying or {}).get("regularMarketPrice") or
+                    (chain.underlying or {}).get("ask") or
+                    (chain.underlying or {}).get("bid")
+                ),
+            }
+            if r["calls"] or r["puts"]:
+                result[0] = r
+        except Exception as e:
+            logger.warning("yfinance chain failed for %s: %s", symbol, e)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(5)  # 5s hard timeout — fail fast so synthetic fallback runs well within proxy timeout
+    if t.is_alive():
+        logger.warning("yfinance chain timed out for %s", symbol)
+    return result[0]
 
 
 # ── Public API ───────────────────────────────────────────────────────────────
@@ -248,22 +224,32 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None) -> dict:
     if cached:
         return cached
 
+    # Tier 1: yfinance — real data, 5s hard timeout
     result = _yfinance_chain(symbol, expiry)
     if result:
         _cache_set(cache_key, result)
-        # Also cache under the resolved expiry so requests for the actual
-        # expiry date aren't a cache miss when the requested key differed.
         resolved = result.get("expiry")
         if resolved and resolved != expiry:
             _cache_set(f"chain:{symbol}:{resolved}", result)
         return result
 
-    # yfinance blipped — serve the last known good chain rather than empty,
-    # which would cause "chain unavailable" and wipe quotes from the UI.
+    # Tier 2: stale cache — last known good chain from this session
     stale = _cache_get_stale(cache_key)
     if stale:
         logger.warning("yfinance chain failed for %s; serving stale cache", symbol)
         return stale
+
+    # Tier 3: Black-Scholes synthetic chain — always works, flagged _synthetic=True
+    try:
+        spot = get_quote(symbol).get("price", 0.0)
+        if spot > 0:
+            synth = synthetic_options_chain(symbol, spot, 0.30)
+            if synth.get("calls") or synth.get("puts"):
+                logger.info("Synthetic chain for %s spot=%.2f", symbol, spot)
+                _cache_set(cache_key, synth)
+                return synth
+    except Exception as e:
+        logger.exception("Synthetic chain failed for %s: %s", symbol, e)
 
     return {"expirations": [], "calls": [], "puts": [], "expiry": None}
 
