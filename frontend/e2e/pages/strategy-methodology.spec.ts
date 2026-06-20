@@ -175,7 +175,11 @@ test.describe('Suite 2 — Content presence on the methodology page', () => {
 
   // AC4.4 — Combination rule table is present (SMA Signal column header)
   test('directional bias combination table is present', async ({ authedPage }) => {
-    await expect(authedPage.getByText(/SMA Signal/i)).toBeVisible()
+    // "SMA Signal" appears both as a prose div heading ("SMA signal rules") and as a <th>
+    // in the combination table. The <th> text is exactly "SMA Signal". We target the <th>
+    // directly to avoid the strict-mode multi-match on getByText.
+    const th = authedPage.locator('th', { hasText: /^SMA Signal$/i })
+    await expect(th).toBeVisible()
   })
 
   // Scoring — +2 and +3 point values visible in the scoring section
@@ -281,10 +285,10 @@ test.describe('Suite 4 — Back-navigation from methodology to scanner', () => {
     // Step 2: click the Strategy Scanner tab
     await authedPage.getByRole('button', { name: /strategy scanner/i }).click()
 
-    // Step 3: scanner content should be visible (the watchlist heading or the scan button)
+    // Step 3: scanner content should be visible — the "Scan Watchlist" button is the clearest
+    // indicator that the scanner tab is active; it is the primary CTA in the scanner card.
     await expect(
       authedPage.getByRole('button', { name: /scan watchlist/i })
-        .or(authedPage.getByText(/watchlist/i).first())
     ).toBeVisible({ timeout: 10000 })
   })
 
