@@ -8,6 +8,7 @@ import LoginPage from './components/LoginPage'
 import PnLChart from './components/PnLChart'
 import RiskMonitor from './components/RiskMonitor'
 import UserGuide from './components/UserGuide'
+import StrategyMethodologyPage from './components/StrategyMethodologyPage'
 import TradingDesk from './components/TradingDesk'
 import AISettings from './components/AISettings'
 import OnboardingFlow from './components/OnboardingFlow'
@@ -29,7 +30,7 @@ import { createBillingPortalSession } from './api/client'
 const PORTAL_MODE = (import.meta.env.VITE_PORTAL_MODE as string | undefined) || 'client'
 
 type Desk = 'options' | 'trading'
-type Tab = 'chain' | 'positions' | 'scanner' | 'guide' | 'ai'
+type Tab = 'chain' | 'positions' | 'scanner' | 'methodology' | 'guide' | 'ai'
 
 const C = {
   bg: '#0f1117',
@@ -140,6 +141,7 @@ function Dashboard() {
       requiredTier: 'starter',
     },
     { key: 'scanner', label: 'Strategy Scanner', short: 'Scanner' },
+    { key: 'methodology', label: 'Methodology', short: 'How' },
     { key: 'guide', label: 'User Guide', short: 'Guide' },
     { key: 'ai', label: 'AI Features', short: 'AI' },
   ]
@@ -156,7 +158,7 @@ function Dashboard() {
 
   const profilePicUrl = (profile as unknown as { avatar_url?: string })?.avatar_url
 
-  const showSidebar = !!selectedTrade && !isMobile && activeDesk === 'options' && activeTab !== 'guide' && activeTab !== 'ai'
+  const showSidebar = !!selectedTrade && !isMobile && activeDesk === 'options' && activeTab !== 'guide' && activeTab !== 'methodology' && activeTab !== 'ai'
 
   if (showSettings) {
     return (
@@ -367,7 +369,13 @@ function Dashboard() {
                 )}
               </div>
               <div style={{ display: activeTab === 'scanner' ? 'block' : 'none' }}>
-                <StrategyScanner onSelectTrade={handleSelectTrade} />
+                <StrategyScanner
+                  onSelectTrade={handleSelectTrade}
+                  onMethodologyClick={() => handleTabChange('methodology')}
+                />
+              </div>
+              <div style={{ display: activeTab === 'methodology' ? 'block' : 'none' }}>
+                <StrategyMethodologyPage onTabChange={(tab) => handleTabChange(tab as Tab)} />
               </div>
               <div style={{ display: activeTab === 'guide' ? 'block' : 'none' }}>
                 <UserGuide isAdmin={false} />
