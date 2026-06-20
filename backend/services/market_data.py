@@ -9,11 +9,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Do NOT patch yfinance's session or User-Agent. When curl_cffi is installed
-# (see requirements.txt), yfinance uses it automatically to impersonate a real
-# browser's TLS fingerprint — which is what Yahoo Finance's bot detection checks.
-# Overriding the session with a plain requests.Session disables that impersonation
-# and causes Yahoo to return an HTML block page instead of JSON.
+# When curl_cffi is installed yfinance uses it automatically for TLS fingerprint
+# impersonation, which is what Yahoo Finance's bot detection checks. The UA patch
+# below is a belt-and-suspenders fallback for environments where curl_cffi is not
+# yet available (e.g. first deploy before pip install completes). It is harmless
+# when curl_cffi is active because yfinance's curl session ignores the requests
+# default headers.
+try:
+    _UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+    import requests.utils as _ru
+    _orig_default_headers = _ru.default_headers
+
+    def _patched_headers():
+        h = _orig_default_headers()
+        h["User-Agent"] = _UA
+        return h
+
+    _ru.default_headers = _patched_headers
+except Exception as _ua_err:
+    logger.debug("UA patch skipped: %s", _ua_err)
 
 
 def _safe_int(val, default: int = 0) -> int:
@@ -137,7 +155,7 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
-    t.join(5)  # 5s hard timeout — fail fast so synthetic fallback runs well within proxy timeout
+    t.join(15)  # 15s timeout — gives yfinance room on Railway while leaving time for synthetic fallback
     if t.is_alive():
         logger.warning("yfinance chain timed out for %s", symbol)
     return result[0]
