@@ -10,22 +10,43 @@
 
 **File:** `frontend/e2e/pages/strategy-methodology.spec.ts`
 **Author:** qa-engineer agent
-**Run status:** Written — awaiting CI execution on nightly workflow
+**Run status:** EXECUTED — 25 passed, 0 failed, 0 skipped (chromium, 20Jun2026)
 
 ### Test suites
 
 | Suite | Tests | Coverage |
 |---|---|---|
-| 1 — Tab navigation | 4 | Desktop tab click, mobile "How" label, no lock icon, tab renders heading |
-| 2 — Content presence | 12 | IV Environment, Directional Bias, scoring, 31-row catalog count, Earnings Awareness, Flow section, worked example, formula text, SMA rules, combination table, bias compatibility table |
-| 3 — Scanner → Methodology link | 3 | Link visible before scan, clicking link navigates to methodology, link visible on mobile |
-| 4 — Back-navigation | 1 | Methodology → Scanner shows watchlist scanner content |
-| **Total** | **20** | |
+| 1 — Tab navigation | 5 | Desktop tab click, mobile "How" label at 375×812, no lock icon (text assertion), no upgrade prompt rendered, methodology heading visible after click |
+| 2 — Content presence | 13 | IV Environment heading, Directional Bias heading, IVR formula text, SMA mention, RSI mention, Earnings Awareness heading, Scoring text, Options Flow text, catalog table ≥ 31 tbody rows (P&L Family column used as anchor), HIGH/MEDIUM/LOW badges, SMA Signal `<th>` in combination table, +2 and +3 scoring values, pipeline overview text |
+| 3 — Scanner → Methodology link | 4 | Link visible before scan, clicking link shows methodology heading, link visible with empty watchlist, link is a `<button>` element (role assertion) |
+| 4 — Back-navigation | 3 | Scanner tab shows Scan Watchlist button after returning from methodology, methodology heading hidden (display:none) after leaving, content persists after round-trip through Options Chain tab |
+| **Total** | **25** | |
 
-### Selector improvements (QA engineer revision)
+### Actual test run output (chromium)
 
-- `getByText(/SMA Signal/i)` → `getByRole('columnheader', { name: /SMA Signal/i })` — avoids strict-mode multi-match when the text appears both in prose and as a `<th>`
-- Removed `.or(authedPage.getByText(/watchlist/i).first())` fallback from Suite 4 — `getByRole('button', { name: /scan watchlist/i })` is the precise primary CTA
+```
+Running 25 tests using 1 worker
+
+25 passed (37.3s)
+```
+
+No tests skipped. No tests failed.
+
+### Regression check
+
+Pre-existing suite (chromium, all spec files, before this feature): 330 passed, 47 failed.
+Post-addition (chromium, all spec files): 355 passed, 47 failed.
+The 47 pre-existing failures are unchanged and confined to unrelated spec files
+(`legal-acknowledgment`, `login`, `login-email`, `pricing`, `security`, `engine-accuracy`,
+`data-accuracy`, `ai-features`, `strategy-comparison-matrix`, `ui-regression`).
+Zero regressions introduced.
+
+### Selector notes
+
+- `getByText(/IVR/)` — strict-mode multi-match resolved by `.first()` (5 IVR occurrences on page)
+- `getByRole('columnheader', ...)` does not match `<th>` elements in this component (inline styles, no explicit `scope`); resolved by `locator('th', { hasText: /^SMA Signal$/i })`
+- Catalog row count: anchored to `table` containing `th` with text "P&L Family" (unique to the catalog table) to avoid counting rows from the 2-column and 4-column tables on the same page
+- `.or()` combinator with strict mode removed from Suite 4; replaced with `getByRole('button', { name: /scan watchlist/i })` which is the unambiguous primary CTA
 
 ---
 
@@ -141,7 +162,7 @@
 
 **Decision: CONDITIONAL PASS**
 
-Automated suite written (20 tests, CI pending). Manual analysis identified 4 major content gaps against BA spec ACs. These do not block the core selection engine or DB changes (which are Gate 3 complete), but the methodology page content needs a follow-up implementation pass before Gate 5.
+Automated suite executed — 25 tests, 25 passed, 0 failed on chromium. Manual analysis identified 4 major content gaps against BA spec ACs. These do not block the core selection engine or DB changes (which are Gate 3 complete), but the methodology page content needs a follow-up implementation pass before Gate 5.
 
 **Required before Gate 5:**
 1. Add PCR threshold bands and "unusual contract" definition to the Flow section (Finding 1)
