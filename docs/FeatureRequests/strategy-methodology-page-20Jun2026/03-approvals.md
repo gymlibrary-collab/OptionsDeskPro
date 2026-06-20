@@ -12,10 +12,10 @@
 |------|-------|------|----------|-------|
 | 1 — BA Spec | business-analyst | 20Jun2026 | ✅ Approved | `01-spec.md` produced; feature scoped to methodology page + catalog alignment |
 | 2 — Architecture | solution-architect | 20Jun2026 | ✅ Approved | `02-design.md` produced; scope extended to include backend catalog DB migration as prerequisite |
-| 3 — Implementation | frontend-developer, backend-developer | 20Jun2026 | 🔄 In progress | `016_strategy_catalog.sql`, `strategy_engine.py` rewrite, `docs/strategy-selection-spec.md`, frontend tab pending |
-| 4 — Test | qa-engineer, tester | — | ⏳ Pending | Awaiting implementation completion |
-| 5 — Security | security-reviewer | — | ⏳ Pending | |
-| 6 — Release | operator, technical-writer, devops-engineer | — | ⏳ Pending | |
+| 3 — Implementation | frontend-developer, backend-developer | 20Jun2026 | ✅ Approved | All backend + frontend changes complete; 4 content gaps fixed post-QA (commit 089779e) |
+| 4 — Test | qa-engineer, tester | 20Jun2026 | ✅ Conditional Pass | 25/25 Playwright tests pass; 4 major content gaps identified and fixed; 0 regressions |
+| 5 — Security | security-reviewer | 20Jun2026 | ✅ Pass | No Critical/High findings; 1 Medium (missing RLS on strategy_catalog — deferred to next migration slot) |
+| 6 — Release | operator, technical-writer, devops-engineer | 20Jun2026 | ✅ Pass | `06-release-note.md` written; UserGuide updated; operator GO assessment complete |
 
 ---
 
@@ -41,22 +41,40 @@ Design accepted. Scope extended to include:
 
 ---
 
-## Gate 3 — Implementation (pending sign-off)
+## Gate 3 — Implementation (complete)
 
 **Backend changes:**
-- [ ] `docs/strategy-selection-spec.md` created
-- [ ] `backend/migrations/016_strategy_catalog.sql` created (31 rows)
-- [ ] `backend/services/strategy_engine.py` updated:
-  - [ ] 31 strategies in STRATEGIES dict
-  - [ ] `score_and_rank()` function added
-  - [ ] `build_trade()` handles all 31 strategies
-  - [ ] `SELLER_STRATEGIES` updated
-  - [ ] Governance banner comment at top
+- [x] `docs/strategy-selection-spec.md` created
+- [x] `backend/migrations/016_strategy_catalog.sql` created (31 rows)
+- [x] `backend/services/strategy_engine.py` updated:
+  - [x] 31 strategies in STRATEGIES dict
+  - [x] `score_and_rank()` function added
+  - [x] `build_trade()` handles all 31 strategies
+  - [x] `SELLER_STRATEGIES` updated
+  - [x] Governance banner comment at top
 
 **Frontend changes:**
-- [ ] `StrategyMethodologyPage.tsx` component created
-- [ ] `App.tsx` methodology tab added
-- [ ] `StrategyScanner.tsx` learn link added
+- [x] `StrategyMethodologyPage.tsx` component created
+- [x] `App.tsx` methodology tab added
+- [x] `StrategyScanner.tsx` learn link added
+
+**Post-QA content fixes (commit 089779e):**
+- [x] METH-001: PCR threshold bands added to Options Flow section
+- [x] METH-002: Unusual contract definition added to Options Flow section
+- [x] METH-003: Two-gate explanation (Strategies Available / Condition Matches) added
+- [x] METH-004: Strategy catalog grouped into 6 named direction categories
+
+---
+
+## Gate 5 — Security (complete)
+
+**Approved by:** security-reviewer agent
+**Date:** 20Jun2026
+
+Decision: **PASS** — No Critical or High findings. One Medium finding deferred:
+- Finding 001: `strategy_catalog` table missing `ENABLE ROW LEVEL SECURITY`. Data is non-sensitive (displayed publicly to all auth users). Deferred to next migration slot. No action blocks this release.
+
+All CLAUDE.md invariants confirmed intact.
 
 ---
 
