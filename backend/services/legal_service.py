@@ -108,7 +108,7 @@ async def require_legal_acknowledgment(user_id: str, email: str) -> None:
             .maybe_single()
             .execute()
         )
-        if ack.data is None:
+        if ack is None or ack.data is None:
             raise HTTPException(
                 status_code=451,
                 detail="Legal acknowledgment required",
@@ -157,7 +157,7 @@ def get_pending_legal_acknowledgment(user_id: str, email: str) -> bool:
             .maybe_single()
             .execute()
         )
-        return ack.data is None  # True = no acknowledgment row found
+        return ack is None or ack.data is None  # True = no acknowledgment row found
     except Exception as e:
         logger.warning(
             "legal_service: pending-ack check failed for user %s — failing open: %s",

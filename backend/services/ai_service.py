@@ -3,7 +3,7 @@ AI-powered analysis features using Google Gemini.
 Each function returns None gracefully if the API key is missing or the call fails.
 Never call get_supabase() at module level.
 
-Model: gemini-1.5-flash (free tier on Google AI Studio)
+Model: gemini-2.0-flash (free tier on Google AI Studio)
 Get your API key at: https://aistudio.google.com/app/apikey
 Set env var: GEMINI_API_KEY
 """
@@ -13,24 +13,27 @@ import logging
 import time
 from typing import Optional
 
-_MODEL = "gemini-1.5-flash"
+_MODEL = "gemini-2.0-flash"
 logger = logging.getLogger(__name__)
 
 
 def _generate(prompt: str, system: Optional[str] = None) -> str:
     """Call Gemini and return the response text."""
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY environment variable is not set")
 
-    genai.configure(api_key=key)
-    model = genai.GenerativeModel(
-        _MODEL,
-        system_instruction=system or "You are a helpful assistant.",
+    client = genai.Client(api_key=key)
+    response = client.models.generate_content(
+        model=_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system or "You are a helpful assistant.",
+        ),
     )
-    response = model.generate_content(prompt)
     return response.text.strip()
 
 
