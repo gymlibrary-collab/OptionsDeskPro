@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from datetime import date as _date
 from services.iv_analysis import get_iv_rank, get_directional_bias
-from services.strategy_engine import recommend_by_category, build_trade, build_comparison_matrix, get_strategy_count, get_condition_match_count, STRATEGIES
+from services.strategy_engine import recommend_by_category, recommend_strategies, build_trade, build_comparison_matrix, get_strategy_count, get_condition_match_count, STRATEGIES
 from services.market_data import get_options_chain, get_quote, synthetic_options_chain
 from services.greeks import calculate_greeks, fill_quote
 from services.interpreter import generate_narrative
@@ -352,6 +352,7 @@ async def scan_watchlist(
                 "price": bias_data.get("price", 0.0),
                 "iv_rank": iv_data.get("iv_rank", 0.0),
                 "current_iv": iv_data.get("current_iv", 0.0),
+                "iv_source": iv_data.get("iv_source", "hv_proxy"),
                 "iv_environment": iv_env,
                 "percentile_label": iv_data.get("percentile_label", ""),
                 "bias": bias,
@@ -359,6 +360,7 @@ async def scan_watchlist(
                 "rsi14": bias_data.get("rsi14", 50.0),
                 "strategy_count": get_strategy_count(iv_env),
                 "condition_matches": get_condition_match_count(iv_env, bias),
+                "top_strategies": recommend_strategies(iv_env, bias),
                 "error": iv_data.get("error") or bias_data.get("error"),
             }
         except Exception as e:
@@ -368,13 +370,15 @@ async def scan_watchlist(
                 "price": 0.0,
                 "iv_rank": 0.0,
                 "current_iv": 0.0,
+                "iv_source": "hv_proxy",
                 "iv_environment": "MEDIUM",
-                "percentile_label": "IVR N/A",
+                "percentile_label": "HV Rank N/A",
                 "bias": "NEUTRAL",
                 "bias_strength": "MODERATE",
                 "rsi14": 50.0,
                 "strategy_count": get_strategy_count("MEDIUM"),
                 "condition_matches": 0,
+                "top_strategies": [],
                 "error": str(e),
             }
 

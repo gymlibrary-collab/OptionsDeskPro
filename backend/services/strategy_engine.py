@@ -659,10 +659,12 @@ def _direction_matches(designed_for_direction: str, current_bias: str) -> bool:
     return current_bias in _DIRECTION_MAP.get(designed_for_direction, set())
 
 
-def score_and_rank(iv_env: str, bias: str, top_n: int = 5) -> list[dict]:
+def recommend_strategies(iv_env: str, bias: str, top_n: int = 5) -> list[dict]:
     """
     Score and rank all strategies per docs/strategy-selection-spec.md §4.
     Returns the top_n strategies sorted by score descending.
+
+    Used by: Scanner (decides the directional view for the user).
 
     Scoring:
       +2  IV environment match
@@ -671,6 +673,7 @@ def score_and_rank(iv_env: str, bias: str, top_n: int = 5) -> list[dict]:
       -0.1 * complexity  tiebreak toward simpler structures
 
     Strategies matching neither axis are excluded.
+    Maximum score = 4.9 (iv_match + exact direction + complexity 1).
     """
     compatible = BIAS_COMPATIBILITY.get(bias, [bias])
     scored: list[tuple] = []
