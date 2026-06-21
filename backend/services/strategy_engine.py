@@ -1525,21 +1525,8 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             if max_profit > 0:
                 tastylive_profit_target = round(max_profit * strat["profit_target_pct"] / 100, 2)
 
-    # Sanity checks: suppress strategies with non-viable payoff profiles so only
-    # sensible setups are shown in an educational context.
-    #
     # Guard 1 — negative or zero max_profit: strategy can never be profitable.
     if max_profit is not None and max_profit <= 0:
-        return None
-    # Guard 2 — debit spread where you risk more than you can make: not educational.
-    # Credit strategies (net >= 0) are exempt — their max_loss > max_profit is by design.
-    if (
-        net < 0
-        and strat["risk_type"] == "DEFINED"
-        and max_profit is not None
-        and max_loss is not None
-        and max_profit < max_loss
-    ):
         return None
 
     # Clean up internal fields; preserve per-leg expiry for multi-expiry strategies
