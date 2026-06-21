@@ -241,15 +241,15 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
             {FEATURES.map((f, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                 <div style={{
-                  width: '22px', height: '22px', borderRadius: '5px', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'clamp(10px, 2.5vw, 13px)',
+                  width: '24px', height: '24px', borderRadius: '5px', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'clamp(12px, 3vw, 15px)',
                   background: f.iconBg, border: `1px solid ${f.iconBorder}`,
                 }}>
                   {f.icon}
                 </div>
-                <span style={{ fontSize: 'clamp(10px, 2.8vw, 13px)', fontWeight: 700, color: '#cbd5e1' }}>{f.mobileTitle}</span>
+                <span style={{ fontSize: 'clamp(12px, 3.2vw, 15px)', fontWeight: 700, color: '#cbd5e1' }}>{f.mobileTitle}</span>
                 <span style={{
-                  padding: '1px 5px', borderRadius: '6px', fontSize: 'clamp(9px, 2.2vw, 11px)', fontWeight: 700,
+                  padding: '1px 6px', borderRadius: '6px', fontSize: 'clamp(10px, 2.5vw, 12px)', fontWeight: 700,
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
                   whiteSpace: 'nowrap',
                 }}>
@@ -330,7 +330,7 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
         </div>
 
         {/* Headline */}
-        <h1 className="lp-headline" style={{ fontSize: '18px', fontWeight: 600, lineHeight: 1.45, letterSpacing: '-0.3px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
+        <h1 className="lp-headline" style={{ fontSize: 'clamp(17px, 1.7vw, 24px)', fontWeight: 600, lineHeight: 1.45, letterSpacing: '-0.3px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
           <span style={{
             background: 'linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%)',
             WebkitBackgroundClip: 'text',
@@ -356,12 +356,12 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
                 {f.icon}
               </div>
               <div>
-                <div style={{ fontSize: 'clamp(12px, 1.1vw, 14px)', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
-                <div className="lp-feature-desc" style={{ fontSize: 'clamp(11px, 1vw, 13px)', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
+                <div style={{ fontSize: 'clamp(14px, 1.4vw, 17px)', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
+                <div className="lp-feature-desc" style={{ fontSize: 'clamp(13px, 1.2vw, 15px)', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '3px',
                   padding: '2px 7px', borderRadius: '10px',
-                  fontSize: 'clamp(9px, 0.8vw, 11px)', fontWeight: 600, letterSpacing: '0.03em',
+                  fontSize: 'clamp(11px, 0.95vw, 13px)', fontWeight: 600, letterSpacing: '0.03em',
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
                 }}>
                   {f.tag}
@@ -578,7 +578,7 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
         }
 
         /* ── Typography utility classes ── */
-        .lp-headline { font-size: 22px; }
+        /* lp-headline font-size is set via clamp() inline style */
 
         /* ── Mobile hero: hidden by default (desktop) ── */
         .lp-mobile-hero {
