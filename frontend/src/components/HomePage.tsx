@@ -311,7 +311,7 @@ export default function HomePage({ onSignIn, onSignUp }: HomePageProps) {
             borderRadius: '9px', filter: 'drop-shadow(0 0 6px rgba(124,106,247,0.45))',
           }}>
             <NavCompassIcon />
-          </div>Options<span style={{ color: C.accent }}>Compass</span>
+          </div><span>Options<span style={{ color: C.accent }}>Compass</span></span>
         </button>
 
         <ul className="hp-nav-links" style={{ display: 'flex', gap: '32px', listStyle: 'none', margin: 0, padding: 0 }}>
