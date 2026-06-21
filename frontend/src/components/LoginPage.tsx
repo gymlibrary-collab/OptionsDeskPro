@@ -265,7 +265,8 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
       <div style={{
         flex: 1,
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
         background: 'linear-gradient(160deg, #0d0f1e 0%, #0a1020 100%)',
         display: 'flex',
         flexDirection: 'column',
@@ -579,6 +580,10 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
 
         /* ── Typography utility classes ── */
         /* lp-headline font-size is set via clamp() inline style */
+
+        /* ── Hide scrollbar on left panel (overflowY:auto used to prevent clipping) ── */
+        .login-left-panel::-webkit-scrollbar { display: none; }
+        .login-left-panel { -ms-overflow-style: none; scrollbar-width: none; }
 
         /* ── Mobile hero: hidden by default (desktop) ── */
         .lp-mobile-hero {
