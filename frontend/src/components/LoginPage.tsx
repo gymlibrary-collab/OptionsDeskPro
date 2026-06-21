@@ -162,11 +162,11 @@ function CompassSVG() {
         <line x1="89.3"  y1="230.4" x2="90.7"  y2="225.7" strokeWidth="0.6" opacity="0.6"/>
       </g>
       {/* N arrow — wide fleur style */}
-      <polygon points="120,10 127,85 120,100 113,85" fill="#e2e8f0" opacity="0.58"/>
+      <polygon points="120,10 127,85 120,100 113,85" fill="#ef4444" opacity="0.75"/>
       {/* fleur arrowhead */}
-      <polygon points="120,8 130,20 120,26 110,20" fill="#e2e8f0" opacity="0.72"/>
-      <line x1="105" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
-      <line x1="135" y1="18" x2="120" y2="28" stroke="#e2e8f0" strokeWidth="0.8" opacity="0.4"/>
+      <polygon points="120,8 130,20 120,26 110,20" fill="#ef4444" opacity="0.85"/>
+      <line x1="105" y1="18" x2="120" y2="28" stroke="#ef4444" strokeWidth="0.8" opacity="0.5"/>
+      <line x1="135" y1="18" x2="120" y2="28" stroke="#ef4444" strokeWidth="0.8" opacity="0.5"/>
       {/* S arrow */}
       <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
       {/* E/W subtle marks */}
@@ -176,9 +176,9 @@ function CompassSVG() {
       <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" strokeWidth="1.5" opacity="0.38"/>
       <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
       <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
-      {/* N label — floats in gap between arrow tip and orbit ring */}
+      {/* N label */}
       <text x="120" y="-22" textAnchor="middle" fontSize="13" fontWeight="900"
-        fill="#e2e8f0" opacity="0.80" fontFamily="Georgia, serif"
+        fill="#ef4444" opacity="0.90" fontFamily="Georgia, serif"
         transform="rotate(-30 120 -22)">N</text>
       {/* S/E/W labels subtle */}
       <text x="120" y="253" textAnchor="middle" fontSize="9" fill="#7c6af7" opacity="0.25" fontFamily="monospace" transform="rotate(-30 120 253)">S</text>
