@@ -5,6 +5,11 @@ const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif
 
 type Mode = 'signin' | 'signup'
 
+interface LoginPageProps {
+  initialMode?: Mode
+  onBack?: () => void
+}
+
 const FEATURES = [
   {
     icon: '⚡',
@@ -167,9 +172,9 @@ function CompassSVG() {
   )
 }
 
-export default function LoginPage() {
+export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageProps) {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, loading } = useAuth()
-  const [mode, setMode] = useState<Mode>('signin')
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -386,6 +391,17 @@ export default function LoginPage() {
       {/* ── RIGHT — login form ── */}
       <div className="lp-right" style={{ width: '460px', minWidth: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', background: '#08090f' }}>
         <div className="lp-right-inner" style={{ width: '100%' }}>
+
+          {onBack && (
+            <button onClick={onBack} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              color: '#64748b', background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '13px', fontWeight: 500, fontFamily: FONT,
+              marginBottom: '32px', padding: 0, transition: 'color 0.2s',
+            }}>
+              ← Back to Options Compass
+            </button>
+          )}
 
           <div className="lp-form-title" style={{ fontSize: '26px', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.5px', marginBottom: '4px' }}>
             {mode === 'signup' ? 'Create your account' : 'Welcome back'}

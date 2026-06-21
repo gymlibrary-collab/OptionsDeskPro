@@ -5,6 +5,7 @@ import TradePanel from './components/TradePanel'
 import Positions from './components/Positions'
 import StrategyScanner from './components/StrategyScanner'
 import LoginPage from './components/LoginPage'
+import HomePage from './components/HomePage'
 import PnLChart from './components/PnLChart'
 import RiskMonitor from './components/RiskMonitor'
 import UserGuide from './components/UserGuide'
@@ -458,6 +459,7 @@ const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 
 function ClientAppInner() {
   const { user, profile, loading, pendingLegalAcknowledgment } = useAuth()
+  const [authView, setAuthView] = useState<'home' | 'signin' | 'signup'>('home')
 
   // Start fetching the chain immediately on mount — runs during the auth loading
   // spinner so data is cached by the time the options chain tab renders.
@@ -476,7 +478,22 @@ function ClientAppInner() {
       </div>
     )
   }
-  if (!user) return <LoginPage />
+  if (!user) {
+    if (authView === 'home') {
+      return (
+        <HomePage
+          onSignIn={() => setAuthView('signin')}
+          onSignUp={() => setAuthView('signup')}
+        />
+      )
+    }
+    return (
+      <LoginPage
+        initialMode={authView === 'signup' ? 'signup' : 'signin'}
+        onBack={() => setAuthView('home')}
+      />
+    )
+  }
 
   // Onboarding routing
   const loginProfile = profile as { onboarding_completed?: boolean; onboarding_step?: string } | null
