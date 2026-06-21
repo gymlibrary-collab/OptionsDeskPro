@@ -240,7 +240,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>The Trade in Simple Terms</div>
-            <P>Each leg of the trade broken down: which option to buy or sell, the strike, expiry, estimated cost or credit per leg, delta, and bid/ask. Also shows the ATR (typical daily move) and a flag if earnings fall within the trade window.</P>
+            <P>Each leg of the trade broken down: which option to buy or sell, the strike, expiry, estimated cost or credit per contract, delta, and bid/ask. The legs table includes a <strong>Qty column</strong> that shows how many contracts to place at each strike. For strategies like ZEBRAs, butterflies, and front-ratio spreads that use multiple contracts of the same option at one strike, they appear as a single row with Qty greater than 1 (e.g., "BUY 2" at a single strike for Call ZEBRA). For strategies with unlimited upside (like ZEBRAs), exit guidance shows time-based targets ("close at 21 DTE") rather than a fixed profit target. Also shows the ATR (typical daily move) and a flag if earnings fall within the trade window.</P>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}33`, borderRadius: '8px', padding: '12px 14px' }}>
@@ -334,6 +334,8 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Undefined Risk">A trade with no hard loss ceiling (e.g. naked puts/calls, strangles). As a good practice, sizing these at 1–3% of portfolio is recommended.</Term>
           <Term term="2× Rule">A common stop-loss rule for undefined-risk trades: if the loss equals 2× the premium collected, close the position immediately.</Term>
           <Term term="Rolling">Closing a current position and reopening it at a later expiry (or different strikes) — ideally for a net credit to extend the trade's time horizon.</Term>
+          <Term term="Back-Ratio (ZEBRA)">A 2:1 spread structure — 2 long contracts at one strike, 1 short at another. The net-long position above the short strike creates unlimited profit potential. Max loss is capped at the debit paid.</Term>
+          <Term term="Qty Column">Shown in the legs table when a strategy requires more than one contract at the same strike (e.g., butterflies, ZEBRAs). A Qty of 2 means place 2 contracts at that strike, not 1.</Term>
         </div>
       </Section>
 
