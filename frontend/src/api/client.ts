@@ -16,10 +16,14 @@ const api = axios.create({
 // (Supabase JS default: refreshes ~60s before the 1-hour access token expiry,
 // refresh token valid for 60 days). No manual refresh interceptor needed.
 api.interceptors.request.use(async (config) => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session?.access_token) {
-    config.headers = config.headers ?? {}
-    config.headers.Authorization = `Bearer ${session.access_token}`
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      config.headers = config.headers ?? {}
+      config.headers.Authorization = `Bearer ${session.access_token}`
+    }
+  } catch {
+    // If session lookup fails, send request without auth — endpoint will 401 if required
   }
   return config
 })

@@ -214,7 +214,7 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None, force: bool = F
         if cached:
             return cached
 
-    # Tier 1: yfinance — real data, 5s hard timeout
+    # Tier 1: yfinance — real data, 10s hard timeout
     result = _yfinance_chain(symbol, expiry)
     if result and (result.get("calls") or result.get("puts")):
         _cache_set(cache_key, result)
@@ -223,7 +223,9 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None, force: bool = F
             _cache_set(f"chain:{symbol}:{resolved}", result)
         return result
 
-    # Tier 2: Black-Scholes synthetic chain — always works, flagged _synthetic=True
+    # Tier 2: Black-Scholes synthetic chain — always works, flagged _synthetic=True.
+    # Synthetic is NOT cached so the next request immediately retries yfinance rather
+    # than serving stale synthetic data for the full 120s TTL window.
     try:
         spot = get_quote(symbol, force=force).get("price", 0.0)
         if spot == 0.0:
@@ -232,7 +234,6 @@ def get_options_chain(symbol: str, expiry: Optional[str] = None, force: bool = F
             synth = synthetic_options_chain(symbol, spot, 0.30)
             if synth.get("calls") or synth.get("puts"):
                 logger.info("Synthetic chain for %s spot=%.2f", symbol, spot)
-                _cache_set(cache_key, synth)
                 return synth
     except Exception as e:
         logger.exception("Synthetic chain failed for %s: %s", symbol, e)
