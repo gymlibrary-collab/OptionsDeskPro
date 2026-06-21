@@ -125,7 +125,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
     <div style={{ maxWidth: '820px', margin: '0 auto', fontFamily: font }}>
       <div style={{ marginBottom: '20px' }}>
         <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 700, color: C.accent }}>
-          OptionsDesk — User Guide
+          Options Compass — User Guide
         </h2>
         <p style={{ margin: 0, fontSize: '13px', color: C.muted }}>
           Everything you need to read, analyse, and paper-trade options — educational simulator only.
@@ -136,7 +136,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── GETTING STARTED ── */}
       <Section title="Getting Started" defaultOpen>
         <P>
-          OptionsDesk is a <strong>paper-trading simulator for educational purposes only</strong>. It is not
+          Options Compass is a <strong>paper-trading simulator for educational purposes only</strong>. It is not
           financial advice and does not involve real money. The app teaches you how to read options markets,
           understand strategy mechanics, and practise placing trades — all in a risk-free environment using
           established options education frameworks.
@@ -270,7 +270,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── PLACING TRADES ── */}
       <Section title="Placing a Paper Trade">
         <P>
-          OptionsDesk includes a paper trading system — trades are simulated with real market prices but no
+          Options Compass includes a paper trading system — trades are simulated with real market prices but no
           real money is at risk. Use it to practice strategy execution and track your P&amp;L.
         </P>
         <Sub>
@@ -347,7 +347,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </P>
         <Note color={C.amber}>
           <strong>Important:</strong> The terms cover critical disclaimers about paper trading, AI-generated content, market data accuracy,
-          trading risks, and limitations of liability. Do not skip reading them — they explain what OptionsDesk is and is not.
+          trading risks, and limitations of liability. Do not skip reading them — they explain what Options Compass is and is not.
         </Note>
         <Sub>
           <P><strong>What if the terms change?</strong> If the platform administrators publish updated terms, you will be prompted to acknowledge the new version before you can continue using the platform. You will need to scroll through and agree again.</P>
@@ -358,7 +358,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── SIGNING IN ── */}
       <Section title="Signing In">
         <P>
-          OptionsDesk uses two secure sign-in methods: <strong>Google OAuth</strong> and <strong>email/password</strong>.
+          Options Compass uses two secure sign-in methods: <strong>Google OAuth</strong> and <strong>email/password</strong>.
         </P>
         <Sub>
           <P><strong>Google sign-in:</strong> Click "Sign in with Google" on the login page. You will be redirected to Google's login (or skip this step if you are already logged in to Google). Approve the permission prompt, and you will be returned to OptionDesk. Session established — no password to remember.</P>
@@ -421,7 +421,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
 
         <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 6px' }}>Billing Tab</div>
         <Sub>
-          <P><strong>Payment Method</strong> — displays the last four digits, card brand (Visa, Mastercard, etc.), and expiry month/year. No full card number is stored with OptionsDesk.</P>
+          <P><strong>Payment Method</strong> — displays the last four digits, card brand (Visa, Mastercard, etc.), and expiry month/year. No full card number is stored with Options Compass.</P>
           <P><strong>Update Card</strong> — click to securely update your payment method via Stripe. You are redirected to Stripe's secure portal and return automatically.</P>
           <P><strong>Invoice List</strong> — shows all invoices tied to your account, including date, amount, and status (paid, open, void). Click the PDF link to download the invoice from Stripe.</P>
         </Sub>
@@ -516,7 +516,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── FAQ ── */}
       <Section title="FAQ & Knowledge Base">
         <P>
-          Visit the <strong>FAQ page</strong> (link in the footer) for answers to common questions about using OptionsDesk,
+          Visit the <strong>FAQ page</strong> (link in the footer) for answers to common questions about using Options Compass,
           subscribing, managing your account, and trading on the platform. The FAQ is maintained by our support team and
           updated regularly.
         </P>
@@ -643,7 +643,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       )}
 
       <div style={{ marginTop: '8px', padding: '12px 16px', background: C.surface, borderRadius: '8px', fontSize: '12px', color: C.muted, textAlign: 'center' }}>
-        OptionsDesk · Paper-trading simulator · For educational purposes only · Not financial advice
+        Options Compass · Paper-trading simulator · For educational purposes only · Not financial advice
       </div>
     </div>
   )

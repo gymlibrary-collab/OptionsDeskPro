@@ -162,7 +162,7 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
           Strategy Selection Methodology
         </h1>
         <p style={{ fontSize: '14px', color: C.muted, margin: 0 }}>
-          How OptionsDesk selects the right options strategies for any market condition
+          How Options Compass selects the right options strategies for any market condition
         </p>
         <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
           Source: tastylive Options Strategy Guide (2023)

@@ -44,7 +44,7 @@ export default function StaffLoginPage() {
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <span style={{ fontSize: '32px', color: C.accent }}>⬡</span>
           <h1 style={{ margin: '8px 0 4px', fontSize: '22px', fontWeight: 700, color: C.text }}>Admin Portal</h1>
-          <p style={{ margin: 0, fontSize: '13px', color: C.muted }}>OptionsDesk platform staff access</p>
+          <p style={{ margin: 0, fontSize: '13px', color: C.muted }}>Options Compass platform staff access</p>
         </div>
 
         <button

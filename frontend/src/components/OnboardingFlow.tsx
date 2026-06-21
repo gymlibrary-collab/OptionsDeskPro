@@ -258,7 +258,7 @@ export default function OnboardingFlow({ initialStep = 'plan_selection', onCompl
           <div style={{ fontSize: '48px', marginBottom: '16px', color: C.success }}>&#x2713;</div>
           <h1 style={{ margin: '0 0 12px', fontSize: '22px', fontWeight: 700, color: C.text }}>You are all set!</h1>
           <p style={{ margin: '0 0 28px', color: C.muted, fontSize: '14px', lineHeight: 1.7 }}>
-            Your OptionsDesk account is ready. Start exploring the options chain and strategy scanner.
+            Your Options Compass account is ready. Start exploring the options chain and strategy scanner.
           </p>
           <button
             onClick={onComplete}
@@ -277,7 +277,7 @@ export default function OnboardingFlow({ initialStep = 'plan_selection', onCompl
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: FONT }}>
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? '12px' : '16px 24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
         <span style={{ fontSize: '20px', color: C.accent }}>&#x2B21;</span>
-        <span style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>Welcome to OptionsDesk</span>
+        <span style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>Welcome to Options Compass</span>
       </div>
 
       <div style={{ padding: isMobile ? '16px 12px' : '24px' }}>

@@ -112,7 +112,7 @@ function AdminShell() {
         )}
         <span style={{ fontSize: '18px', color: C.accent }}>⬡</span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>
-          {isMobile ? 'Admin' : 'OptionsDesk Admin Portal'}
+          {isMobile ? 'Admin' : 'Options Compass Admin Portal'}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>

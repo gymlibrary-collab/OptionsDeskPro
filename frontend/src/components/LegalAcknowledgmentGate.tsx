@@ -131,7 +131,7 @@ export default function LegalAcknowledgmentGate() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '20px', color: C.accent }}>&#x2B21;</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: C.accent, letterSpacing: '0.05em', textTransform: 'uppercase' }}>OptionsDesk</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: C.accent, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Options Compass</span>
           </div>
           <h2 style={{ margin: 0, fontSize: isMobile ? '18px' : '20px', fontWeight: 700, color: C.text }}>
             Updated Legal Terms

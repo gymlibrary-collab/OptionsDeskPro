@@ -257,7 +257,7 @@ function Dashboard() {
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', gap: '4px', flexShrink: 0, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '3px' }}>
-              {deskBtn('options', '⬡ Options Desk')}
+              {deskBtn('options', '⬡ Options Compass')}
               {deskBtn('trading', '◈ Trading Desk')}
             </div>
 
@@ -302,7 +302,7 @@ function Dashboard() {
         )}
       </div>
 
-      {/* Options Desk workspace */}
+      {/* Options Compass workspace */}
       <div style={{ display: activeDesk === 'options' ? 'flex' : 'none', flex: 1, overflow: 'hidden', flexDirection: 'column' }}>
 
         {/* Payment failed banner */}
@@ -472,7 +472,7 @@ function ClientAppInner() {
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f1117', color: '#7c6af7', fontSize: '16px', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace" }}>
-        <span>Loading OptionsDesk...</span>
+        <span>Loading Options Compass...</span>
       </div>
     )
   }

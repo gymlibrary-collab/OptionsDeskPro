@@ -179,7 +179,7 @@ export default function FaqPage({ onClose }: Props) {
           Frequently Asked Questions
         </h1>
         <p style={{ margin: '0 0 32px', color: C.muted, fontSize: '14px' }}>
-          Find answers to common questions about OptionsDesk.
+          Find answers to common questions about Options Compass.
         </p>
 
         {categories.length === 0 ? (
