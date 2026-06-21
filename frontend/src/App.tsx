@@ -441,6 +441,14 @@ const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 function ClientAppInner() {
   const { user, profile, loading, pendingLegalAcknowledgment } = useAuth()
 
+  // Start fetching SPY chain immediately on mount — runs during the auth loading
+  // spinner, so data is cached by the time the options chain tab renders.
+  // The chain endpoint has optional auth so this works before the session check completes.
+  useEffect(() => {
+    getOptionsChain('SPY').catch(() => {})
+    getQuote('SPY').catch(() => {})
+  }, [])
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f1117', color: '#7c6af7', fontSize: '16px', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace" }}>
