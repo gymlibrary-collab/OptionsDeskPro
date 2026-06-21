@@ -819,12 +819,17 @@ def build_comparison_matrix(
         else:
             try:
                 trade = build_trade(symbol, key, options_chain, spot_price, earnings_data=earnings_data)
+                if trade is None:
+                    # Suppressed by max_profit guard — skip this strategy
+                    continue
                 if is_synthetic:
                     trade["_synthetic"] = True
             except Exception as e:
                 logger.warning(f"build_comparison_matrix: build_trade failed for {key}: {e}")
                 trade = {"error": str(e)}
 
+        if trade is None:
+            continue
         has_error = "error" in trade
 
         # Aggregate net greeks from legs
@@ -1461,6 +1466,17 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
                 max_profit = round(inner_width + net, 2)  # works for credit and debit
                 raw_loss = round(max(inner_lower, inner_upper) - inner_width - net, 2)
                 max_loss = max(raw_loss, 0)
+            elif strategy_key in ("call_zebra", "put_zebra"):
+                # 2:1 back-ratio: 2 long legs at one strike, 1 short leg at another.
+                # Max profit is realised when underlying reaches the short strike at expiry:
+                #   call_zebra: 2×(short_strike − long_strike) + net  (net < 0 = debit)
+                #   put_zebra:  2×(long_strike − short_strike) + net
+                spread_width = abs(
+                    (max(short_strikes) if short_strikes else 0) -
+                    (min(long_strikes) if long_strikes else 0)
+                )
+                max_profit = round(2 * spread_width + net, 2)
+                max_loss = round(-net, 2)
             else:
                 width = abs(
                     max(short_strikes + long_strikes) - min(short_strikes + long_strikes)
@@ -1510,6 +1526,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             max_profit = round(front["mid"], 2)
             if max_profit > 0:
                 tastylive_profit_target = round(max_profit * strat["profit_target_pct"] / 100, 2)
+
+    # Sanity check: a strategy whose calculated max_profit is zero or negative can never
+    # profit from the chosen strikes — suppress it so only viable setups are shown.
+    if max_profit is not None and max_profit <= 0:
+        return None
 
     # Clean up internal fields; preserve per-leg expiry for multi-expiry strategies
     clean_legs = []

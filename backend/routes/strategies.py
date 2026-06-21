@@ -213,6 +213,9 @@ async def analyze_symbol(
                 None,
                 lambda: build_trade(symbol, strategy_key, chain_snapshot, spot, earnings_data=earnings_data),
             )
+            if trade is None:
+                # Suppressed by max_profit guard — non-viable setup for current strikes
+                return strategy_key, None
             if chain_snapshot.get("_synthetic"):
                 trade["_synthetic"] = True
         except Exception as e:
@@ -243,12 +246,14 @@ async def analyze_symbol(
             logger.warning(f"build_and_narrate task failed: {item}")
             continue
         k, t = item
-        trades_by_key[k] = t
+        if t is not None:
+            trades_by_key[k] = t
 
     result_categories = {
         cat: [
             {**rec, "trade": trades_by_key.get(rec["key"], {"error": "Not built"})}
             for rec in strats
+            if rec["key"] in trades_by_key
         ]
         for cat, strats in recommendations_by_category.items()
     }
