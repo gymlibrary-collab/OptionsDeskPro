@@ -90,17 +90,11 @@ const TICKERS = [
 function NavCompassIcon() {
   return (
     <svg width="26" height="26" viewBox="-10 -10 260 260" fill="none" style={{ transform: 'rotate(30deg)' }}>
-      <defs>
-        <filter id="lpNavGlow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="5" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
       <circle cx="120" cy="120" r="114" stroke="#a78bfa" strokeWidth="5" opacity="0.9"/>
       <circle cx="120" cy="120" r="78" stroke="#7c6af7" strokeWidth="2.5" strokeDasharray="5 7" opacity="0.7"/>
       <circle cx="120" cy="120" r="114" stroke="#c4b5fd" strokeWidth="3"
-        strokeDasharray="28 688" opacity="0.95" filter="url(#lpNavGlow)"
-        style={{ animation: 'compassSpin 14s linear infinite', transformOrigin: '120px 120px' }}/>
+        strokeDasharray="28 688" opacity="0.95"
+        style={{ animation: 'lpCompassSpin 14s linear infinite', transformOrigin: '50% 50%' }}/>
       <polygon points="120,14 127,88 120,102 113,88" fill="#ef4444" opacity="0.95"/>
       <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
       <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" strokeWidth="3" opacity="0.95"/>
@@ -232,7 +226,10 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
 
   return (
     <div className="lp-root" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#08090f', fontFamily: FONT, color: '#e2e8f0' }}>
-      <style>{`@keyframes compassSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes compassSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes lpCompassSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
 
       {/* ── MOBILE HERO ZONE (portrait only, hidden on desktop) ── */}
       <div className="lp-mobile-hero">
