@@ -155,11 +155,25 @@ function ComplexityDots({ level }: { level: number }) {
 }
 
 function LegsTable({ legs }: { legs: TradeLeg[] }) {
+  // Collapse duplicate legs (same strike + action + option_type) into one row with qty.
+  type DisplayLeg = TradeLeg & { qty: number }
+  const displayLegs: DisplayLeg[] = []
+  for (const leg of legs) {
+    const existing = displayLegs.find(
+      d => d.option_type === leg.option_type && d.strike === leg.strike && d.action === leg.action
+    )
+    if (existing) {
+      existing.qty += 1
+    } else {
+      displayLegs.push({ ...leg, qty: 1 })
+    }
+  }
+
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
       <thead>
         <tr>
-          {['Role', 'Type', 'Strike', 'Delta', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
+          {['Role', 'Type', 'Qty', 'Strike', 'Delta', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
             <th key={h} style={{
               textAlign: 'left', padding: '5px 8px', color: C.muted, fontWeight: 600,
               fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -169,14 +183,17 @@ function LegsTable({ legs }: { legs: TradeLeg[] }) {
         </tr>
       </thead>
       <tbody>
-        {legs.map((leg, i) => {
+        {displayLegs.map((leg, i) => {
           const isBuy = leg.action === 'buy'
           const isStock = leg.option_type === 'stock'
           return (
             <tr key={i} style={{ borderBottom: `1px solid ${C.border}22` }}>
-              <td style={{ padding: '5px 8px', color: C.muted, fontSize: '11px' }}>{leg.role}</td>
+              <td style={{ padding: '5px 8px', color: C.muted, fontSize: '11px' }}>{leg.role.replace(/ [12]$/, '')}</td>
               <td style={{ padding: '5px 8px', color: leg.option_type === 'call' ? C.blue : leg.option_type === 'put' ? C.purple : C.muted, fontWeight: 600, textTransform: 'uppercase', fontSize: '11px' }}>
                 {leg.option_type}
+              </td>
+              <td style={{ padding: '5px 8px', fontVariantNumeric: 'tabular-nums', color: leg.qty > 1 ? C.accent : C.muted, fontWeight: leg.qty > 1 ? 700 : 400 }}>
+                {leg.qty}
               </td>
               <td style={{ padding: '5px 8px', fontVariantNumeric: 'tabular-nums', color: C.text }}>
                 {isStock ? `$${fmt(leg.strike)}` : fmt(leg.strike, 0)}
