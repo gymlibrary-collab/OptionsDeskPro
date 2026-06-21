@@ -373,13 +373,13 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
         </div>
 
         {/* Ticker strip */}
-        <div style={{ position: 'relative', zIndex: 1, marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ fontSize: '10px', color: '#4a5568', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
             Market snapshot · refreshed throughout session
           </div>
-          <div style={{ display: 'flex', gap: '24px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: '24px' }}>
             {TICKERS.map(t => (
-              <div key={t.sym} style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
+              <div key={t.sym} style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
                 <div style={{ fontSize: '10px', color: '#4b5563', fontWeight: 600, letterSpacing: '0.06em' }}>{t.sym}</div>
                 <div style={{ fontSize: '14px', fontWeight: 500, color: '#94a3b8', fontFamily: 'monospace' }}>{t.price}</div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: t.up ? '#22c55e' : '#ef4444' }}>{t.chg}</div>
