@@ -87,6 +87,28 @@ const TICKERS = [
   { sym: 'IWM',  price: '213.50', chg: '▼ 0.5%',  up: false },
 ]
 
+function NavCompassIcon() {
+  return (
+    <svg width="26" height="26" viewBox="-10 -10 260 260" fill="none" style={{ transform: 'rotate(30deg)' }}>
+      <defs>
+        <filter id="lpNavGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle cx="120" cy="120" r="114" stroke="#a78bfa" strokeWidth="5" opacity="0.9"/>
+      <circle cx="120" cy="120" r="78" stroke="#7c6af7" strokeWidth="2.5" strokeDasharray="5 7" opacity="0.7"/>
+      <circle cx="120" cy="120" r="114" stroke="#c4b5fd" strokeWidth="3"
+        strokeDasharray="28 688" opacity="0.95" filter="url(#lpNavGlow)"
+        style={{ animation: 'compassSpin 14s linear infinite', transformOrigin: '120px 120px' }}/>
+      <polygon points="120,14 127,88 120,102 113,88" fill="#ef4444" opacity="0.95"/>
+      <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+      <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" strokeWidth="3" opacity="0.95"/>
+      <circle cx="120" cy="120" r="5" fill="#a78bfa" opacity="1"/>
+    </svg>
+  )
+}
+
 function CompassSVG() {
   return (
     <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
@@ -218,7 +240,19 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
         <div className="lp-mobile-content">
           {/* Brand row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '17px', color: '#7c6af7' }}>⬡</span>
+            <div style={{
+              width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(124,106,247,0.12)', border: '1px solid rgba(124,106,247,0.35)',
+              borderRadius: '6px', flexShrink: 0,
+            }}>
+              <svg width="18" height="18" viewBox="-10 -10 260 260" fill="none" style={{ transform: 'rotate(30deg)' }}>
+                <circle cx="120" cy="120" r="114" stroke="#a78bfa" strokeWidth="8" opacity="0.9"/>
+                <polygon points="120,14 127,88 120,102 113,88" fill="#ef4444" opacity="0.95"/>
+                <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+                <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" strokeWidth="5" opacity="0.95"/>
+                <circle cx="120" cy="120" r="5" fill="#a78bfa" opacity="1"/>
+              </svg>
+            </div>
             <span style={{ fontSize: '20px', fontWeight: 700, color: '#e2e8f0' }}>
               Options<span style={{ color: '#7c6af7' }}>Compass</span>
             </span>
@@ -270,7 +304,7 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
         background: 'linear-gradient(160deg, #0d0f1e 0%, #0a1020 100%)',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         padding: '56px 52px',
         borderRight: '1px solid #1a1d2e',
       }}
@@ -315,7 +349,13 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
 
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px', position: 'relative', zIndex: 1 }}>
-          <span style={{ fontSize: '26px', color: '#7c6af7', filter: 'drop-shadow(0 0 8px rgba(124,106,247,0.5))' }}>⬡</span>
+          <div style={{
+            width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(124,106,247,0.12)', border: '1px solid rgba(124,106,247,0.35)',
+            borderRadius: '9px', filter: 'drop-shadow(0 0 6px rgba(124,106,247,0.45))', flexShrink: 0,
+          }}>
+            <NavCompassIcon />
+          </div>
           <span style={{ fontSize: '36px', fontWeight: 700, color: '#e2e8f0', letterSpacing: '-0.4px' }}>
             Options<span style={{ color: '#7c6af7' }}>Compass</span>
           </span>
