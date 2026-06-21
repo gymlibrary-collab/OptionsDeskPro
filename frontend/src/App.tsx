@@ -22,7 +22,7 @@ import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
-import { TradeStructure, getPublicConfig, getOptionsChain, getQuote } from './api/client'
+import { TradeStructure, getPublicConfig, getOptionsChain, getQuote, getWatchlist } from './api/client'
 import api from './api/client'
 import { createBillingPortalSession } from './api/client'
 
@@ -42,13 +42,16 @@ const C = {
   input: '#252836',
 }
 
+const _LAST_SYMBOL_KEY = 'od_last_symbol'
+
 function Dashboard() {
   const { user, profile, signOut, entitlements, refreshEntitlements } = useAuth()
   const { paymentFailed } = useEntitlements()
   const { isMobile, isTablet } = useWindowSize()
   const [activeDesk, setActiveDesk] = useState<Desk>('options')
-  const [symbol, setSymbol] = useState('SPY')
-  const [inputSymbol, setInputSymbol] = useState('SPY')
+  const _init = localStorage.getItem(_LAST_SYMBOL_KEY) || 'SPY'
+  const [symbol, setSymbol] = useState(_init)
+  const [inputSymbol, setInputSymbol] = useState(_init)
   const [chainDataSource, setChainDataSource] = useState<{ synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('chain')
   const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
@@ -58,6 +61,21 @@ function Dashboard() {
   const [showPricing, setShowPricing] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
+
+  // Set initial symbol to the first entry in the user's scanner watchlist.
+  // Persists to localStorage so the next hard refresh prefetches the right symbol.
+  useEffect(() => {
+    getWatchlist().then(w => {
+      const first = w.symbols?.[0]
+      if (first) {
+        localStorage.setItem(_LAST_SYMBOL_KEY, first)
+        setSymbol(first)
+        setInputSymbol(first)
+        getOptionsChain(first).catch(() => {})
+        getQuote(first).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [])
 
   // MT-020: on mount, check for /settings or /onboarding paths (Stripe return URLs)
   useEffect(() => {
@@ -441,12 +459,14 @@ const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 function ClientAppInner() {
   const { user, profile, loading, pendingLegalAcknowledgment } = useAuth()
 
-  // Start fetching SPY chain immediately on mount — runs during the auth loading
-  // spinner, so data is cached by the time the options chain tab renders.
+  // Start fetching the chain immediately on mount — runs during the auth loading
+  // spinner so data is cached by the time the options chain tab renders.
+  // Uses the last known first-scanner symbol (persisted in localStorage); falls back to SPY.
   // The chain endpoint has optional auth so this works before the session check completes.
   useEffect(() => {
-    getOptionsChain('SPY').catch(() => {})
-    getQuote('SPY').catch(() => {})
+    const sym = localStorage.getItem(_LAST_SYMBOL_KEY) || 'SPY'
+    getOptionsChain(sym).catch(() => {})
+    getQuote(sym).catch(() => {})
   }, [])
 
   if (loading) {
