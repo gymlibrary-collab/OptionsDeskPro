@@ -8,12 +8,12 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --bg:       #0f1117;
-    --surface:  #1a1d27;
-    --surface2: #252836;
-    --border:   #2d3148;
+    --bg:       #08090f;
+    --surface:  #0d0f1a;
+    --surface2: #131628;
+    --border:   #1e2235;
     --text:     #e2e8f0;
-    --muted:    #94a3b8;
+    --muted:    #64748b;
     --accent:   #7c6af7;
     --accent2:  #a78bfa;
     --green:    #22c55e;
@@ -27,12 +27,22 @@
     line-height: 1.6;
   }
 
+  /* ── COMPASS SPIN ── */
+  @keyframes compassSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes ocPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+  }
+
   /* ── NAV ── */
   nav {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(15,17,23,0.92);
+    background: rgba(8,9,15,0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
     padding: 0 40px;
@@ -55,12 +65,9 @@
   .nav-logo-icon {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
   }
 
   .nav-links {
@@ -113,12 +120,12 @@
 
   .btn-primary:hover { opacity: 0.88; }
 
-  /* ── LOGIN PANEL (hidden by default) ── */
+  /* ── LOGIN PANEL (sign-in only, no tabs) ── */
   .login-overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.65);
     backdrop-filter: blur(4px);
     z-index: 200;
     align-items: center;
@@ -132,7 +139,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 40px;
-    width: 380px;
+    width: 390px;
     position: relative;
   }
 
@@ -147,75 +154,40 @@
     cursor: pointer;
     line-height: 1;
   }
-
   .login-close:hover { color: var(--text); }
 
-  .login-panel h2 {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
+  .login-panel h2 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+  .login-panel .login-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
 
-  .login-panel p {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 28px;
-  }
-
-  .login-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 24px;
-  }
-
-  .login-tab {
-    flex: 1;
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
-    padding: 10px 0;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: color 0.2s, border-color 0.2s;
-  }
-
-  .login-tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-  }
-
-  .login-form { display: flex; flex-direction: column; gap: 14px; }
+  .login-form { display: flex; flex-direction: column; gap: 12px; }
 
   .form-input {
     background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 9px;
     color: var(--text);
-    padding: 10px 14px;
+    padding: 11px 14px;
     font-size: 14px;
+    font-family: inherit;
     outline: none;
     transition: border-color 0.2s;
+    width: 100%;
   }
-
   .form-input:focus { border-color: var(--accent); }
 
   .btn-submit {
     background: var(--accent);
     border: none;
     color: #fff;
-    padding: 11px;
-    border-radius: 8px;
+    padding: 12px;
+    border-radius: 9px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    margin-top: 4px;
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(124,106,247,0.35);
     transition: opacity 0.2s;
   }
-
   .btn-submit:hover { opacity: 0.88; }
 
   .divider {
@@ -224,22 +196,15 @@
     gap: 12px;
     color: var(--muted);
     font-size: 12px;
-    margin: 4px 0;
   }
-
-  .divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
   .btn-google {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 10px;
-    border-radius: 8px;
+    background: #fff;
+    border: none;
+    color: #111;
+    padding: 11px;
+    border-radius: 9px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
@@ -247,23 +212,25 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: border-color 0.2s;
+    font-family: inherit;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.2s;
   }
+  .btn-google:hover { opacity: 0.9; }
 
-  .btn-google:hover { border-color: var(--accent); }
+  .forgot { text-align: right; font-size: 12px; color: var(--muted); cursor: default; margin-top: -4px; }
 
   /* ── SIGN-UP FLOW PANEL ── */
   .signup-overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.65);
     backdrop-filter: blur(4px);
     z-index: 200;
     align-items: center;
     justify-content: center;
   }
-
   .signup-overlay.open { display: flex; }
 
   .signup-panel {
@@ -271,35 +238,18 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 40px;
-    width: 420px;
+    width: 430px;
     position: relative;
   }
 
   .signup-step { display: none; }
   .signup-step.active { display: block; }
 
-  .step-indicator {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 24px;
-  }
-
-  .step-dot {
-    height: 4px;
-    flex: 1;
-    border-radius: 2px;
-    background: var(--border);
-    transition: background 0.3s;
-  }
-
+  .step-indicator { display: flex; gap: 6px; margin-bottom: 24px; }
+  .step-dot { height: 4px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.3s; }
   .step-dot.done { background: var(--accent); }
 
-  .tier-cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin: 16px 0;
-  }
+  .tier-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
 
   .tier-card-sm {
     background: var(--surface2);
@@ -309,59 +259,119 @@
     cursor: pointer;
     transition: border-color 0.2s;
   }
-
   .tier-card-sm:hover, .tier-card-sm.selected { border-color: var(--accent); }
-
   .tier-card-sm h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
   .tier-card-sm .price { font-size: 18px; font-weight: 800; color: var(--accent); }
   .tier-card-sm .price span { font-size: 11px; color: var(--muted); font-weight: 500; }
 
-  /* ── HERO ── */
-  .hero {
-    padding: 100px 40px 80px;
-    text-align: center;
-    max-width: 820px;
+  /* ── HERO (split: left text / right compass) ── */
+  .hero-section {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #0d0f1e 0%, #0a1020 60%, #08090f 100%);
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: stretch;
+  }
+
+  /* grid + glow overlays */
+  .hero-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,106,247,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,247,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .hero-section::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 25% 40%, rgba(124,106,247,0.13) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(6,182,212,0.07) 0%, transparent 45%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* chart watermark at bottom */
+  .hero-chart-bg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 200px;
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
     margin: 0 auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 80px 60px;
+    gap: 60px;
+  }
+
+  .hero-left {
+    flex: 1;
+    min-width: 0;
   }
 
   .hero-badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(124,106,247,0.12);
-    border: 1px solid rgba(124,106,247,0.3);
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
     border-radius: 999px;
     padding: 4px 14px;
-    font-size: 12px;
-    color: var(--accent2);
-    font-weight: 600;
-    margin-bottom: 24px;
+    font-size: 11px;
+    font-weight: 700;
     letter-spacing: 0.04em;
+    color: var(--green);
+    margin-bottom: 28px;
+  }
+
+  .hero-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: ocPulse 2s ease-in-out infinite;
   }
 
   .hero h1 {
-    font-size: clamp(28px, 5vw, 48px);
+    font-size: clamp(26px, 4vw, 44px);
     font-weight: 800;
-    line-height: 1.2;
+    line-height: 1.22;
     margin-bottom: 20px;
-    background: linear-gradient(135deg, var(--text) 40%, var(--accent2));
+    background: linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    letter-spacing: -0.4px;
   }
 
   .hero p {
-    font-size: 17px;
+    font-size: 16px;
     color: var(--muted);
-    max-width: 620px;
-    margin: 0 auto 36px;
-    line-height: 1.7;
+    max-width: 520px;
+    margin-bottom: 36px;
+    line-height: 1.75;
   }
 
   .hero-cta {
     display: flex;
     gap: 12px;
-    justify-content: center;
     flex-wrap: wrap;
   }
 
@@ -374,9 +384,10 @@
     font-size: 15px;
     font-weight: 700;
     cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(124,106,247,0.35);
     transition: opacity 0.2s, transform 0.15s;
   }
-
   .btn-hero-primary:hover { opacity: 0.9; transform: translateY(-1px); }
 
   .btn-hero-ghost {
@@ -388,10 +399,66 @@
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: border-color 0.2s;
+    font-family: inherit;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-hero-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Ticker strip inside hero */
+  .hero-tickers {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
   }
 
-  .btn-hero-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .hero-tickers-label {
+    font-size: 10px;
+    color: #2d3748;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .hero-tickers-row {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+
+  .ticker-item { display: flex; flex-direction: column; gap: 1px; }
+  .ticker-sym  { font-size: 10px; color: #4b5563; font-weight: 600; letter-spacing: 0.06em; }
+  .ticker-px   { font-size: 14px; font-weight: 500; color: #94a3b8; font-family: monospace; }
+  .ticker-chg  { font-size: 11px; font-weight: 600; }
+  .ticker-up   { color: var(--green); }
+  .ticker-dn   { color: var(--red); }
+
+  /* Compass container */
+  .hero-right {
+    flex: 0 0 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .compass-wrap {
+    position: relative;
+    width: 380px;
+    height: 380px;
+  }
+
+  /* outer glow halos behind the compass */
+  .compass-glow {
+    position: absolute;
+    inset: -30px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(124,106,247,0.18) 0%, transparent 65%);
+    pointer-events: none;
+    filter: blur(20px);
+  }
+
+  .compass-wrap svg { width: 100%; height: 100%; }
 
   /* ── STATS BAR ── */
   .stats-bar {
@@ -450,11 +517,7 @@
     padding: 28px;
     transition: border-color 0.2s, transform 0.2s;
   }
-
-  .edu-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-  }
+  .edu-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 
   .edu-icon {
     width: 44px;
@@ -469,7 +532,7 @@
   }
 
   .edu-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-  .edu-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .edu-card p  { font-size: 13px; color: var(--muted); line-height: 1.6; }
 
   /* ── DATA DISCLAIMER ── */
   .disclaimer-box {
@@ -482,9 +545,8 @@
     gap: 32px;
     margin-top: 48px;
   }
-
   .disclaimer-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--accent2); }
-  .disclaimer-box p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .disclaimer-box p  { font-size: 13px; color: var(--muted); line-height: 1.7; }
 
   .check-list { list-style: none; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
   .check-list li { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
@@ -508,7 +570,6 @@
     position: relative;
     transition: border-color 0.2s, transform 0.2s;
   }
-
   .pricing-card:hover { transform: translateY(-3px); }
   .pricing-card.featured { border-color: var(--accent); }
 
@@ -526,11 +587,11 @@
     letter-spacing: 0.05em;
   }
 
-  .tier-name { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .tier-name  { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
   .tier-price { font-size: 36px; font-weight: 900; color: var(--text); line-height: 1; }
-  .tier-price sub { font-size: 14px; font-weight: 500; color: var(--muted); }
+  .tier-price sub  { font-size: 14px; font-weight: 500; color: var(--muted); }
   .tier-price .tbd { font-size: 18px; color: var(--muted); }
-  .tier-desc { font-size: 12px; color: var(--muted); margin: 10px 0 20px; line-height: 1.5; }
+  .tier-desc  { font-size: 12px; color: var(--muted); margin: 10px 0 20px; line-height: 1.5; }
 
   .tier-features { list-style: none; display: flex; flex-direction: column; gap: 9px; flex: 1; }
   .tier-features li { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
@@ -548,21 +609,21 @@
     text-align: center;
     transition: opacity 0.2s;
     border: none;
+    font-family: inherit;
   }
-
   .tier-cta.primary { background: var(--accent); color: #fff; }
-  .tier-cta.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-  .tier-cta:hover { opacity: 0.8; }
+  .tier-cta.ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .tier-cta:hover   { opacity: 0.8; }
 
   /* ── HOW IT WORKS ── */
-  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-top: 48px; }
-
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+    margin-top: 48px;
   }
+
+  .step { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
 
   .step-num {
     width: 36px;
@@ -580,7 +641,7 @@
   }
 
   .step h4 { font-size: 15px; font-weight: 700; }
-  .step p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .step p  { font-size: 13px; color: var(--muted); line-height: 1.6; }
 
   /* ── FOOTER ── */
   footer {
@@ -591,17 +652,16 @@
 
   .footer-grid {
     max-width: 1100px;
-    margin: 0 auto;
+    margin: 0 auto 40px;
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr;
     gap: 40px;
-    margin-bottom: 40px;
   }
 
   .footer-brand p { font-size: 13px; color: var(--muted); margin-top: 12px; line-height: 1.7; max-width: 260px; }
 
-  .footer-col h4 { font-size: 13px; font-weight: 700; margin-bottom: 14px; }
-  .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .footer-col h4  { font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+  .footer-col ul  { list-style: none; display: flex; flex-direction: column; gap: 8px; }
   .footer-col ul li a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
   .footer-col ul li a:hover { color: var(--text); }
 
@@ -617,9 +677,9 @@
     gap: 12px;
   }
 
-  .footer-bottom p { font-size: 12px; color: var(--muted); }
-  .footer-legal { display: flex; gap: 20px; }
-  .footer-legal a { font-size: 12px; color: var(--muted); text-decoration: none; }
+  .footer-bottom p  { font-size: 12px; color: var(--muted); }
+  .footer-legal     { display: flex; gap: 20px; }
+  .footer-legal a   { font-size: 12px; color: var(--muted); text-decoration: none; }
   .footer-legal a:hover { color: var(--text); }
 
   .disclaimer-footer {
@@ -632,22 +692,26 @@
   }
 
   /* ── DIVIDER ── */
-  .section-divider {
-    height: 1px;
-    background: var(--border);
-    max-width: 1100px;
-    margin: 0 auto;
-  }
+  .section-divider { height: 1px; background: var(--border); max-width: 1100px; margin: 0 auto; }
 
   /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .hero-inner { flex-direction: column; padding: 60px 32px; gap: 40px; }
+    .hero-right { flex: none; width: 100%; }
+    .compass-wrap { width: 260px; height: 260px; margin: 0 auto; }
+    .hero h1 { font-size: 28px; }
+  }
+
   @media (max-width: 700px) {
     nav { padding: 0 16px; }
     .nav-links { display: none; }
-    .hero { padding: 60px 20px 60px; }
+    .hero-inner { padding: 40px 20px; }
     section { padding: 60px 20px; }
     .disclaimer-box { grid-template-columns: 1fr; }
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .stats-bar { gap: 32px; padding: 24px 20px; }
+    .compass-wrap { width: 220px; height: 220px; }
+    .login-panel, .signup-panel { width: calc(100vw - 32px); padding: 28px 24px; }
   }
 </style>
 </head>
@@ -656,8 +720,21 @@
 <!-- ═══════════════════════════════════════════════════════════════ NAV -->
 <nav>
   <a class="nav-logo" href="#">
-    <div class="nav-logo-icon">⬡</div>
-    Options Compass
+    <div class="nav-logo-icon">
+      <!-- mini compass icon -->
+      <svg width="32" height="32" viewBox="-10 -10 260 260" fill="none">
+        <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="3" opacity="0.35"/>
+        <circle cx="120" cy="120" r="80"  stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.22"/>
+        <circle cx="120" cy="120" r="10" fill="#07090f" stroke="#7c6af7" stroke-width="2" opacity="0.5"/>
+        <circle cx="120" cy="120" r="4"  fill="#7c6af7" opacity="0.7"/>
+        <polygon points="120,18 126,90 120,104 114,90" fill="#e2e8f0" opacity="0.75"/>
+        <polygon points="120,222 126,150 120,136 114,150" fill="#7c6af7" opacity="0.30"/>
+        <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="2"
+          stroke-dasharray="22 695" stroke-dashoffset="0" opacity="0.65"
+          style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+      </svg>
+    </div>
+    Options<span style="color:#7c6af7">Compass</span>
   </a>
 
   <ul class="nav-links">
@@ -668,39 +745,36 @@
   </ul>
 
   <div class="nav-cta">
-    <button class="btn-ghost" onclick="openLogin('signin')">Sign In</button>
+    <button class="btn-ghost" onclick="openLogin()">Sign In</button>
     <button class="btn-primary" onclick="openSignup()">Sign Up Free</button>
   </div>
 </nav>
 
-<!-- ═══════════════════════════════════════════════════════════════ LOGIN OVERLAY -->
+<!-- ═══════════════════════════════════════════════════════════════ SIGN IN OVERLAY -->
 <div class="login-overlay" id="loginOverlay" onclick="closeOnBackdrop(event,'loginOverlay')">
   <div class="login-panel">
     <button class="login-close" onclick="closeLogin()">✕</button>
 
-    <h2 id="loginTitle">Welcome back</h2>
-    <p id="loginSub">Sign in to your Options Compass account.</p>
-
-    <div class="login-tabs">
-      <button class="login-tab active" id="tabSignin" onclick="switchTab('signin')">Sign In</button>
-      <button class="login-tab" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
-    </div>
+    <h2>Welcome back</h2>
+    <p class="login-sub">Sign in to your Options Compass account.</p>
 
     <div class="login-form">
       <button class="btn-google">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
         Continue with Google
       </button>
 
       <div class="divider">or</div>
 
       <input class="form-input" type="email" placeholder="Email address" />
-      <input class="form-input" type="password" placeholder="Password" id="passwordField" />
-      <div id="confirmField" style="display:none">
-        <input class="form-input" type="password" placeholder="Confirm password" style="width:100%" />
-      </div>
-
-      <button class="btn-submit" id="loginBtn">Sign In</button>
+      <input class="form-input" type="password" placeholder="Password" />
+      <div class="forgot">Forgot password?</div>
+      <button class="btn-submit">Sign In →</button>
     </div>
   </div>
 </div>
@@ -729,7 +803,7 @@
         <div class="tier-card-sm" onclick="selectTier(this,'Starter')">
           <h4>Starter</h4>
           <div class="price">TBD <span>/mo</span></div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">+ Positions & P&amp;L</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">+ Positions &amp; P&amp;L</div>
         </div>
         <div class="tier-card-sm" onclick="selectTier(this,'Semi-Pro')">
           <h4>Semi-Pro</h4>
@@ -751,7 +825,12 @@
       <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Or use Google for one-click access.</p>
       <div class="login-form">
         <button class="btn-google">
-          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
           Sign up with Google
         </button>
         <div class="divider">or</div>
@@ -767,8 +846,7 @@
       <div style="font-size:52px;margin-bottom:16px">🎯</div>
       <h2 style="margin-bottom:10px">You're in!</h2>
       <p style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.7">
-        Your Options Compass account is ready.<br>
-        Start learning options strategy today.
+        Your Options Compass account is ready.<br>Start learning options strategy today.
       </p>
       <button class="btn-submit" onclick="closeSignup()">Go to Dashboard →</button>
     </div>
@@ -776,18 +854,138 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ HERO -->
-<section class="hero" id="top">
-  <div class="hero-badge">📚 Educational Paper-Trading Platform</div>
-  <h1>You've always wanted to trade options.<br>We'll show you how.</h1>
-  <p>
-    Options Compass is a guided, paper-trading simulator that teaches you real options strategies
-    through hands-on practice — without risking a single dollar of real money.
-  </p>
-  <div class="hero-cta">
-    <button class="btn-hero-primary" onclick="openSignup()">Start Learning Free</button>
-    <button class="btn-hero-ghost" onclick="document.getElementById('education').scrollIntoView({behavior:'smooth'})">See How It Works</button>
+<div class="hero-section" id="top">
+
+  <!-- subtle chart line at the bottom of the hero -->
+  <svg class="hero-chart-bg" viewBox="0 0 900 200" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"   stop-color="#7c6af7" stop-opacity="0.4"/>
+        <stop offset="100%" stop-color="#7c6af7" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="M0,180 C60,160 90,185 140,148 S210,118 260,100 S330,76 380,60 S440,44 490,32 S550,18 600,10 S660,4 710,2 L900,0 L900,200 L0,200Z" fill="url(#cg)"/>
+    <path d="M0,180 C60,160 90,185 140,148 S210,118 260,100 S330,76 380,60 S440,44 490,32 S550,18 600,10 S660,4 710,2 L900,0" fill="none" stroke="#7c6af7" stroke-width="2"/>
+  </svg>
+
+  <div class="hero-inner">
+
+    <!-- LEFT: text content -->
+    <div class="hero-left">
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        Educational Paper-Trading Platform
+      </div>
+
+      <h1>You've always wanted to trade options.<br>We'll show you how.</h1>
+
+      <p>
+        Options Compass is a guided, paper-trading simulator that teaches you real
+        options strategies through hands-on practice — without risking a single dollar
+        of real money.
+      </p>
+
+      <div class="hero-cta">
+        <button class="btn-hero-primary" onclick="openSignup()">Start Learning Free</button>
+        <button class="btn-hero-ghost" onclick="document.getElementById('education').scrollIntoView({behavior:'smooth'})">See How It Works</button>
+      </div>
+
+      <!-- ticker strip -->
+      <div class="hero-tickers">
+        <div class="hero-tickers-label">Market snapshot · refreshed throughout session</div>
+        <div class="hero-tickers-row">
+          <div class="ticker-item"><span class="ticker-sym">SPY</span><span class="ticker-px">590.12</span><span class="ticker-chg ticker-up">▲ 1.2%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">QQQ</span><span class="ticker-px">502.44</span><span class="ticker-chg ticker-up">▲ 0.8%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">VIX</span><span class="ticker-px">18.40</span><span class="ticker-chg ticker-dn">▼ 3.2%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">TSLA</span><span class="ticker-px">245.80</span><span class="ticker-chg ticker-up">▲ 2.1%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-px">138.40</span><span class="ticker-chg ticker-up">▲ 1.7%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">IWM</span><span class="ticker-px">213.50</span><span class="ticker-chg ticker-dn">▼ 0.5%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: animated compass -->
+    <div class="hero-right">
+      <div class="compass-wrap">
+        <div class="compass-glow"></div>
+        <svg viewBox="-45 -61 330 346" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="cometGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- wide orbit ring -->
+          <circle cx="120" cy="120" r="155" stroke="#7c6af7" stroke-width="0.6" opacity="0.18"/>
+          <!-- glowing arc across the top -->
+          <path d="M 30 -25 A 155 155 0 0 1 210 -25"
+            stroke="#c4b5fd" stroke-width="2.5" stroke-linecap="round" opacity="0.45" filter="url(#cometGlow)" fill="none"/>
+          <path d="M 60 -32 A 155 155 0 0 1 180 -32"
+            stroke="#e2d9f3" stroke-width="1" stroke-linecap="round" opacity="0.60" fill="none"/>
+          <!-- spinning comet spark on outer ring -->
+          <circle cx="120" cy="120" r="155" stroke="#a78bfa" stroke-width="1.5"
+            stroke-dasharray="30 945" stroke-dashoffset="0" opacity="0.70"
+            filter="url(#cometGlow)"
+            style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+          <!-- concentric inner rings -->
+          <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="2"   opacity="0.25"/>
+          <circle cx="120" cy="120" r="106" stroke="#7c6af7" stroke-width="0.5" opacity="0.16"/>
+          <circle cx="120" cy="120" r="80"  stroke="#7c6af7" stroke-width="0.8" stroke-dasharray="2 4" opacity="0.15"/>
+          <circle cx="120" cy="120" r="52"  stroke="#a78bfa" stroke-width="0.6" opacity="0.18"/>
+          <circle cx="120" cy="120" r="22"  stroke="#7c6af7" stroke-width="1"   fill="rgba(124,106,247,0.06)" opacity="0.25"/>
+          <!-- tick marks -->
+          <g stroke="#7c6af7" opacity="0.16">
+            <line x1="120" y1="6"   x2="120" y2="22"  stroke-width="2"/>
+            <line x1="120" y1="218" x2="120" y2="234" stroke-width="2"/>
+            <line x1="6"   y1="120" x2="22"  y2="120" stroke-width="2"/>
+            <line x1="218" y1="120" x2="234" y2="120" stroke-width="2"/>
+            <line x1="200.6" y1="39.4"  x2="193"   y2="47"    stroke-width="1.4"/>
+            <line x1="39.4"  y1="39.4"  x2="47"    y2="47"    stroke-width="1.4"/>
+            <line x1="200.6" y1="200.6" x2="193"   y2="193"   stroke-width="1.4"/>
+            <line x1="39.4"  y1="200.6" x2="47"    y2="193"   stroke-width="1.4"/>
+            <line x1="177"   y1="17.3"  x2="173.6" y2="23.3"  stroke-width="1"/>
+            <line x1="63"    y1="17.3"  x2="66.4"  y2="23.3"  stroke-width="1"/>
+            <line x1="222.7" y1="63"    x2="216.7" y2="66.4"  stroke-width="1"/>
+            <line x1="222.7" y1="177"   x2="216.7" y2="173.6" stroke-width="1"/>
+            <line x1="17.3"  y1="63"    x2="23.3"  y2="66.4"  stroke-width="1"/>
+            <line x1="17.3"  y1="177"   x2="23.3"  y2="173.6" stroke-width="1"/>
+            <line x1="177"   y1="222.7" x2="173.6" y2="216.7" stroke-width="1"/>
+            <line x1="63"    y1="222.7" x2="66.4"  y2="216.7" stroke-width="1"/>
+            <line x1="150.7" y1="9.6"   x2="149.3" y2="14.3"  stroke-width="0.6"/>
+            <line x1="89.3"  y1="9.6"   x2="90.7"  y2="14.3"  stroke-width="0.6"/>
+            <line x1="209.6" y1="89.3"  x2="204.9" y2="90.7"  stroke-width="0.6" opacity="0.6"/>
+            <line x1="209.6" y1="150.7" x2="204.9" y2="149.3" stroke-width="0.6" opacity="0.6"/>
+            <line x1="10.4"  y1="89.3"  x2="15.1"  y2="90.7"  stroke-width="0.6" opacity="0.6"/>
+            <line x1="10.4"  y1="150.7" x2="15.1"  y2="149.3" stroke-width="0.6" opacity="0.6"/>
+            <line x1="150.7" y1="230.4" x2="149.3" y2="225.7" stroke-width="0.6" opacity="0.6"/>
+            <line x1="89.3"  y1="230.4" x2="90.7"  y2="225.7" stroke-width="0.6" opacity="0.6"/>
+          </g>
+          <!-- N arrow — wide fleur style -->
+          <polygon points="120,10 127,85 120,100 113,85" fill="#e2e8f0" opacity="0.58"/>
+          <polygon points="120,8 130,20 120,26 110,20" fill="#e2e8f0" opacity="0.72"/>
+          <line x1="105" y1="18" x2="120" y2="28" stroke="#e2e8f0" stroke-width="0.8" opacity="0.4"/>
+          <line x1="135" y1="18" x2="120" y2="28" stroke="#e2e8f0" stroke-width="0.8" opacity="0.4"/>
+          <!-- S arrow -->
+          <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
+          <!-- E/W marks -->
+          <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
+          <polygon points="10,120 85,125 100,120 85,115"   fill="#7c6af7" opacity="0.18"/>
+          <!-- centre -->
+          <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" stroke-width="1.5" opacity="0.38"/>
+          <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
+          <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
+          <!-- N label -->
+          <text x="120" y="-22" text-anchor="middle" font-size="13" font-weight="900"
+            fill="#e2e8f0" opacity="0.80" font-family="Georgia, serif"
+            transform="rotate(-30 120 -22)">N</text>
+          <text x="120"  y="253" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.25" font-family="monospace" transform="rotate(-30 120 253)">S</text>
+          <text x="262"  y="128" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.22" font-family="monospace" transform="rotate(-30 262 128)">E</text>
+          <text x="-22"  y="128" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.22" font-family="monospace" transform="rotate(-30 -22 128)">W</text>
+        </svg>
+      </div>
+    </div>
   </div>
-</section>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════ STATS -->
 <div class="stats-bar">
@@ -1048,8 +1246,17 @@
   <div class="footer-grid">
     <div class="footer-brand">
       <div class="nav-logo" style="display:inline-flex;margin-bottom:12px">
-        <div class="nav-logo-icon">⬡</div>
-        <span style="margin-left:10px;font-weight:700">Options Compass</span>
+        <div class="nav-logo-icon">
+          <svg width="28" height="28" viewBox="-10 -10 260 260" fill="none">
+            <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="3" opacity="0.35"/>
+            <circle cx="120" cy="120" r="80" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.22"/>
+            <circle cx="120" cy="120" r="10" fill="#07090f" stroke="#7c6af7" stroke-width="2" opacity="0.5"/>
+            <circle cx="120" cy="120" r="4" fill="#7c6af7" opacity="0.7"/>
+            <polygon points="120,18 126,90 120,104 114,90" fill="#e2e8f0" opacity="0.75"/>
+            <polygon points="120,222 126,150 120,136 114,150" fill="#7c6af7" opacity="0.30"/>
+          </svg>
+        </div>
+        <span style="margin-left:10px;font-weight:700">Options<span style="color:#7c6af7">Compass</span></span>
       </div>
       <p>A paper-trading simulator for learning options strategies. For educational purposes only. Not financial advice.</p>
     </div>
@@ -1092,17 +1299,17 @@
   </div>
 
   <p class="disclaimer-footer">
-    Options Compass is an educational paper-trading simulator. All trades are simulated. No real money is involved. Options trading involves significant risk of loss and is not appropriate for all investors.
-    Past simulated performance does not guarantee future real-money results. Market data is sourced from Yahoo Finance and may be delayed by approximately 15 minutes.
-    This platform does not constitute financial advice. Always consult a licensed financial adviser before trading real options.
+    Options Compass is an educational paper-trading simulator. All trades are simulated. No real money is involved.
+    Options trading involves significant risk of loss and is not appropriate for all investors.
+    Past simulated performance does not guarantee future real-money results. Market data is sourced from
+    Yahoo Finance and may be delayed by approximately 15 minutes. This platform does not constitute financial
+    advice. Always consult a licensed financial adviser before trading real options.
   </p>
 </footer>
 
 <!-- ═══════════════════════════════════════════════════════════════ JS -->
 <script>
-  function openLogin(mode) {
-    if (mode === 'signup') switchTab('signup')
-    else switchTab('signin')
+  function openLogin() {
     document.getElementById('loginOverlay').classList.add('open')
   }
 
@@ -1125,18 +1332,6 @@
     }
   }
 
-  function switchTab(tab) {
-    const isSignup = tab === 'signup'
-    document.getElementById('tabSignin').classList.toggle('active', !isSignup)
-    document.getElementById('tabSignup').classList.toggle('active', isSignup)
-    document.getElementById('loginTitle').textContent = isSignup ? 'Create account' : 'Welcome back'
-    document.getElementById('loginSub').textContent = isSignup
-      ? 'Join Options Compass — free to start.'
-      : 'Sign in to your Options Compass account.'
-    document.getElementById('confirmField').style.display = isSignup ? 'block' : 'none'
-    document.getElementById('loginBtn').textContent = isSignup ? 'Create Account' : 'Sign In'
-  }
-
   function goStep(n) {
     [1,2,3].forEach(i => {
       document.getElementById('step'+i).classList.toggle('active', i === n)
@@ -1144,7 +1339,7 @@
     })
   }
 
-  function selectTier(el, tier) {
+  function selectTier(el) {
     document.querySelectorAll('.tier-card-sm').forEach(c => c.classList.remove('selected'))
     el.classList.add('selected')
   }
