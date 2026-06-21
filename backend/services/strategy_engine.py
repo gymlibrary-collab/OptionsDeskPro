@@ -1467,15 +1467,13 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
                 raw_loss = round(max(inner_lower, inner_upper) - inner_width - net, 2)
                 max_loss = max(raw_loss, 0)
             elif strategy_key in ("call_zebra", "put_zebra"):
-                # 2:1 back-ratio: 2 long legs at one strike, 1 short leg at another.
-                # Max profit is realised when underlying reaches the short strike at expiry:
-                #   call_zebra: 2×(short_strike − long_strike) + net  (net < 0 = debit)
-                #   put_zebra:  2×(long_strike − short_strike) + net
-                spread_width = abs(
-                    (max(short_strikes) if short_strikes else 0) -
-                    (min(long_strikes) if long_strikes else 0)
-                )
-                max_profit = round(2 * spread_width + net, 2)
+                # A 2:1 back-ratio spread has a DEFINED max loss (the debit paid if the
+                # underlying moves against both long legs) but UNLIMITED profit potential
+                # above the short strike, where the net position behaves like a synthetic
+                # long call (call_zebra) or long put (put_zebra).
+                # Setting max_profit = None signals unlimited upside, consistent with how
+                # the engine handles other unlimited-upside structures.
+                max_profit = None
                 max_loss = round(-net, 2)
             else:
                 width = abs(
