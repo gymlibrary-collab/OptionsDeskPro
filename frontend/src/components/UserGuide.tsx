@@ -265,6 +265,9 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         <Note color={C.blue}>
           <strong>How to use the Condition Fit column:</strong> The checkmarks and crosses show whether the current ticker's IV environment and directional bias match each strategy's textbook design. This is educational context, not a ranking. You may choose a strategy with crosses if your analysis suggests a different thesis than the current bias. The decision is yours.
         </Note>
+        <Note color={C.amber}>
+          <strong>Why are some strategies not shown?</strong> The engine suppresses strategies that are non-viable at current market prices — for example, a debit spread where the cost to enter exceeds the maximum possible profit. Showing a trade with a negative or unfavourable risk/reward would be misleading. These strategies automatically reappear when IV or price conditions shift into a viable zone.
+        </Note>
       </Section>
 
       {/* ── PLACING TRADES ── */}

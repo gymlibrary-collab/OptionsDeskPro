@@ -112,14 +112,14 @@ const catalog: {
 }[] = [
   { num: 1,  name: 'Covered Call',               dir: 'BULLISH',         iv: 'HIGH', dte: '45',    pop: '50–70%', family: 'covered' },
   { num: 2,  name: 'Long Call Vertical Spread',   dir: 'BULLISH',         iv: 'ANY',  dte: '45',    pop: '40–60%', family: 'debit_spread' },
-  { num: 3,  name: 'Call ZEBRA',                  dir: 'BULLISH',         iv: 'ANY',  dte: 'ANY',   pop: '50%',    family: 'long_debit' },
+  { num: 3,  name: 'Call ZEBRA',                  dir: 'BULLISH',         iv: 'ANY',  dte: 'ANY',   pop: '50%',    family: 'back_ratio' },
   { num: 4,  name: "Poor Man's Covered Call",     dir: 'BULLISH',         iv: 'LOW',  dte: '45–60', pop: '50–60%', family: 'diagonal' },
   { num: 5,  name: 'Call Calendar Spread',        dir: 'NEUTRAL_BULLISH*',iv: 'LOW*', dte: '45',    pop: '—',      family: 'calendar' },
   { num: 6,  name: 'Call Butterfly',              dir: 'BULLISH',         iv: 'ANY',  dte: '15–45', pop: '20–40%', family: 'butterfly' },
   { num: 7,  name: 'Big Lizard',                  dir: 'BULLISH',         iv: 'HIGH', dte: '45',    pop: '60–80%', family: 'naked_with_spread' },
   { num: 8,  name: 'Covered Put',                 dir: 'BEARISH',         iv: 'HIGH', dte: '45',    pop: '50–70%', family: 'covered' },
   { num: 9,  name: 'Long Put Vertical Spread',    dir: 'BEARISH',         iv: 'ANY',  dte: '45',    pop: '50–60%', family: 'debit_spread' },
-  { num: 10, name: 'Put ZEBRA',                   dir: 'BEARISH',         iv: 'ANY',  dte: 'ANY',   pop: '50%',    family: 'long_debit' },
+  { num: 10, name: 'Put ZEBRA',                   dir: 'BEARISH',         iv: 'ANY',  dte: 'ANY',   pop: '50%',    family: 'back_ratio' },
   { num: 11, name: "Poor Man's Covered Put",      dir: 'BEARISH',         iv: 'LOW',  dte: '45–60', pop: '50–60%', family: 'diagonal' },
   { num: 12, name: 'Put Calendar Spread',         dir: 'NEUTRAL_BEARISH*',iv: 'LOW*', dte: '45',    pop: '—',      family: 'calendar' },
   { num: 13, name: 'Put Butterfly',               dir: 'BEARISH',         iv: 'ANY',  dte: '15–45', pop: '20–40%', family: 'butterfly' },
@@ -460,6 +460,71 @@ export default function StrategyMethodologyPage({ onTabChange: _onTabChange }: P
           IVR = 64 (HIGH) + NEUTRAL bias &rarr; iron_condor scores{' '}
           <span style={{ fontFamily: 'monospace' }}>2 + 3 &minus; 0.2 =</span>{' '}
           <strong style={{ color: C.green }}>4.8</strong>
+        </div>
+      </div>
+
+      {/* Section 4b — Viability Guards */}
+      <div style={sectionCard}>
+        <div style={sectionTitle}>4b. Viability Guards — Why a Strategy May Be Suppressed</div>
+
+        <p style={bodyText}>
+          After strike selection, the engine checks whether the trade is viable at current market prices.
+          A strategy may be suppressed (not shown in results) even if it matches the IV environment and
+          directional bias. This is intentional — showing a trade that cannot make money teaches bad habits.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{
+            background: C.surface2, border: `1px solid ${C.red}44`,
+            borderRadius: '6px', padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: '6px',
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: C.red }}>Guard 1 — Non-positive max profit</div>
+            <p style={{ ...bodyText, margin: 0 }}>
+              If the computed <strong style={{ color: C.text }}>max profit ≤ 0</strong> at the selected strikes,
+              the strategy is suppressed. A trade that can never make money — regardless of market movement —
+              should not be presented as a recommendation.
+            </p>
+            <div style={formula}>if max_profit is not None and max_profit &lt;= 0: suppress</div>
+          </div>
+
+          <div style={{
+            background: C.surface2, border: `1px solid ${C.yellow}44`,
+            borderRadius: '6px', padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: '6px',
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: C.yellow }}>Guard 2 — Debit with unfavourable risk/reward</div>
+            <p style={{ ...bodyText, margin: 0 }}>
+              For defined-risk <strong style={{ color: C.text }}>debit strategies</strong> (you pay to enter),
+              the engine requires <strong style={{ color: C.text }}>max profit ≥ max loss</strong>. If the debit
+              paid is more than the maximum you can make, the strategy is suppressed — you would be risking
+              more than you can gain.
+            </p>
+            <div style={formula}>if net &lt; 0 and DEFINED and max_profit &lt; max_loss: suppress</div>
+          </div>
+        </div>
+
+        <p style={{ ...bodyText, fontSize: '12px' }}>
+          Suppressed strategies are simply absent from results — they do not appear with a warning banner.
+          The same strategy becomes viable again when implied volatility or the underlying price changes
+          enough to shift the at-the-money strikes into a favourable R/R zone. For example, a Long Put Vertical
+          may be suppressed in a 30% IV environment but viable again when IV falls to 20%.
+        </p>
+
+        <div style={{
+          background: '#1a1030',
+          border: `1px solid ${C.accent}44`,
+          borderRadius: '8px',
+          padding: '14px 18px',
+          fontSize: '13px',
+          color: C.text,
+          lineHeight: '1.6',
+        }}>
+          <strong style={{ color: C.accent }}>ZEBRA back-ratios:</strong>{' '}
+          Call ZEBRA and Put ZEBRA are 2:1 back-ratio spreads (buy 2 options, sell 1).
+          Above the short strike you are net long two contracts — profit increases without bound.
+          Their max profit is therefore <span style={{ fontFamily: 'monospace' }}>None</span> (unlimited),
+          and max loss equals the debit paid. Guard 2 does not apply to them.
         </div>
       </div>
 
