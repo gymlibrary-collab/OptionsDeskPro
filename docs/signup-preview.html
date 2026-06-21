@@ -22,12 +22,14 @@
     --amber:    #f59e0b;
   }
 
+  html { height: 100%; }
+
   body {
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
     line-height: 1.6;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
   }
 
@@ -43,14 +45,13 @@
   /* ── LAYOUT ── */
   .signup-layout {
     display: flex;
-    height: 100vh;
-    overflow: hidden;
+    height: 100%;
   }
 
   /* ── LEFT PANEL ── */
   .lp-left {
-    flex: 1;
-    min-width: 60%;
+    flex: 3 1 0;
+    min-width: 0;
     position: relative;
     overflow: hidden;
     background: linear-gradient(160deg, #0d0f1e 0%, #0a1020 100%);
@@ -109,7 +110,7 @@
   .lp-content {
     position: relative;
     z-index: 1;
-    padding: 56px 52px;
+    padding: clamp(32px, 4vw, 56px) clamp(28px, 4vw, 52px);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -274,8 +275,8 @@
 
   /* ── RIGHT PANEL ── */
   .lp-right {
-    width: 460px;
-    min-width: 360px;
+    flex: 2 0 380px;
+    max-width: 520px;
     background: #08090f;
     border-left: 1px solid var(--border);
     padding: 48px 40px;
@@ -478,11 +479,22 @@
   }
 
   /* ── RESPONSIVE ── */
+  @media (max-width: 1200px) {
+    .lp-right { padding: 40px 32px; }
+  }
+
   @media (max-width: 900px) {
-    body { overflow: auto; }
-    .signup-layout { flex-direction: column; height: auto; }
+    html, body { overflow: auto; height: auto; }
+    .signup-layout { flex-direction: column; height: auto; min-height: 100vh; }
     .lp-left  { display: none; }
-    .lp-right { width: 100%; min-width: 0; border-left: none; padding: 36px 24px; overflow: visible; }
+    .lp-right {
+      flex: none;
+      width: 100%;
+      max-width: none;
+      min-height: 100vh;
+      border-left: none;
+      padding: 36px 24px;
+    }
   }
 </style>
 </head>
