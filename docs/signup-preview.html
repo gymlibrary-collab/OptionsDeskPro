@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Compass — Create Account</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:       #08090f;
+    --surface:  #0d0f1a;
+    --surface2: #131628;
+    --border:   #1e2235;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #7c6af7;
+    --accent2:  #a78bfa;
+    --green:    #22c55e;
+    --red:      #ef4444;
+    --cyan:     #06b6d4;
+    --amber:    #f59e0b;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+    line-height: 1.6;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  @keyframes compassSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes ocPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* ── LAYOUT ── */
+  .signup-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  .lp-left {
+    flex: 1;
+    min-width: 60%;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #0d0f1e 0%, #0a1020 100%);
+  }
+
+  /* grid overlay */
+  .lp-left::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,106,247,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,247,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* radial glows */
+  .lp-left::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 20% 30%, rgba(124,106,247,0.16) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 80%, rgba(6,182,212,0.09) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* chart watermark bottom */
+  .lp-chart-bg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 180px;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* compass watermark top-right */
+  .lp-compass-watermark {
+    position: absolute;
+    top: -60px;
+    right: -80px;
+    width: 42%;
+    opacity: 0.10;
+    pointer-events: none;
+    z-index: 0;
+    transform: rotate(30deg);
+  }
+
+  /* left panel content */
+  .lp-content {
+    position: relative;
+    z-index: 1;
+    padding: 56px 52px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  /* brand row */
+  .lp-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 36px;
+  }
+
+  .lp-brand-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(124,106,247,0.12);
+    border: 1px solid rgba(124,106,247,0.35);
+    border-radius: 9px;
+    filter: drop-shadow(0 0 6px rgba(124,106,247,0.45));
+    flex-shrink: 0;
+  }
+
+  .lp-brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .lp-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--green);
+    margin-left: 4px;
+  }
+
+  .lp-live-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: ocPulse 2s ease-in-out infinite;
+  }
+
+  /* headline */
+  .lp-headline {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.45;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #a78bfa 55%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    max-width: 520px;
+  }
+
+  /* feature list */
+  .lp-features {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 1;
+  }
+
+  .lp-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .lp-feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .lp-feature-icon.purple { background: rgba(124,106,247,0.15); border: 1px solid rgba(124,106,247,0.25); }
+  .lp-feature-icon.cyan   { background: rgba(6,182,212,0.12);   border: 1px solid rgba(6,182,212,0.2); }
+  .lp-feature-icon.blue   { background: rgba(59,130,246,0.12);  border: 1px solid rgba(59,130,246,0.2); }
+  .lp-feature-icon.amber  { background: rgba(245,158,11,0.12);  border: 1px solid rgba(245,158,11,0.2); }
+  .lp-feature-icon.green  { background: rgba(34,197,94,0.12);   border: 1px solid rgba(34,197,94,0.2); }
+
+  .lp-feature-text { flex: 1; min-width: 0; }
+
+  .lp-feature-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 3px;
+    line-height: 1.3;
+  }
+
+  .lp-feature-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+    margin-bottom: 6px;
+  }
+
+  .lp-feature-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .tag-purple { background: rgba(124,106,247,0.15); color: var(--accent2); border: 1px solid rgba(124,106,247,0.25); }
+  .tag-cyan   { background: rgba(6,182,212,0.12);   color: var(--cyan);    border: 1px solid rgba(6,182,212,0.2); }
+  .tag-amber  { background: rgba(245,158,11,0.12);  color: var(--amber);   border: 1px solid rgba(245,158,11,0.2); }
+  .tag-green  { background: rgba(34,197,94,0.12);   color: var(--green);   border: 1px solid rgba(34,197,94,0.2); }
+
+  /* ticker strip */
+  .lp-tickers {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .lp-tickers-label {
+    font-size: 9px;
+    color: #2d3748;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .lp-tickers-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .ticker-item { display: flex; flex-direction: column; gap: 1px; }
+  .ticker-sym  { font-size: 9px;  color: #4b5563; font-weight: 600; letter-spacing: 0.06em; }
+  .ticker-px   { font-size: 13px; font-weight: 500; color: #94a3b8; font-family: monospace; }
+  .ticker-chg  { font-size: 10px; font-weight: 600; }
+  .ticker-up   { color: var(--green); }
+  .ticker-dn   { color: var(--red); }
+
+  /* ── RIGHT PANEL ── */
+  .lp-right {
+    width: 460px;
+    min-width: 360px;
+    background: #08090f;
+    border-left: 1px solid var(--border);
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .lp-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 32px;
+    transition: color 0.2s;
+  }
+  .lp-back:hover { color: var(--text); }
+
+  .lp-right h1 {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .lp-right-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  /* step progress dots */
+  .step-progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 32px;
+  }
+
+  .sp-dot {
+    height: 4px;
+    flex: 1;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .sp-dot.active { background: var(--accent); }
+  .sp-dot.done   { background: var(--accent2); }
+
+  /* steps */
+  .su-step { display: none; }
+  .su-step.active { display: block; }
+
+  .su-step-heading {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .su-step-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  /* tier cards grid */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .tier-card {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .tier-card:hover   { border-color: rgba(124,106,247,0.5); }
+  .tier-card.selected { border-color: var(--accent); background: rgba(124,106,247,0.06); }
+
+  .tier-card h4    { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .tier-card-price { font-size: 18px; font-weight: 800; color: var(--accent); }
+  .tier-card-price span { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .tier-card-note  { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* form elements */
+  .form-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    padding: 11px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+    display: block;
+    margin-bottom: 10px;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .btn-submit {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 12px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(124,106,247,0.35);
+    transition: opacity 0.2s;
+    width: 100%;
+  }
+  .btn-submit:hover { opacity: 0.88; }
+
+  .btn-google {
+    background: #fff;
+    border: none;
+    color: #111;
+    padding: 11px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: inherit;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.2s;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  .btn-google:hover { opacity: 0.9; }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* step 3 done */
+  .su-done {
+    text-align: center;
+    padding: 24px 0;
+  }
+  .su-done-emoji { font-size: 52px; margin-bottom: 16px; }
+  .su-done h2 { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+  .su-done p  { font-size: 14px; color: var(--muted); margin-bottom: 28px; line-height: 1.7; }
+
+  /* right panel footer */
+  .lp-right-footer {
+    margin-top: auto;
+    padding-top: 28px;
+  }
+
+  .lp-signin-row {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .lp-signin-row a {
+    color: var(--accent2);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .lp-signin-row a:hover { text-decoration: underline; }
+
+  .lp-trust {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+
+  .lp-trust-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    body { overflow: auto; }
+    .signup-layout { flex-direction: column; height: auto; }
+    .lp-left  { display: none; }
+    .lp-right { width: 100%; min-width: 0; border-left: none; padding: 36px 24px; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<div class="signup-layout">
+
+  <!-- ══════════════════════════════════════════ LEFT PANEL -->
+  <div class="lp-left">
+
+    <!-- chart watermark -->
+    <svg class="lp-chart-bg" viewBox="0 0 900 200" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#7c6af7" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#7c6af7" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="M0,180 C60,160 90,185 140,148 S210,118 260,100 S330,76 380,60 S440,44 490,32 S550,18 600,10 S660,4 710,2 L900,0 L900,200 L0,200Z" fill="url(#cg2)"/>
+      <path d="M0,180 C60,160 90,185 140,148 S210,118 260,100 S330,76 380,60 S440,44 490,32 S550,18 600,10 S660,4 710,2 L900,0" fill="none" stroke="#7c6af7" stroke-width="2"/>
+    </svg>
+
+    <!-- compass watermark -->
+    <div class="lp-compass-watermark">
+      <svg viewBox="-45 -61 330 346" fill="none" style="width:100%;height:100%">
+        <defs>
+          <filter id="cometGlow2">
+            <feGaussianBlur stdDeviation="4" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- wide orbit rings -->
+        <circle cx="120" cy="120" r="155" stroke="#7c6af7" stroke-width="0.6" opacity="0.18"/>
+        <path d="M 30 -25 A 155 155 0 0 1 210 -25" stroke="#c4b5fd" stroke-width="2.5" stroke-linecap="round" opacity="0.45" filter="url(#cometGlow2)" fill="none"/>
+        <path d="M 60 -32 A 155 155 0 0 1 180 -32" stroke="#e2d9f3" stroke-width="1" stroke-linecap="round" opacity="0.60" fill="none"/>
+        <circle cx="120" cy="120" r="155" stroke="#a78bfa" stroke-width="1.5"
+          stroke-dasharray="30 945" stroke-dashoffset="0" opacity="0.70"
+          style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+        <!-- concentric rings -->
+        <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="2" opacity="0.25"/>
+        <circle cx="120" cy="120" r="106" stroke="#7c6af7" stroke-width="0.5" opacity="0.16"/>
+        <circle cx="120" cy="120" r="80" stroke="#7c6af7" stroke-width="0.8" stroke-dasharray="2 4" opacity="0.15"/>
+        <circle cx="120" cy="120" r="52" stroke="#a78bfa" stroke-width="0.6" opacity="0.18"/>
+        <circle cx="120" cy="120" r="22" stroke="#7c6af7" stroke-width="1" fill="rgba(124,106,247,0.06)" opacity="0.25"/>
+        <!-- tick marks (major) -->
+        <g stroke="#7c6af7" opacity="0.16">
+          <line x1="120" y1="6" x2="120" y2="22" stroke-width="2"/>
+          <line x1="120" y1="218" x2="120" y2="234" stroke-width="2"/>
+          <line x1="6" y1="120" x2="22" y2="120" stroke-width="2"/>
+          <line x1="218" y1="120" x2="234" y2="120" stroke-width="2"/>
+          <line x1="200.6" y1="39.4" x2="193" y2="47" stroke-width="1.4"/>
+          <line x1="39.4" y1="39.4" x2="47" y2="47" stroke-width="1.4"/>
+          <line x1="200.6" y1="200.6" x2="193" y2="193" stroke-width="1.4"/>
+          <line x1="39.4" y1="200.6" x2="47" y2="193" stroke-width="1.4"/>
+        </g>
+        <!-- N arrow — red -->
+        <polygon points="120,10 127,85 120,100 113,85" fill="#ef4444" opacity="0.95"/>
+        <polygon points="120,8 130,20 120,26 110,20" fill="#ef4444" opacity="0.95"/>
+        <!-- S arrow -->
+        <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
+        <!-- E/W -->
+        <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
+        <polygon points="10,120 85,125 100,120 85,115" fill="#7c6af7" opacity="0.18"/>
+        <!-- centre -->
+        <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" stroke-width="1.5" opacity="0.38"/>
+        <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
+        <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
+        <!-- N label red -->
+        <text x="120" y="-22" text-anchor="middle" font-size="13" font-weight="900" fill="#ef4444" opacity="1" font-family="Georgia, serif" transform="rotate(-30 120 -22)">N</text>
+        <text x="120" y="253" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.25" font-family="monospace" transform="rotate(-30 120 253)">S</text>
+        <text x="262" y="128" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.22" font-family="monospace" transform="rotate(-30 262 128)">E</text>
+        <text x="-22" y="128" text-anchor="middle" font-size="9" fill="#7c6af7" opacity="0.22" font-family="monospace" transform="rotate(-30 -22 128)">W</text>
+      </svg>
+    </div>
+
+    <!-- content -->
+    <div class="lp-content">
+
+      <!-- brand -->
+      <div class="lp-brand">
+        <div class="lp-brand-icon">
+          <svg width="26" height="26" viewBox="-10 -10 260 260" fill="none" style="transform:rotate(30deg)">
+            <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="5" opacity="0.9"/>
+            <circle cx="120" cy="120" r="78" stroke="#7c6af7" stroke-width="2.5" stroke-dasharray="5 7" opacity="0.7"/>
+            <circle cx="120" cy="120" r="114" stroke="#c4b5fd" stroke-width="3" stroke-dasharray="28 688" opacity="0.95"
+              style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+            <polygon points="120,14 127,88 120,102 113,88" fill="#ef4444" opacity="0.95"/>
+            <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+            <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" stroke-width="3" opacity="0.95"/>
+            <circle cx="120" cy="120" r="5" fill="#a78bfa" opacity="1"/>
+          </svg>
+        </div>
+        <span class="lp-brand-name">Options<span style="color:#7c6af7">Compass</span></span>
+        <span class="lp-live-badge">
+          <span class="lp-live-dot"></span>
+          LIVE
+        </span>
+      </div>
+
+      <!-- headline -->
+      <p class="lp-headline">
+        You have always wanted to trade options but don't know how to go about it?
+        We will show you how.
+      </p>
+
+      <!-- feature list -->
+      <div class="lp-features">
+
+        <div class="lp-feature">
+          <div class="lp-feature-icon purple">⚡</div>
+          <div class="lp-feature-text">
+            <div class="lp-feature-title">31 Strategy Fits, Ranked for Today</div>
+            <div class="lp-feature-desc">Iron condors, butterflies, straddles, verticals and more — automatically scored and ranked against the current IV environment and directional bias. The engine shows the fits; you choose whether to act.</div>
+            <span class="lp-feature-tag tag-purple">✦ AI-ranked</span>
+          </div>
+        </div>
+
+        <div class="lp-feature">
+          <div class="lp-feature-icon cyan">📡</div>
+          <div class="lp-feature-text">
+            <div class="lp-feature-title">Options Chain &amp; Market Analysis</div>
+            <div class="lp-feature-desc">Bids, asks, IV, and greeks (approximately 15 min delayed) across every strike and expiry — updated throughout the session. Current, not stale.</div>
+            <span class="lp-feature-tag tag-cyan">↻ Every ~30s</span>
+          </div>
+        </div>
+
+        <div class="lp-feature">
+          <div class="lp-feature-icon blue">🗺️</div>
+          <div class="lp-feature-text">
+            <div class="lp-feature-title">Step-by-Step Trade Entry Guide</div>
+            <div class="lp-feature-desc">When you've chosen a setup, the platform walks you through strike selection, expiry choice, and position sizing — so you know precisely how to enter when you're ready.</div>
+            <span class="lp-feature-tag tag-amber">📋 Trade-ready</span>
+          </div>
+        </div>
+
+        <div class="lp-feature">
+          <div class="lp-feature-icon amber">🤖</div>
+          <div class="lp-feature-text">
+            <div class="lp-feature-title">AI Narrative on Every Strategy</div>
+            <div class="lp-feature-desc">Plain-English breakdown of why a strategy fits — IV regime, earnings risk, news sentiment. No jargon, no trade signals. The analysis is yours to interpret and act on.</div>
+            <span class="lp-feature-tag tag-purple">✦ Powered by AI</span>
+          </div>
+        </div>
+
+        <div class="lp-feature">
+          <div class="lp-feature-icon green">🔒</div>
+          <div class="lp-feature-text">
+            <div class="lp-feature-title">Paper Trading — Zero Capital at Risk</div>
+            <div class="lp-feature-desc">Full P&amp;L tracking, position monitoring, and risk alerts in a simulated environment. Watch how setups play out against delayed market prices and build confidence before real money.</div>
+            <span class="lp-feature-tag tag-green">✓ Free tier included</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ticker strip -->
+      <div class="lp-tickers">
+        <div class="lp-tickers-label">Market snapshot · refreshed throughout session</div>
+        <div class="lp-tickers-row">
+          <div class="ticker-item"><span class="ticker-sym">SPY</span><span class="ticker-px">590.12</span><span class="ticker-chg ticker-up">▲ 1.2%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">QQQ</span><span class="ticker-px">502.44</span><span class="ticker-chg ticker-up">▲ 0.8%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">VIX</span><span class="ticker-px">18.40</span><span class="ticker-chg ticker-dn">▼ 3.2%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">TSLA</span><span class="ticker-px">245.80</span><span class="ticker-chg ticker-up">▲ 2.1%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-px">138.40</span><span class="ticker-chg ticker-up">▲ 1.7%</span></div>
+          <div class="ticker-item"><span class="ticker-sym">IWM</span><span class="ticker-px">213.50</span><span class="ticker-chg ticker-dn">▼ 0.5%</span></div>
+        </div>
+      </div>
+
+    </div><!-- /lp-content -->
+  </div><!-- /lp-left -->
+
+  <!-- ══════════════════════════════════════════ RIGHT PANEL -->
+  <div class="lp-right">
+
+    <a class="lp-back" href="homepage-preview.html">← Back to Options Compass</a>
+
+    <h1>Create your account</h1>
+    <p class="lp-right-sub">Start paper trading in under a minute</p>
+
+    <!-- step progress bar -->
+    <div class="step-progress">
+      <div class="sp-dot active" id="sp1"></div>
+      <div class="sp-dot" id="sp2"></div>
+      <div class="sp-dot" id="sp3"></div>
+    </div>
+
+    <!-- Step 1: Choose plan -->
+    <div class="su-step active" id="suStep1">
+      <div class="su-step-heading">Choose your plan</div>
+      <div class="su-step-sub">Start free. Upgrade any time.</div>
+
+      <div class="tier-grid">
+        <div class="tier-card selected" onclick="selectTier(this)">
+          <h4>Free</h4>
+          <div class="tier-card-price">$0 <span>/mo</span></div>
+          <div class="tier-card-note">Basic chain + scanner</div>
+        </div>
+        <div class="tier-card" onclick="selectTier(this)">
+          <h4>Starter</h4>
+          <div class="tier-card-price">TBD <span>/mo</span></div>
+          <div class="tier-card-note">+ Positions &amp; P&amp;L</div>
+        </div>
+        <div class="tier-card" onclick="selectTier(this)">
+          <h4>Semi-Pro</h4>
+          <div class="tier-card-price">TBD <span>/mo</span></div>
+          <div class="tier-card-note">+ AI features</div>
+        </div>
+        <div class="tier-card" onclick="selectTier(this)">
+          <h4>Pro</h4>
+          <div class="tier-card-price">TBD <span>/mo</span></div>
+          <div class="tier-card-note">Full access</div>
+        </div>
+      </div>
+
+      <button class="btn-submit" onclick="goStep(2)">Continue →</button>
+    </div>
+
+    <!-- Step 2: Create account -->
+    <div class="su-step" id="suStep2">
+      <div class="su-step-heading">Create your account</div>
+      <div class="su-step-sub">Or use Google for one-click setup.</div>
+
+      <button class="btn-google">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Sign up with Google
+      </button>
+
+      <div class="divider">or</div>
+
+      <input class="form-input" type="email" placeholder="Email address" />
+      <input class="form-input" type="password" placeholder="Create password" />
+      <input class="form-input" type="password" placeholder="Confirm password" />
+      <button class="btn-submit" onclick="goStep(3)">Create Account →</button>
+    </div>
+
+    <!-- Step 3: Done -->
+    <div class="su-step" id="suStep3">
+      <div class="su-done">
+        <div class="su-done-emoji">🎯</div>
+        <h2>You're in!</h2>
+        <p>Your Options Compass account is ready.<br>Start learning options strategy today.</p>
+        <button class="btn-submit">Go to Dashboard →</button>
+      </div>
+    </div>
+
+    <!-- right panel footer -->
+    <div class="lp-right-footer">
+      <div class="lp-signin-row">
+        Already have an account? <a href="homepage-preview.html">Sign in →</a>
+      </div>
+      <div class="lp-trust">
+        <span class="lp-trust-item">🔐 Secure sign-in</span>
+        <span class="lp-trust-item">🛡️ End-to-end encrypted</span>
+        <span class="lp-trust-item">🆓 Free tier available</span>
+      </div>
+    </div>
+
+  </div><!-- /lp-right -->
+</div><!-- /signup-layout -->
+
+<script>
+  function goStep(n) {
+    [1, 2, 3].forEach(i => {
+      document.getElementById('suStep' + i).classList.toggle('active', i === n)
+      const dot = document.getElementById('sp' + i)
+      dot.classList.toggle('active', i === n)
+      dot.classList.toggle('done', i < n)
+    })
+  }
+
+  function selectTier(el) {
+    document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'))
+    el.classList.add('selected')
+  }
+</script>
+</body>
+</html>
