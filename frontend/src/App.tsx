@@ -49,7 +49,7 @@ function Dashboard() {
   const { paymentFailed } = useEntitlements()
   const { isMobile, isTablet } = useWindowSize()
   const [activeDesk, setActiveDesk] = useState<Desk>('options')
-  const _init = localStorage.getItem(_LAST_SYMBOL_KEY) || 'SPY'
+  const _init = localStorage.getItem(_LAST_SYMBOL_KEY) || 'QQQ'
   const [symbol, setSymbol] = useState(_init)
   const [inputSymbol, setInputSymbol] = useState(_init)
   const [chainDataSource, setChainDataSource] = useState<{ synthetic: boolean; estimatedPct: number; unavailable?: boolean } | null>(null)
@@ -464,7 +464,7 @@ function ClientAppInner() {
   // Uses the last known first-scanner symbol (persisted in localStorage); falls back to SPY.
   // The chain endpoint has optional auth so this works before the session check completes.
   useEffect(() => {
-    const sym = localStorage.getItem(_LAST_SYMBOL_KEY) || 'SPY'
+    const sym = localStorage.getItem(_LAST_SYMBOL_KEY) || 'QQQ'
     getOptionsChain(sym).catch(() => {})
     getQuote(sym).catch(() => {})
   }, [])
