@@ -219,15 +219,33 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
     try { return new Date(e + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
     catch { return e }
   }
+
+  // Collapse duplicate legs (same strike + action + option_type) into one row with a qty count.
+  // ZEBRA back-ratios produce two identical long legs in the backend data; showing them as
+  // separate "BUY 1" rows is confusing — a single "BUY 2" row is correct.
+  type DisplayLeg = TradeLeg & { qty: number }
+  const displayLegs: DisplayLeg[] = []
+  for (const leg of trade.legs.filter(l => l.option_type !== 'stock')) {
+    const existing = displayLegs.find(
+      d => d.option_type === leg.option_type && d.strike === leg.strike && d.action === leg.action
+    )
+    if (existing) {
+      existing.qty += 1
+    } else {
+      displayLegs.push({ ...leg, qty: 1 })
+    }
+  }
+
   return (
     <div style={{ background: '#0d1220', border: `1px solid ${C.accent}44`, borderRadius: '8px', padding: '14px 16px', marginBottom: '4px' }}>
       <div style={{ fontSize: '11px', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
         📋 How to place this trade
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-        {trade.legs.filter(l => l.option_type !== 'stock').map((leg, i) => {
+        {displayLegs.map((leg, i) => {
           const isBuy = leg.action === 'buy'
-          const creditDebit = isBuy ? `Pay ~$${(leg.mid * 100).toFixed(0)}` : `Collect ~$${(leg.mid * 100).toFixed(0)}`
+          const legCost = leg.mid * 100 * leg.qty
+          const creditDebit = isBuy ? `Pay ~$${legCost.toFixed(0)}` : `Collect ~$${legCost.toFixed(0)}`
           const typeColor = leg.option_type === 'call' ? C.blue : C.purple
           return (
             <div key={i} style={{
@@ -242,7 +260,7 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
               <span style={{ background: isBuy ? C.green : C.red, color: '#000', borderRadius: '3px', padding: '2px 7px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em', flexShrink: 0 }}>
                 {leg.action.toUpperCase()}
               </span>
-              <span style={{ fontWeight: 700, color: C.text, fontSize: '13px' }}>1 {symbol}</span>
+              <span style={{ fontWeight: 700, color: C.text, fontSize: '13px' }}>{leg.qty} {symbol}</span>
               <span style={{ fontWeight: 700, color: C.text, fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>${leg.strike}</span>
               <span style={{ fontWeight: 700, color: typeColor, fontSize: '13px', textTransform: 'uppercase' }}>{leg.option_type}</span>
               <span style={{ color: C.muted, fontSize: '12px' }}>· expires {formatExpiry(trade.expiry)}</span>
@@ -260,14 +278,16 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
           <span style={{ color: isCredit ? C.green : C.red, fontWeight: 700 }}>
             {isCredit ? `Collect $${netDollars.toFixed(0)} credit` : `Pay $${netDollars.toFixed(0)} debit`}
           </span>
-          <span style={{ color: C.muted }}> per contract</span>
+          <span style={{ color: C.muted }}> per spread</span>
         </div>
         <div>
           <span style={{ color: C.muted }}>Exit when: </span>
           <span style={{ color: C.yellow, fontWeight: 600 }}>
             {trade.tastylive_profit_target != null
               ? `P&L reaches +$${(trade.tastylive_profit_target * 100).toFixed(0)} (${trade.profit_target_pct}% of max)`
-              : `${trade.profit_target_pct}% of max profit`}
+              : trade.max_profit == null
+                ? 'Profit is unlimited — close when your thesis plays out or at 21 DTE'
+                : `${trade.profit_target_pct}% of max profit`}
           </span>
         </div>
         {trade.breakeven_low != null && trade.breakeven_high != null && (
