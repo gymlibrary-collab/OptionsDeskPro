@@ -748,7 +748,361 @@
     .stats-bar { gap: 32px; padding: 24px 20px; }
     .compass-wrap { width: 220px; height: 220px; }
     .login-panel, .signup-panel { width: calc(100vw - 32px); padding: 28px 24px; }
+    .welcome-panel { flex-direction: column !important; }
+    .welcome-left  { display: none !important; }
+    .welcome-right { padding: 28px 20px !important; }
+    .feat-grid     { grid-template-columns: 1fr !important; }
+    .tour-panel    { width: 100vw !important; right: -100vw !important; }
+    .tour-panel.open { right: 0 !important; }
+    .option-cards  { grid-template-columns: 1fr !important; }
   }
+
+  /* ── WELCOME MODAL (Option 1) ── */
+  .welcome-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+  }
+  .welcome-overlay.open { display: flex; }
+
+  .welcome-panel {
+    background: linear-gradient(160deg, #0d0f1e 0%, #0a1020 100%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    width: min(1000px, 96vw);
+    max-height: 92vh;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+  }
+
+  /* left: compass + brand */
+  .welcome-left {
+    width: 280px;
+    flex-shrink: 0;
+    position: relative;
+    background: linear-gradient(160deg, #0d0f1e 0%, #08090f 100%);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    overflow: hidden;
+  }
+  .welcome-left::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,106,247,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,247,0.05) 1px, transparent 1px);
+    background-size: 36px 36px;
+    pointer-events: none;
+  }
+  .welcome-left::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, rgba(124,106,247,0.18) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .welcome-compass {
+    position: relative;
+    z-index: 1;
+    width: 180px;
+    height: 180px;
+    margin-bottom: 28px;
+  }
+  .welcome-brand {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .welcome-brand .wbrand-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .welcome-brand .wbrand-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* right: feature cards */
+  .welcome-right {
+    flex: 1;
+    overflow-y: auto;
+    padding: 36px 36px 28px;
+    display: flex;
+    flex-direction: column;
+  }
+  .welcome-right h2 {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .welcome-right .welcome-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  .feat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    flex: 1;
+  }
+
+  .feat-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: border-color 0.2s;
+  }
+  .feat-card:hover { border-color: rgba(124,106,247,0.45); }
+
+  .feat-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  .feat-card h4  { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+  .feat-card p   { font-size: 12px; color: var(--muted); line-height: 1.55; margin-bottom: 8px; }
+  .feat-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .welcome-footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .welcome-note {
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  /* ── TOUR PANEL (Option 2) ── */
+  .tour-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(2px);
+    z-index: 290;
+  }
+  .tour-backdrop.open { display: block; }
+
+  .tour-panel {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 400px;
+    height: 100vh;
+    background: #0d0f1a;
+    border-left: 1px solid var(--border);
+    z-index: 295;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.32s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: -12px 0 40px rgba(0,0,0,0.5);
+  }
+  .tour-panel.open { right: 0; }
+
+  .tour-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tour-header-text { flex: 1; }
+  .tour-header-text h3 { font-size: 15px; font-weight: 700; }
+  .tour-header-text p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tour-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tour-close:hover { color: var(--text); }
+
+  .tour-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .tour-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    transition: border-color 0.2s;
+  }
+  .tour-item:hover { border-color: rgba(124,106,247,0.4); }
+
+  .tour-item-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .tour-item h4  { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .tour-item p   { font-size: 12px; color: var(--muted); line-height: 1.55; margin-bottom: 6px; }
+
+  .tour-footer {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── DEMO SECTION ── */
+  .demo-section {
+    background: rgba(124,106,247,0.04);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 64px 40px;
+  }
+  .demo-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .option-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 40px;
+  }
+  .option-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .option-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(124,106,247,0.15);
+    border: 1px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .option-card h3  { font-size: 17px; font-weight: 800; }
+  .option-card p   { font-size: 13px; color: var(--muted); line-height: 1.65; flex: 1; }
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .flow-step {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .flow-step-num {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent);
+    background: rgba(124,106,247,0.12);
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .mock-nav-bar {
+    background: rgba(8,9,15,0.92);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .mock-ticker-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text);
+    font-family: monospace;
+  }
+  .mock-tour-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: rgba(124,106,247,0.15);
+    border: 1px solid rgba(124,106,247,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+    filter: drop-shadow(0 0 5px rgba(124,106,247,0.4));
+  }
+  .mock-tour-btn:hover { background: rgba(124,106,247,0.28); }
 </style>
 </head>
 <body>
@@ -792,6 +1146,7 @@
     <li><a href="#how-it-works">How It Works</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#contact">Contact</a></li>
+    <li><a href="#app-features">In-App</a></li>
   </ul>
 
   <div class="nav-cta">
@@ -1315,6 +1670,230 @@
   </div>
 </section>
 
+<!-- ═══════════════════════════════════════════════════════════════ ONBOARDING DEMO -->
+
+<!-- OPTION 1: Welcome modal overlay -->
+<div class="welcome-overlay" id="welcomeOverlay">
+  <div class="welcome-panel">
+
+    <!-- left: compass + brand -->
+    <div class="welcome-left">
+      <div class="welcome-compass">
+        <svg viewBox="-45 -61 330 346" fill="none" style="width:100%;height:100%">
+          <defs>
+            <filter id="wGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx="120" cy="120" r="155" stroke="#7c6af7" stroke-width="0.6" opacity="0.18"/>
+          <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="2"   opacity="0.25"/>
+          <circle cx="120" cy="120" r="80"  stroke="#7c6af7" stroke-width="0.8" stroke-dasharray="2 4" opacity="0.15"/>
+          <circle cx="120" cy="120" r="52"  stroke="#a78bfa" stroke-width="0.6" opacity="0.18"/>
+          <circle cx="120" cy="120" r="155" stroke="#a78bfa" stroke-width="1.5"
+            stroke-dasharray="30 945" opacity="0.80" filter="url(#wGlow)"
+            style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+          <polygon points="120,10 127,85 120,100 113,85" fill="#ef4444" opacity="0.95"/>
+          <polygon points="120,8 130,20 120,26 110,20" fill="#ef4444" opacity="0.95"/>
+          <polygon points="120,230 127,155 120,140 113,155" fill="#7c6af7" opacity="0.22"/>
+          <polygon points="230,120 155,125 140,120 155,115" fill="#7c6af7" opacity="0.18"/>
+          <polygon points="10,120 85,125 100,120 85,115"   fill="#7c6af7" opacity="0.18"/>
+          <circle cx="120" cy="120" r="13" fill="#07090f" stroke="#7c6af7" stroke-width="1.5" opacity="0.38"/>
+          <circle cx="120" cy="120" r="5.5" fill="#7c6af7" opacity="0.45"/>
+          <circle cx="120" cy="120" r="2.5" fill="#e2e8f0" opacity="0.62"/>
+          <text x="120" y="-22" text-anchor="middle" font-size="13" font-weight="900"
+            fill="#ef4444" opacity="1" font-family="Georgia, serif" transform="rotate(-30 120 -22)">N</text>
+        </svg>
+      </div>
+      <div class="welcome-brand">
+        <div class="wbrand-title">Options<span style="color:#7c6af7">Compass</span></div>
+        <div class="wbrand-sub">Your guide to options<br>strategy — step by step.</div>
+      </div>
+    </div>
+
+    <!-- right: feature cards -->
+    <div class="welcome-right">
+      <h2>Welcome aboard 🎯</h2>
+      <p class="welcome-sub">Here's what you can do in Options Compass. All decisions are yours — the platform shows you the map.</p>
+
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="feat-icon" style="background:rgba(124,106,247,0.15);border:1px solid rgba(124,106,247,0.25)">⚡</div>
+          <h4>31 Strategies, Ranked for Today</h4>
+          <p>Iron condors, butterflies, straddles and more — scored against today's IV environment and directional bias.</p>
+          <span class="feat-tag" style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);color:#a78bfa">✦ AI-ranked</span>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon" style="background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.22)">📡</div>
+          <h4>Refreshed Market Analysis</h4>
+          <p>Options chain data, IV, and Greeks updated throughout the session — current, not stale.</p>
+          <span class="feat-tag" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);color:#06b6d4">↻ Every ~30s</span>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.22)">🗺️</div>
+          <h4>Step-by-Step Entry Guide</h4>
+          <p>Strike selection, expiry choice, position sizing, and the exact order to place — when you're ready.</p>
+          <span class="feat-tag" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b">📋 Trade-ready</span>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.22)">🤖</div>
+          <h4>AI Narrative on Every Strategy</h4>
+          <p>Plain-English breakdown of why a strategy fits — IV regime, earnings risk, news sentiment.</p>
+          <span class="feat-tag" style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);color:#a78bfa">✦ Powered by AI</span>
+        </div>
+        <div class="feat-card" style="grid-column: span 2">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div class="feat-icon" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.22);flex-shrink:0">🔒</div>
+            <div>
+              <h4>Paper Trading — Zero Capital at Risk</h4>
+              <p>Full position tracking, P&L monitoring, and risk alerts — all in a simulated environment. Build conviction before deploying real money.</p>
+              <span class="feat-tag" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e">✓ Free tier included</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="welcome-footer">
+        <span class="welcome-note">🧭 This message appears once. Find it again in the Help guide.</span>
+        <button class="btn-submit" style="padding:10px 24px;font-size:14px" onclick="closeWelcome()">Let's explore →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION 2: Tour slide-in panel -->
+<div class="tour-backdrop" id="tourBackdrop" onclick="closeTour()"></div>
+<div class="tour-panel" id="tourPanel">
+  <div class="tour-header">
+    <svg width="32" height="32" viewBox="-10 -10 260 260" fill="none" style="transform:rotate(30deg);flex-shrink:0">
+      <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="5" opacity="0.9"/>
+      <circle cx="120" cy="120" r="78" stroke="#7c6af7" stroke-width="2.5" stroke-dasharray="5 7" opacity="0.7"/>
+      <circle cx="120" cy="120" r="114" stroke="#c4b5fd" stroke-width="3"
+        stroke-dasharray="28 688" opacity="0.9"
+        style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+      <polygon points="120,14 127,88 120,102 113,88" fill="#ef4444" opacity="0.95"/>
+      <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+      <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" stroke-width="3" opacity="0.95"/>
+      <circle cx="120" cy="120" r="5" fill="#a78bfa" opacity="1"/>
+    </svg>
+    <div class="tour-header-text">
+      <h3>Options Compass — Feature Guide</h3>
+      <p>What you can do in this platform</p>
+    </div>
+    <button class="tour-close" onclick="closeTour()">✕</button>
+  </div>
+
+  <div class="tour-body">
+    <div class="tour-item">
+      <div class="tour-item-icon" style="background:rgba(124,106,247,0.15);border:1px solid rgba(124,106,247,0.25)">⚡</div>
+      <div>
+        <h4>31 Strategies, Ranked for Today</h4>
+        <p>Iron condors, butterflies, straddles and more — automatically scored against today's IV environment and your directional bias.</p>
+        <span class="feat-tag" style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);color:#a78bfa">✦ AI-ranked</span>
+      </div>
+    </div>
+    <div class="tour-item">
+      <div class="tour-item-icon" style="background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.22)">📡</div>
+      <div>
+        <h4>Refreshed Market Analysis</h4>
+        <p>Options chain data, IV, and Greeks updated throughout the session — current, not stale.</p>
+        <span class="feat-tag" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);color:#06b6d4">↻ Every ~30s</span>
+      </div>
+    </div>
+    <div class="tour-item">
+      <div class="tour-item-icon" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.22)">🗺️</div>
+      <div>
+        <h4>Step-by-Step Entry Guide</h4>
+        <p>Strike selection, expiry choice, position sizing, and the exact order to place — when you're ready.</p>
+        <span class="feat-tag" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b">📋 Trade-ready</span>
+      </div>
+    </div>
+    <div class="tour-item">
+      <div class="tour-item-icon" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.22)">🤖</div>
+      <div>
+        <h4>AI Narrative on Every Strategy</h4>
+        <p>Plain-English breakdown of why a strategy fits — IV regime, earnings risk, and news sentiment. No jargon.</p>
+        <span class="feat-tag" style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.2);color:#a78bfa">✦ Powered by AI</span>
+      </div>
+    </div>
+    <div class="tour-item">
+      <div class="tour-item-icon" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.22)">🔒</div>
+      <div>
+        <h4>Paper Trading — Zero Capital at Risk</h4>
+        <p>Full position tracking, P&L monitoring, and risk alerts in a simulated environment. Build conviction before real money.</p>
+        <span class="feat-tag" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e">✓ Free tier included</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tour-footer">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;opacity:0.7">🧭 You decide every trade. This panel is here any time you need a reminder.</div>
+    <button class="btn-submit" style="width:100%;padding:11px;font-size:13px" onclick="closeTour()">Got it</button>
+  </div>
+</div>
+
+<!-- DEMO SECTION -->
+<div class="demo-section" id="app-features">
+  <div class="demo-inner">
+    <div class="section-label">In-App Onboarding</div>
+    <h2 class="section-title">Two ways subscribers discover the platform</h2>
+    <p class="section-sub">Click either card below to see the experience. Both are interactive previews of what the real app will show.</p>
+
+    <div class="option-cards">
+
+      <!-- Option 1 -->
+      <div class="option-card">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="option-num">1</div>
+          <h3>First-Login Welcome Modal</h3>
+        </div>
+        <p>
+          Appears automatically the <strong>first time</strong> the subscriber opens the dashboard
+          after signing up. Full-screen overlay with the compass, feature cards, and a "Let's explore →" button.
+          Dismisses permanently — never shown again on return visits.
+        </p>
+        <div class="flow-steps">
+          <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px">Subscriber flow</div>
+          <div class="flow-step"><span class="flow-step-num">1</span>Signs up &amp; confirms email</div>
+          <div class="flow-step"><span class="flow-step-num">2</span>Lands on dashboard for the first time</div>
+          <div class="flow-step"><span class="flow-step-num">3</span>Modal appears automatically — no action needed</div>
+          <div class="flow-step"><span class="flow-step-num">4</span>Clicks "Let's explore →" to dismiss permanently</div>
+        </div>
+        <button class="btn-submit" style="padding:11px;font-size:13px" onclick="openWelcome()">▶ Preview Welcome Modal</button>
+      </div>
+
+      <!-- Option 2 -->
+      <div class="option-card">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="option-num">2</div>
+          <h3>Persistent Tour Button</h3>
+        </div>
+        <p>
+          A small compass button lives in the app's top nav bar — always visible, never in the way.
+          Clicking it slides a feature guide panel in from the right. Accessible at any time,
+          ideal for new subscribers exploring tabs or showing the app to someone else.
+        </p>
+        <div class="flow-steps">
+          <div style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px">Subscriber flow</div>
+          <div class="flow-step"><span class="flow-step-num">1</span>Subscriber is anywhere inside the dashboard</div>
+          <div class="flow-step"><span class="flow-step-num">2</span>Spots the 🧭 compass icon in the top nav bar (see mock below)</div>
+          <div class="flow-step"><span class="flow-step-num">3</span>Clicks it — panel slides in from the right</div>
+          <div class="flow-step"><span class="flow-step-num">4</span>Reads, then clicks "Got it" or clicks outside to close</div>
+        </div>
+        <!-- mock nav bar to show where the button lives -->
+        <div class="mock-nav-bar">
+          <span style="color:var(--text);font-weight:700;font-size:12px">Options<span style="color:#7c6af7">Compass</span></span>
+          <input class="mock-ticker-input" value="QQQ" readonly style="width:70px"/>
+          <span style="flex:1;font-size:11px;color:var(--muted)">Chain · Scanner · Positions · …</span>
+          <div class="mock-tour-btn" onclick="openTour()" title="Feature guide">🧭</div>
+        </div>
+        <button class="btn-submit" style="padding:11px;font-size:13px" onclick="openTour()">▶ Preview Tour Panel</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════ FOOTER -->
 <footer>
   <div class="footer-grid">
@@ -1422,6 +2001,28 @@
   function selectTier(el) {
     document.querySelectorAll('.tier-card-sm').forEach(c => c.classList.remove('selected'))
     el.classList.add('selected')
+  }
+
+  // Option 1 — welcome modal
+  function openWelcome() {
+    document.getElementById('welcomeOverlay').classList.add('open')
+  }
+  function closeWelcome() {
+    document.getElementById('welcomeOverlay').classList.remove('open')
+  }
+  // close on backdrop click
+  document.getElementById('welcomeOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeWelcome()
+  })
+
+  // Option 2 — tour panel
+  function openTour() {
+    document.getElementById('tourPanel').classList.add('open')
+    document.getElementById('tourBackdrop').classList.add('open')
+  }
+  function closeTour() {
+    document.getElementById('tourPanel').classList.remove('open')
+    document.getElementById('tourBackdrop').classList.remove('open')
   }
 
   // Smooth scroll for nav links
