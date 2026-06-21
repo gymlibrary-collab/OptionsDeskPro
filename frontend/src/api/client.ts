@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { supabase } from '../lib/supabase'
 
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
@@ -10,91 +11,18 @@ const api = axios.create({
   withCredentials: true,
 })
 
-const TOKEN_KEY = 'sb_access_token'
-const REFRESH_KEY = 'sb_refresh_token'
-
-export function setLocalTokens(accessToken: string, refreshToken: string): void {
-  if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken)
-  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
-}
-
-export function clearLocalTokens(): void {
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(REFRESH_KEY)
-}
-
-// Send stored access token as Bearer header on every API request.
-// This is needed because the backend and frontend run on different Railway
-// subdomains — cross-domain cookies are blocked by browser privacy policies
-// (Firefox ETP, Safari ITP, etc.) even with SameSite=None.
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
+// Attach the current Supabase access token as a Bearer header on every request.
+// supabase.auth.getSession() automatically refreshes the token before it expires
+// (Supabase JS default: refreshes ~60s before the 1-hour access token expiry,
+// refresh token valid for 60 days). No manual refresh interceptor needed.
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
     config.headers = config.headers ?? {}
-    config.headers.Authorization = `Bearer ${token}`
+    config.headers.Authorization = `Bearer ${session.access_token}`
   }
   return config
 })
-
-// Silent token refresh on 401.
-// When the access token expires (1h Supabase default), intercept the 401,
-// call /auth/refresh with the stored refresh token, update localStorage, and
-// retry the original request — all transparently, without logging the user out.
-// Multiple concurrent 401s are queued so only one refresh call is made.
-let _refreshing = false
-let _queue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = []
-
-function _drainQueue(err: unknown, token: string | null) {
-  _queue.forEach(p => err ? p.reject(err) : p.resolve(token!))
-  _queue = []
-}
-
-api.interceptors.response.use(
-  res => res,
-  async err => {
-    const original = err.config
-    if (
-      err?.response?.status !== 401 ||
-      original?._retry ||
-      original?.url?.includes('/auth/refresh')
-    ) {
-      return Promise.reject(err)
-    }
-
-    if (_refreshing) {
-      return new Promise<string>((resolve, reject) => _queue.push({ resolve, reject }))
-        .then(token => {
-          original.headers.Authorization = `Bearer ${token}`
-          return api(original)
-        })
-    }
-
-    original._retry = true
-    _refreshing = true
-    const rt = localStorage.getItem(REFRESH_KEY)
-    if (!rt) {
-      _refreshing = false
-      _drainQueue(err, null)
-      return Promise.reject(err)
-    }
-
-    try {
-      const { data } = await axios.post(`${BACKEND_URL}/api/auth/refresh`, { refresh_token: rt })
-      const { access_token, refresh_token: newRt } = data
-      setLocalTokens(access_token, newRt)
-      api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
-      original.headers.Authorization = `Bearer ${access_token}`
-      _drainQueue(null, access_token)
-      return api(original)
-    } catch (refreshErr) {
-      _drainQueue(refreshErr, null)
-      clearLocalTokens()
-      return Promise.reject(refreshErr)
-    } finally {
-      _refreshing = false
-    }
-  }
-)
 
 export interface Quote {
   symbol: string
@@ -810,8 +738,6 @@ export interface SessionResponse {
   onboarding_step: string
   pending_legal_acknowledgment: boolean
   subscription_tier: string
-  new_access_token?: string | null
-  new_refresh_token?: string | null
 }
 
 export const getSession = (): Promise<SessionResponse> =>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse, setLocalTokens, clearLocalTokens } from '../api/client'
+import { supabase } from '../lib/supabase'
+import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse } from '../api/client'
 
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
@@ -74,12 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!silent) setLoading(true)
     try {
       const data = await getSession()
-      // If the backend did a proactive token refresh, update localStorage so the
-      // frontend's refresh token stays in sync. Without this, Supabase reuse detection
-      // revokes the old refresh token and the next expiry causes an unexpected logout.
-      if (data.new_access_token) {
-        setLocalTokens(data.new_access_token, data.new_refresh_token ?? '')
-      }
       setUser({
         id: data.user_id,
         email: data.email,
@@ -110,26 +105,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchEntitlements])
 
-  // On mount: load session once, then re-check whenever the tab regains focus
-  // (handles the case where the user signs in via the backend OAuth redirect in another tab).
+  // On mount: load session once, then re-check whenever the tab regains focus.
   useEffect(() => {
-    // After Google OAuth, the backend redirects to /#sb_access_token=...&sb_refresh_token=...
-    // Extract the tokens, store in localStorage for Bearer-header auth, and clean the URL.
-    const hash = window.location.hash
-    if (hash && hash.includes('sb_access_token=')) {
-      const params = new URLSearchParams(hash.substring(1))
-      const at = params.get('sb_access_token')
-      const rt = params.get('sb_refresh_token')
-      if (at) {
-        setLocalTokens(at, rt ?? '')
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    (async () => {
+      // After Google OAuth, the backend redirects to /#sb_access_token=...&sb_refresh_token=...
+      // Hand the tokens to the Supabase JS client so it can manage auto-refresh from here on.
+      const hash = window.location.hash
+      if (hash && hash.includes('sb_access_token=')) {
+        const params = new URLSearchParams(hash.substring(1))
+        const at = params.get('sb_access_token')
+        const rt = params.get('sb_refresh_token')
+        if (at) {
+          await supabase.auth.setSession({ access_token: at, refresh_token: rt ?? '' })
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
       }
-    }
-    fetchSession()
+      await fetchSession()
+    })()
     const handleFocus = () => fetchSession(true)
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [fetchSession])
+
+  // When Supabase silently signs the user out (refresh token expired after 60 days),
+  // clear local state so the login page is shown.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+        setEntitlements(null)
+        setPendingLegalAcknowledgment(false)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   const signInWithGoogle = () => {
     window.location.href = `${BACKEND_URL}/api/auth/google`
@@ -138,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = async (email: string, password: string) => {
     const data = await postEmailLogin(email, password)
     if (data.access_token) {
-      setLocalTokens(data.access_token, data.refresh_token ?? '')
+      await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token ?? '' })
     }
     await fetchSession()
   }
@@ -155,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // fire-and-forget; never block sign-out on a logging failure
     }
-    clearLocalTokens()
+    await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
     setEntitlements(null)

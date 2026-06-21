@@ -388,11 +388,6 @@ async def get_session(request: Request, payload: dict = Depends(verify_token)):
         "onboarding_step": profile_data.get("onboarding_step", "complete"),
         "pending_legal_acknowledgment": pending_legal_acknowledgment,
         "subscription_tier": profile_data.get("subscription_tier", "free"),
-        # When the backend did a proactive token refresh, pass the new tokens back so
-        # the frontend can update localStorage. Without this, the old refresh token in
-        # localStorage gets revoked by Supabase reuse detection and the next 401 causes logout.
-        "new_access_token": getattr(request.state, "new_access_token", None),
-        "new_refresh_token": getattr(request.state, "new_refresh_token", None),
     }
 
 

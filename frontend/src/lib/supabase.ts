@@ -1,4 +1,6 @@
-// supabase-js client is no longer used for auth after the backend-auth-proxy refactor.
-// This stub prevents import errors during the transition.
-// TODO: remove once all import sites have been audited and updated.
-export const supabase = null as any
+import { createClient } from '@supabase/supabase-js'
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL as string,
+  import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+)
