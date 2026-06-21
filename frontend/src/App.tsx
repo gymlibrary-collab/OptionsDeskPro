@@ -6,6 +6,7 @@ import Positions from './components/Positions'
 import StrategyScanner from './components/StrategyScanner'
 import LoginPage from './components/LoginPage'
 import HomePage from './components/HomePage'
+import SignInModal from './components/SignInModal'
 import PnLChart from './components/PnLChart'
 import RiskMonitor from './components/RiskMonitor'
 import UserGuide from './components/UserGuide'
@@ -479,19 +480,24 @@ function ClientAppInner() {
     )
   }
   if (!user) {
-    if (authView === 'home') {
+    if (authView === 'signup') {
       return (
-        <HomePage
-          onSignIn={() => setAuthView('signin')}
-          onSignUp={() => setAuthView('signup')}
+        <LoginPage
+          initialMode="signup"
+          onBack={() => setAuthView('home')}
         />
       )
     }
     return (
-      <LoginPage
-        initialMode={authView === 'signup' ? 'signup' : 'signin'}
-        onBack={() => setAuthView('home')}
-      />
+      <>
+        <HomePage
+          onSignIn={() => setAuthView('signin')}
+          onSignUp={() => setAuthView('signup')}
+        />
+        {authView === 'signin' && (
+          <SignInModal onClose={() => setAuthView('home')} />
+        )}
+      </>
     )
   }
 
