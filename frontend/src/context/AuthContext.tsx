@@ -74,6 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!silent) setLoading(true)
     try {
       const data = await getSession()
+      // If the backend did a proactive token refresh, update localStorage so the
+      // frontend's refresh token stays in sync. Without this, Supabase reuse detection
+      // revokes the old refresh token and the next expiry causes an unexpected logout.
+      if (data.new_access_token) {
+        setLocalTokens(data.new_access_token, data.new_refresh_token ?? '')
+      }
       setUser({
         id: data.user_id,
         email: data.email,

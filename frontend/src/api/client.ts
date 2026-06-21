@@ -810,6 +810,8 @@ export interface SessionResponse {
   onboarding_step: string
   pending_legal_acknowledgment: boolean
   subscription_tier: string
+  new_access_token?: string | null
+  new_refresh_token?: string | null
 }
 
 export const getSession = (): Promise<SessionResponse> =>
