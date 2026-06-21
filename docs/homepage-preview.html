@@ -63,11 +63,15 @@
   }
 
   .nav-logo-icon {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: rgba(124,106,247,0.12);
+    border: 1px solid rgba(124,106,247,0.35);
+    border-radius: 9px;
+    filter: drop-shadow(0 0 6px rgba(124,106,247,0.45));
   }
 
   .nav-links {
@@ -753,17 +757,31 @@
 <nav>
   <a class="nav-logo" href="#">
     <div class="nav-logo-icon">
-      <!-- mini compass icon -->
-      <svg width="32" height="32" viewBox="-10 -10 260 260" fill="none">
-        <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="3" opacity="0.35"/>
-        <circle cx="120" cy="120" r="80"  stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.22"/>
-        <circle cx="120" cy="120" r="10" fill="#07090f" stroke="#7c6af7" stroke-width="2" opacity="0.5"/>
-        <circle cx="120" cy="120" r="4"  fill="#7c6af7" opacity="0.7"/>
-        <polygon points="120,18 126,90 120,104 114,90" fill="#e2e8f0" opacity="0.75"/>
-        <polygon points="120,222 126,150 120,136 114,150" fill="#7c6af7" opacity="0.30"/>
-        <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="2"
-          stroke-dasharray="22 695" stroke-dashoffset="0" opacity="0.65"
-          style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+      <svg width="26" height="26" viewBox="-10 -10 260 260" fill="none"
+           style="transform: rotate(30deg);">
+        <defs>
+          <filter id="navGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- outer ring -->
+        <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="5" opacity="0.9"/>
+        <!-- inner dashed ring -->
+        <circle cx="120" cy="120" r="78" stroke="#7c6af7" stroke-width="2.5"
+                stroke-dasharray="5 7" opacity="0.7"/>
+        <!-- spinning comet spark -->
+        <circle cx="120" cy="120" r="114" stroke="#c4b5fd" stroke-width="3"
+                stroke-dasharray="28 688" opacity="0.95"
+                filter="url(#navGlow)"
+                style="animation: compassSpin 14s linear infinite; transform-origin: 120px 120px;"/>
+        <!-- N needle -->
+        <polygon points="120,14 127,88 120,102 113,88" fill="#ffffff" opacity="0.95"/>
+        <!-- S needle -->
+        <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+        <!-- centre hub -->
+        <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" stroke-width="3" opacity="0.95"/>
+        <circle cx="120" cy="120" r="5"  fill="#a78bfa" opacity="1"/>
       </svg>
     </div>
     Options<span style="color:#7c6af7">Compass</span>
@@ -1303,13 +1321,15 @@
     <div class="footer-brand">
       <div class="nav-logo" style="display:inline-flex;margin-bottom:12px">
         <div class="nav-logo-icon">
-          <svg width="28" height="28" viewBox="-10 -10 260 260" fill="none">
-            <circle cx="120" cy="120" r="114" stroke="#7c6af7" stroke-width="3" opacity="0.35"/>
-            <circle cx="120" cy="120" r="80" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.22"/>
-            <circle cx="120" cy="120" r="10" fill="#07090f" stroke="#7c6af7" stroke-width="2" opacity="0.5"/>
-            <circle cx="120" cy="120" r="4" fill="#7c6af7" opacity="0.7"/>
-            <polygon points="120,18 126,90 120,104 114,90" fill="#e2e8f0" opacity="0.75"/>
-            <polygon points="120,222 126,150 120,136 114,150" fill="#7c6af7" opacity="0.30"/>
+          <svg width="24" height="24" viewBox="-10 -10 260 260" fill="none"
+               style="transform: rotate(30deg);">
+            <circle cx="120" cy="120" r="114" stroke="#a78bfa" stroke-width="5" opacity="0.9"/>
+            <circle cx="120" cy="120" r="78"  stroke="#7c6af7" stroke-width="2.5"
+                    stroke-dasharray="5 7" opacity="0.7"/>
+            <polygon points="120,14 127,88 120,102 113,88" fill="#ffffff" opacity="0.95"/>
+            <polygon points="120,226 127,152 120,138 113,152" fill="#7c6af7" opacity="0.65"/>
+            <circle cx="120" cy="120" r="12" fill="#0d0f1a" stroke="#a78bfa" stroke-width="3" opacity="0.95"/>
+            <circle cx="120" cy="120" r="5"  fill="#a78bfa" opacity="1"/>
           </svg>
         </div>
         <span style="margin-left:10px;font-weight:700">Options<span style="color:#7c6af7">Compass</span></span>
