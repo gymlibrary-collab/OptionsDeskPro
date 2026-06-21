@@ -448,6 +448,38 @@
     height: 380px;
   }
 
+  /* ── AUTONOMY CALLOUT ── */
+  .autonomy-bar {
+    margin-top: 36px;
+    padding: 18px 22px;
+    background: rgba(124,106,247,0.07);
+    border: 1px solid rgba(124,106,247,0.22);
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .autonomy-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .autonomy-bar h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 4px;
+  }
+
+  .autonomy-bar p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.65;
+    max-width: 480px;
+  }
+
   /* outer glow halos behind the compass */
   .compass-glow {
     position: absolute;
@@ -891,6 +923,20 @@
         <button class="btn-hero-ghost" onclick="document.getElementById('education').scrollIntoView({behavior:'smooth'})">See How It Works</button>
       </div>
 
+      <!-- autonomy callout -->
+      <div class="autonomy-bar">
+        <div class="autonomy-icon">🧭</div>
+        <div>
+          <h4>You decide every trade — this is your compass, not a signal service</h4>
+          <p>
+            Options Compass shows you which strategies fit the current market conditions
+            and why. What you do with that information is entirely your call — based on
+            your own read of the market, your risk comfort, and your learning goals.
+            This platform does not send trade signals or personalised investment advice.
+          </p>
+        </div>
+      </div>
+
       <!-- ticker strip -->
       <div class="hero-tickers">
         <div class="hero-tickers-label">Market snapshot · refreshed throughout session</div>
@@ -1021,13 +1067,13 @@
   <div class="edu-grid">
     <div class="edu-card">
       <div class="edu-icon">📊</div>
-      <h3>Live Options Chain Analysis</h3>
-      <p>See real bids, asks, IV, and greeks across every strike and expiry for any ticker. Learn to read an options chain the way a market maker does.</p>
+      <h3>Options Chain Analysis</h3>
+      <p>See bids, asks, IV, and greeks (approximately 15 min delayed) across every strike and expiry for any ticker. Learn to read an options chain the way a market maker does.</p>
     </div>
     <div class="edu-card">
       <div class="edu-icon">🧠</div>
-      <h3>AI Strategy Recommendations</h3>
-      <p>Our engine scores all 31 professional options strategies against current IV environment, directional bias, earnings dates, and sentiment — and explains why in plain English.</p>
+      <h3>AI Strategy Ranking</h3>
+      <p>Our engine scores all 31 professional options strategies against the current IV environment, directional bias, earnings dates, and sentiment — and explains the fit in plain English. You decide whether to act.</p>
     </div>
     <div class="edu-card">
       <div class="edu-icon">📈</div>
@@ -1063,8 +1109,8 @@
       <p style="margin-top:12px">
         For learning options strategy, a 15-minute delay is near real-time enough.
         You can see exactly how a strategy plays out against live market conditions,
-        track your paper P&amp;L as prices move, and build genuine conviction — all
-        at a fraction of the cost of a live data feed.
+        track your paper P&amp;L against delayed market prices, and build genuine conviction
+        — all at a fraction of the cost of a live data feed.
       </p>
     </div>
     <div>
@@ -1072,17 +1118,17 @@
       <p style="margin-bottom:10px">
         The platform calculates which options strategies fit the current market
         conditions — IV environment, directional bias, earnings risk — and ranks them
-        for you. Paper trade the recommendations, watch how each position evolves
-        against real price moves, and close trades with a clear read on what worked
-        and why. That cycle of seeing, doing, and reviewing is what builds real
-        confidence to trade with actual capital.
+        by fit score. You choose which setups to explore, paper trade them, and watch
+        how each position evolves against delayed market prices. Close the trade and
+        see exactly what worked and why. That cycle of choosing, doing, and reviewing
+        is what builds real confidence to trade with actual capital.
       </p>
       <ul class="check-list">
         <li>Strategy selection logic and strike choice are identical with delayed or live data</li>
         <li>Greeks (delta, theta, vega, gamma) are model-calculated — unaffected by data delay</li>
         <li>Position sizing, stop rules, and roll mechanics are the same at any latency</li>
         <li>Earnings awareness and expiry selection are calendar-driven, not tick-driven</li>
-        <li>Paper P&amp;L tracks against real prices — you see exactly how the trade would have performed</li>
+        <li>Paper P&amp;L tracks against delayed market prices — you see how the trade plays out against actual market moves</li>
       </ul>
     </div>
   </div>
@@ -1105,7 +1151,7 @@
     <div class="step">
       <div class="step-num">2</div>
       <h4>Read the AI recommendation</h4>
-      <p>The engine analyses IV environment, directional bias, and earnings risk — then recommends the best-fit strategy from 31 professional setups.</p>
+      <p>The engine analyses IV environment, directional bias, and earnings risk — then surfaces the best-fit strategies from 31 professional setups, ranked by fit score. You choose which, if any, to explore.</p>
     </div>
     <div class="step">
       <div class="step-num">3</div>
@@ -1115,7 +1161,7 @@
     <div class="step">
       <div class="step-num">4</div>
       <h4>Paper trade it</h4>
-      <p>Enter the trade with one click. It lands in your paper portfolio at real market prices. Track P&amp;L, Greeks, and risk signals as the market moves.</p>
+      <p>Enter the trade with one click. It lands in your paper portfolio at delayed market prices. Track P&amp;L, Greeks, and risk signals as the market moves.</p>
     </div>
     <div class="step">
       <div class="step-num">5</div>
@@ -1310,10 +1356,14 @@
 
   <p class="disclaimer-footer">
     Options Compass is an educational paper-trading simulator. All trades are simulated. No real money is involved.
-    Options trading involves significant risk of loss and is not appropriate for all investors.
-    Past simulated performance does not guarantee future real-money results. Market data is sourced from
-    Yahoo Finance and may be delayed by approximately 15 minutes. This platform does not constitute financial
-    advice. Always consult a licensed financial adviser before trading real options.
+    Options Compass does not provide personalised investment advice, trade signals, or securities recommendations.
+    Strategy rankings and fit scores are generated by an automated algorithm based on publicly available market
+    data and are presented for educational purposes only. All trade decisions are made solely by the subscriber
+    based on their own assessment of market conditions and personal risk tolerance.
+    Market data is sourced from Yahoo Finance and is typically delayed by approximately 15 minutes; it is not
+    a real-time feed. Options trading involves significant risk of loss and is not appropriate for all investors.
+    Past simulated performance does not guarantee future real-money results.
+    Always consult a licensed financial adviser before trading real options.
   </p>
 </footer>
 
