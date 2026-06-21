@@ -35,14 +35,17 @@ function dte(expiry: string): number {
   return Math.max(0, Math.ceil(diff / 86400000))
 }
 
-function LegRow({ leg }: { leg: TradeLeg }) {
+function LegRow({ leg, qty }: { leg: TradeLeg; qty: number }) {
   const isBuy = leg.action === 'buy'
   const typeColor = leg.option_type === 'call' ? C.blue : '#a855f7'
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}22` }}>
-      <td style={{ padding: '6px 8px', color: C.muted, fontSize: '11px', whiteSpace: 'nowrap' }}>{leg.role}</td>
+      <td style={{ padding: '6px 8px', color: C.muted, fontSize: '11px', whiteSpace: 'nowrap' }}>{leg.role.replace(/ [12]$/, '')}</td>
       <td style={{ padding: '6px 8px', color: typeColor, fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
         {leg.option_type}
+      </td>
+      <td style={{ padding: '6px 8px', fontVariantNumeric: 'tabular-nums', color: qty > 1 ? C.accent : C.muted, fontWeight: qty > 1 ? 700 : 400, fontSize: '11px' }}>
+        {qty}
       </td>
       <td style={{ padding: '6px 8px', fontVariantNumeric: 'tabular-nums', color: C.text, fontWeight: 600 }}>
         ${fmt(leg.strike, 0)}
@@ -135,18 +138,27 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
   const isCredit = trade.estimated_credit_or_debit >= 0
   const netPerSpread = Math.abs(trade.estimated_credit_or_debit)
   const daysLeft = dte(trade.expiry)
-  const optionLegs = trade.legs.filter(l => l.option_type !== 'stock')
+
+  // Collapse duplicate legs (same strike + action + option_type) into one entry with qty.
+  type DisplayLeg = TradeLeg & { qty: number }
+  const optionLegs: DisplayLeg[] = []
+  for (const leg of trade.legs.filter(l => l.option_type !== 'stock')) {
+    const existing = optionLegs.find(
+      d => d.option_type === leg.option_type && d.strike === leg.strike && d.action === leg.action
+    )
+    if (existing) { existing.qty += 1 } else { optionLegs.push({ ...leg, qty: 1 }) }
+  }
 
   const handleRecord = async () => {
     setRecording(true)
     setFeedback(null)
     try {
       const legs = optionLegs.map(leg => ({
-        role: leg.role,
+        role: leg.role.replace(/ [12]$/, ''),
         option_type: leg.option_type,
         strike: leg.strike,
         action: leg.action,
-        quantity: multiplier,
+        quantity: leg.qty * multiplier,
         price: leg.mid > 0 ? leg.mid : ((leg.bid + leg.ask) / 2),
       }))
       const result = await recordTrade({
@@ -235,7 +247,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr>
-                  {['Role', 'Type', 'Strike', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
+                  {['Role', 'Type', 'Qty', 'Strike', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
                     <th key={h} style={{
                       textAlign: 'left', padding: '4px 8px',
                       color: C.muted, fontWeight: 600, fontSize: '10px',
@@ -246,7 +258,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
                 </tr>
               </thead>
               <tbody>
-                {optionLegs.map((leg, i) => <LegRow key={i} leg={leg} />)}
+                {optionLegs.map((leg, i) => <LegRow key={i} leg={leg} qty={leg.qty} />)}
               </tbody>
             </table>
           </div>
@@ -258,7 +270,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
             { label: isCredit ? 'Est. Credit' : 'Est. Debit', value: `$${fmt(netPerSpread)}`, color: isCredit ? C.green : C.red, sub: 'per spread' },
             { label: 'Max Profit', value: trade.max_profit != null ? `$${fmt(trade.max_profit)}` : 'Unlimited', color: C.green, sub: 'per contract' },
             { label: 'Max Loss', value: trade.max_loss != null ? `$${fmt(trade.max_loss)}` : 'Undefined', color: C.red, sub: 'per contract' },
-            { label: 'TT Target', value: trade.tastylive_profit_target != null ? `$${fmt(trade.tastylive_profit_target)}` : `${trade.profit_target_pct}% of max`, color: C.yellow, sub: trade.tastylive_profit_target != null ? `${trade.profit_target_pct}% of max` : '' },
+            { label: 'TT Target', value: trade.tastylive_profit_target != null ? `$${fmt(trade.tastylive_profit_target)}` : trade.max_profit == null ? 'Close at 21 DTE' : `${trade.profit_target_pct}% of max`, color: C.yellow, sub: trade.tastylive_profit_target != null ? `${trade.profit_target_pct}% of max` : trade.max_profit == null ? 'Unlimited upside' : '' },
           ].map(m => (
             <div key={m.label} style={{ background: C.surface2, borderRadius: '6px', padding: '8px 10px' }}>
               <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>{m.label}</div>
