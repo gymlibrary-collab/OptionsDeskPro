@@ -242,14 +242,14 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                 <div style={{
                   width: '22px', height: '22px', borderRadius: '5px', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'clamp(10px, 2.5vw, 13px)',
                   background: f.iconBg, border: `1px solid ${f.iconBorder}`,
                 }}>
                   {f.icon}
                 </div>
-                <span style={{ fontSize: '10px', fontWeight: 700, color: '#cbd5e1' }}>{f.mobileTitle}</span>
+                <span style={{ fontSize: 'clamp(10px, 2.8vw, 13px)', fontWeight: 700, color: '#cbd5e1' }}>{f.mobileTitle}</span>
                 <span style={{
-                  padding: '1px 5px', borderRadius: '6px', fontSize: '8px', fontWeight: 700,
+                  padding: '1px 5px', borderRadius: '6px', fontSize: 'clamp(9px, 2.2vw, 11px)', fontWeight: 700,
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
                   whiteSpace: 'nowrap',
                 }}>
@@ -356,12 +356,12 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
                 {f.icon}
               </div>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
-                <div className="lp-feature-desc" style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
+                <div style={{ fontSize: 'clamp(12px, 1.1vw, 14px)', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>{f.title}</div>
+                <div className="lp-feature-desc" style={{ fontSize: 'clamp(11px, 1vw, 13px)', color: '#64748b', lineHeight: 1.65, marginBottom: '6px' }}>{f.desc}</div>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: '3px',
                   padding: '2px 7px', borderRadius: '10px',
-                  fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
+                  fontSize: 'clamp(9px, 0.8vw, 11px)', fontWeight: 600, letterSpacing: '0.03em',
                   background: f.tagBg, border: `1px solid ${f.tagBorder}`, color: f.tagColor,
                 }}>
                   {f.tag}
@@ -410,26 +410,28 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
             {mode === 'signup' ? 'Start paper trading in under a minute' : 'Sign in to your Options Compass account'}
           </div>
 
-          {/* Mode toggle */}
-          <div className="lp-toggle-wrap" style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
-            {(['signin', 'signup'] as Mode[]).map(m => (
-              <button
-                key={m}
-                onClick={() => switchMode(m)}
-                className="lp-toggle-btn"
-                style={{
-                  flex: 1, padding: '9px', border: 'none', borderRadius: '8px',
-                  fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT,
-                  background: mode === m ? '#7c6af7' : 'transparent',
-                  color: mode === m ? '#fff' : '#4b5563',
-                  boxShadow: mode === m ? '0 2px 8px rgba(124,106,247,0.3)' : 'none',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {m === 'signin' ? 'Sign In' : 'Create Account'}
-              </button>
-            ))}
-          </div>
+          {/* Mode toggle — only shown on sign-in to avoid confusing sign-up users */}
+          {mode === 'signin' && (
+            <div className="lp-toggle-wrap" style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
+              {(['signin', 'signup'] as Mode[]).map(m => (
+                <button
+                  key={m}
+                  onClick={() => switchMode(m)}
+                  className="lp-toggle-btn"
+                  style={{
+                    flex: 1, padding: '9px', border: 'none', borderRadius: '8px',
+                    fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: FONT,
+                    background: mode === m ? '#7c6af7' : 'transparent',
+                    color: mode === m ? '#fff' : '#4b5563',
+                    boxShadow: mode === m ? '0 2px 8px rgba(124,106,247,0.3)' : 'none',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {m === 'signin' ? 'Sign In' : 'Create Account'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Google OAuth */}
           <button
@@ -551,12 +553,12 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
             </form>
           )}
 
-          {/* Switch mode */}
-          <div className="lp-switch-mode" style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
-            {mode === 'signup'
-              ? <>Already have an account? <span onClick={() => switchMode('signin')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Sign in</span></>
-              : <>New to Options Compass? <span onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Create a free account</span></>}
-          </div>
+          {/* Switch mode — only shown on sign-in panel */}
+          {mode === 'signin' && (
+            <div className="lp-switch-mode" style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
+              New to Options Compass? <span onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Create a free account</span>
+            </div>
+          )}
 
           {/* Trust row */}
           <div className="lp-trust-row" style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '24px', flexWrap: 'wrap' }}>
