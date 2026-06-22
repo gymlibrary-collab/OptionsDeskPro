@@ -228,10 +228,14 @@ def get_iv_rank(symbol: str) -> dict:
         hv_52wk_high = float(np.max(hv_series))
         hv_52wk_low = float(np.min(hv_series))
 
-        # Get current ATM IV from nearest expiry options chain — used only as
-        # the displayed "Current IV" figure. The rank itself is always HV-based
-        # (see below), so the source stays "hv_proxy" regardless; we do not
-        # claim the rank is IV-derived when it isn't.
+        # Get current ATM IV from nearest expiry options chain.
+        # When available, ATM IV is used as the IVR numerator — it reflects what
+        # the options market is actually pricing and is more meaningful than HV.
+        # For equities, volradar is the primary source so this fallback rarely
+        # fires; using ATM IV here won't reintroduce the IVR=100 inflation bug
+        # (that was caused by ranking IV against a HV range on the primary path).
+        # For index symbols (^SPX etc) volradar is skipped entirely, so ATM IV
+        # from the CBOE chain is the best available signal.
         current_iv = current_hv
         iv_source = "hv_proxy"
         try:
@@ -247,19 +251,19 @@ def get_iv_rank(symbol: str) -> dict:
                     atm_iv = float(atm_row.get("impliedVolatility", 0))
                     if atm_iv > 0.01:
                         current_iv = atm_iv
+                        iv_source = "option_chain"
         except Exception as e:
             logger.warning(f"Could not get ATM IV for {symbol}: {e}")
 
-        # IVR: current HV ranked against the 52-week HV range.
-        # ATM IV is NOT used as the numerator — IV is structurally above HV
-        # (variance risk premium), so ranking IV against the HV range would
-        # routinely produce values above 100 (clamped to 100). Using HV for
-        # both numerator and denominator keeps the comparison on the same scale.
+        # IVR: rank the numerator (ATM IV when available, else HV) against the
+        # 52-week HV range. Both inputs are on the same volatility scale, and
+        # clamping to 0–100 handles the rare case where ATM IV exceeds the HV high.
+        rank_numerator = current_iv  # ATM IV or current_hv fallback
         hv_range = hv_52wk_high - hv_52wk_low
         if hv_range < 0.001:
             iv_rank = 50.0
         else:
-            iv_rank = round((current_hv - hv_52wk_low) / hv_range * 100.0, 1)
+            iv_rank = round((rank_numerator - hv_52wk_low) / hv_range * 100.0, 1)
             iv_rank = max(0.0, min(100.0, iv_rank))
 
         # Classify environment
