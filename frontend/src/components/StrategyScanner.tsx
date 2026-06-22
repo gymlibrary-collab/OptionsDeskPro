@@ -65,11 +65,12 @@ function BiasBadge({ bias }: { bias: string }) {
 }
 
 
-type IVSource = 'volradar' | 'option_chain' | 'hv_proxy'
+type IVSource = 'volradar' | 'cboe_vol_index' | 'option_chain' | 'hv_proxy'
 const IV_SOURCE_META: Record<IVSource, { dot: string; title: string }> = {
-  volradar:     { dot: '#38bdf8', title: 'Primary source IVR' },
-  option_chain: { dot: '#facc15', title: 'Secondary source IVR (ATM IV approx)' },
-  hv_proxy:     { dot: '#9ca3af', title: 'Secondary source IVR (HV approx)' },
+  volradar:        { dot: '#38bdf8', title: 'Primary source IVR' },
+  cboe_vol_index:  { dot: '#34d399', title: 'Primary source IVR (CBOE vol index)' },
+  option_chain:    { dot: '#facc15', title: 'Secondary source IVR (ATM IV approx)' },
+  hv_proxy:        { dot: '#9ca3af', title: 'Secondary source IVR (HV approx)' },
 }
 
 function IVRBar({ rank, source }: { rank: number; source?: IVSource }) {

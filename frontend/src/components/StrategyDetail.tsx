@@ -91,13 +91,14 @@ function IVRGauge({ rank }: { rank: number }) {
   )
 }
 
-type IVSource = 'volradar' | 'option_chain' | 'hv_proxy'
+type IVSource = 'volradar' | 'cboe_vol_index' | 'option_chain' | 'hv_proxy'
 
 function IVSourcePill({ source }: { source?: IVSource }) {
   const meta: Record<IVSource, { label: string; bg: string; color: string; title: string }> = {
-    volradar:     { label: 'primary source', bg: '#0a1f2e', color: '#38bdf8', title: 'IVR from primary data source' },
-    option_chain: { label: 'secondary source', bg: '#1a1a0a', color: '#facc15', title: 'IVR approximated using ATM implied volatility' },
-    hv_proxy:     { label: 'secondary source', bg: '#1a1a1a', color: '#9ca3af', title: 'IVR approximated using 30-day historical volatility — least accurate' },
+    volradar:        { label: 'primary source', bg: '#0a1f2e', color: '#38bdf8', title: 'IVR from primary data source' },
+    cboe_vol_index:  { label: 'primary source', bg: '#0a2620', color: '#34d399', title: 'IVR from CBOE volatility index' },
+    option_chain:    { label: 'secondary source', bg: '#1a1a0a', color: '#facc15', title: 'IVR approximated using ATM implied volatility' },
+    hv_proxy:        { label: 'secondary source', bg: '#1a1a1a', color: '#9ca3af', title: 'IVR approximated using 30-day historical volatility — least accurate' },
   }
   const s = source && meta[source] ? meta[source] : meta.hv_proxy
   return (
