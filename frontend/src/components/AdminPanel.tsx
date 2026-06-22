@@ -4,10 +4,12 @@ import {
   getPublicConfig,
   patchAdminPlatformSettings,
   getHealthCheck,
+  debugIvrFetch,
   getActivityLog,
   type HealthCheckResponse,
   type ComponentHealth,
   type ActivityLogResponse,
+  type IvrFetchDebugResult,
   type ActivityLogFilters,
   type UserActionRow,
 } from '../api/client'
@@ -709,6 +711,129 @@ function HealthTab() {
                   </div>
                 )}
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <IvrDebugTool />
+    </div>
+  )
+}
+
+// ─── IvrDebugTool ─────────────────────────────────────────────────────────────
+
+function IvrDebugTool() {
+  const [symbol, setSymbol] = useState('AAPL')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<IvrFetchDebugResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    if (!symbol.trim()) return
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    try {
+      const data = await debugIvrFetch(symbol.trim().toUpperCase())
+      setResult(data)
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      setError(err?.message ?? 'Request failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
+  const C = { bg: '#0f1117', surface: '#1a1d2e', border: '#2a2d3e', text: '#e2e8f0', muted: '#64748b', blue: '#38bdf8', green: '#4ade80', red: '#f87171', yellow: '#facc15' }
+
+  const sourceColor = (parsed: number | null | undefined) =>
+    parsed != null ? C.green : C.red
+
+  return (
+    <div style={{ fontFamily: font, marginTop: '32px', borderTop: `1px solid ${C.border}`, paddingTop: '24px' }}>
+      <h4 style={{ color: C.text, fontSize: '14px', fontWeight: 600, margin: '0 0 12px' }}>
+        IVR Source Diagnostic
+      </h4>
+      <p style={{ color: C.muted, fontSize: '12px', margin: '0 0 16px' }}>
+        Tests the volradar.com fetch for a symbol and returns the raw HTTP status, response size, parsed IVR value, and first 2000 chars of HTML.
+      </p>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <input
+          value={symbol}
+          onChange={e => setSymbol(e.target.value.toUpperCase())}
+          onKeyDown={e => e.key === 'Enter' && run()}
+          placeholder="AAPL"
+          style={{
+            background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px',
+            color: C.text, padding: '7px 12px', fontSize: '13px', width: '120px',
+            outline: 'none', fontFamily: font,
+          }}
+        />
+        <button
+          onClick={run}
+          disabled={loading}
+          style={{
+            background: loading ? '#2d3148' : '#7c6af7', border: 'none', borderRadius: '6px',
+            color: loading ? C.muted : '#fff', padding: '7px 18px', fontSize: '13px',
+            cursor: loading ? 'not-allowed' : 'pointer', fontFamily: font,
+          }}
+        >
+          {loading ? 'Fetching…' : 'Test Fetch'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '6px', padding: '10px 14px', color: C.red, fontSize: '12px', marginBottom: '12px' }}>
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {result.error && (
+            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '6px', padding: '10px 14px', color: C.red, fontSize: '12px' }}>
+              {result.error}
+            </div>
+          )}
+          {result.attempts?.map((a, i) => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '14px' }}>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+                <span style={{ color: C.muted, fontSize: '11px' }}>URL</span>
+                <span style={{ color: C.blue, fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{a.url}</span>
+              </div>
+              {a.error ? (
+                <div style={{ color: C.red, fontSize: '12px' }}>{a.error}</div>
+              ) : (
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>HTTP STATUS</div>
+                    <div style={{ color: a.status_code === 200 ? C.green : C.red, fontWeight: 700, fontSize: '14px' }}>{a.status_code}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>CONTENT LENGTH</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '14px' }}>{a.content_length?.toLocaleString()} chars</div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>PARSED IVR</div>
+                    <div style={{ color: sourceColor(a.parsed_ivr), fontWeight: 700, fontSize: '14px' }}>
+                      {a.parsed_ivr != null ? a.parsed_ivr.toFixed(1) : 'null — regex no match'}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {a.html_snippet && (
+                <details>
+                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>HTML snippet (first 2000 chars)</summary>
+                  <pre style={{
+                    background: C.bg, border: `1px solid ${C.border}`, borderRadius: '4px',
+                    padding: '10px', marginTop: '8px', fontSize: '10px', color: C.muted,
+                    overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflowY: 'auto',
+                  }}>
+                    {a.html_snippet}
+                  </pre>
+                </details>
+              )}
             </div>
           ))}
         </div>
