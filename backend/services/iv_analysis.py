@@ -171,7 +171,9 @@ def get_iv_rank(symbol: str) -> dict:
         iv_environment, percentile_label, iv_source, and optional error field.
     """
     # ── Primary: real IVR from volradar.com ──────────────────────────────────
-    vr = _fetch_volradar_ivr(symbol)
+    # Skip volradar for index symbols (^SPX, ^VIX, ^NDX etc) — volradar only
+    # covers equities. yfinance returns ATM IV from the CBOE chain for indices.
+    vr = None if symbol.startswith("^") else _fetch_volradar_ivr(symbol)
     if vr is not None:
         iv_rank = vr["iv_rank"]
         if iv_rank > 50:
