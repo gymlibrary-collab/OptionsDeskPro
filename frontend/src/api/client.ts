@@ -166,6 +166,11 @@ export const getPortfolio = () =>
 export const getPositionsRisk = (): Promise<PositionRisk[]> =>
   api.get<PositionRisk[]>('/positions/risk', { timeout: 60000 }).then(r => r.data)
 
+export const updatePositionAvgCost = (req: {
+  symbol: string; expiry: string; strike: number; option_type: string; avg_cost: number
+}): Promise<{ ok: boolean }> =>
+  api.patch('/positions/avg-cost', req).then(r => r.data)
+
 // ─── Strategy Intelligence ──────────────────────────────────────────────────────
 
 export type GreekSign = 'long' | 'short' | 'flat' | 'dynamic'

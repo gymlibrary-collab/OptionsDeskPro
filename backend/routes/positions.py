@@ -1,8 +1,10 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from services.auth_utils import verify_token, get_user_id
+from services.db import get_supabase
 from services.legal_service import legal_gate_dep
 from services import user_portfolio
 from services.iv_analysis import get_iv_rank, get_directional_bias
@@ -27,6 +29,43 @@ async def get_portfolio(payload: dict = Depends(verify_token)):
 async def take_snapshot(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
     await user_portfolio.take_pnl_snapshot(user_id)
+    return {"ok": True}
+
+
+class AvgCostUpdateRequest(BaseModel):
+    symbol: str
+    expiry: str
+    strike: float
+    option_type: str
+    avg_cost: float
+
+
+@router.patch("/positions/avg-cost")
+async def update_avg_cost(req: AvgCostUpdateRequest, payload: dict = Depends(verify_token)):
+    user_id = get_user_id(payload)
+    if req.avg_cost < 0:
+        raise HTTPException(status_code=422, detail="avg_cost must be non-negative")
+    sb = get_supabase()
+    pos_result = (
+        sb.table("positions")
+        .update({"avg_cost": req.avg_cost})
+        .eq("user_id", user_id)
+        .eq("symbol", req.symbol)
+        .eq("expiry", req.expiry)
+        .eq("strike", req.strike)
+        .eq("option_type", req.option_type)
+        .execute()
+    )
+    if not pos_result.data:
+        raise HTTPException(status_code=404, detail="Position not found")
+    # Update all matching entry buy orders to the new price
+    sb.table("orders").update({"price": req.avg_cost}).eq("user_id", user_id).eq(
+        "symbol", req.symbol
+    ).eq("expiry", req.expiry).eq("strike", req.strike).eq(
+        "option_type", req.option_type
+    ).eq(
+        "action", "buy"
+    ).execute()
     return {"ok": True}
 
 

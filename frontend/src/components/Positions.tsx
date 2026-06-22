@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse } from '../api/client'
+import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse, updatePositionAvgCost } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
 
 function fmt(n: number, d = 2) {
@@ -303,6 +303,9 @@ export default function Positions() {
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
   const [stockPrices, setStockPrices] = useState<Record<string, Quote>>({})
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState<string>('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const greeksCoachingEnabled = entitlements?.features?.greeks_coaching ?? false
 
@@ -363,6 +366,31 @@ export default function Positions() {
       setCloseLoading(false)
     }
   }, [closingPos, load])
+
+  const handleSaveAvgCost = useCallback(async (pos: Position) => {
+    const parsed = parseFloat(editValue)
+    if (isNaN(parsed) || parsed < 0) {
+      alert('Please enter a valid non-negative price.')
+      return
+    }
+    setEditSaving(true)
+    try {
+      await updatePositionAvgCost({
+        symbol: pos.symbol,
+        expiry: pos.expiry,
+        strike: pos.strike,
+        option_type: pos.option_type,
+        avg_cost: parsed,
+      })
+      setEditingKey(null)
+      load()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      alert(err?.response?.data?.detail || err?.message || 'Failed to update price.')
+    } finally {
+      setEditSaving(false)
+    }
+  }, [editValue, load])
 
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
@@ -523,6 +551,8 @@ export default function Positions() {
                 const rowBg = hitTarget ? `${C.green}08` : hitStop ? `${C.red}08` : daysLeft <= 21 ? `${C.amber}05` : undefined
                 const action = (pos.entry_action ?? (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
                 const totalCost = pos.avg_cost * Math.abs(pos.quantity) * 100
+                const rowKey = `${pos.symbol}-${pos.expiry}-${pos.strike}-${pos.option_type}`
+                const isEditingThis = editingKey === rowKey
                 return (
                   <tr key={i} style={rowBg ? { background: rowBg } : undefined}>
                     <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>
@@ -554,7 +584,89 @@ export default function Positions() {
                     <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
                       {pos.quantity > 0 ? '+' : ''}{pos.quantity}
                     </td>
-                    <td style={styles.td}>${fmt(pos.avg_cost)}</td>
+                    <td style={{ ...styles.td, minWidth: '130px' }}>
+                      {isEditingThis ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                          <span style={{ color: C.muted, fontSize: '12px' }}>$</span>
+                          <input
+                            type="number"
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveAvgCost(pos)
+                              if (e.key === 'Escape') setEditingKey(null)
+                            }}
+                            autoFocus
+                            style={{
+                              width: '70px',
+                              background: '#252836',
+                              border: `1px solid ${C.accent}`,
+                              borderRadius: '4px',
+                              color: C.text,
+                              fontSize: '12px',
+                              padding: '2px 6px',
+                              outline: 'none',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveAvgCost(pos)}
+                            disabled={editSaving}
+                            title="Save"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: editSaving ? C.muted : C.green,
+                              cursor: editSaving ? 'default' : 'pointer',
+                              fontSize: '14px',
+                              padding: '0 2px',
+                              lineHeight: 1,
+                            }}
+                          >
+                            {editSaving ? '…' : '✓'}
+                          </button>
+                          <button
+                            onClick={() => setEditingKey(null)}
+                            disabled={editSaving}
+                            title="Cancel"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: C.muted,
+                              cursor: editSaving ? 'default' : 'pointer',
+                              fontSize: '14px',
+                              padding: '0 2px',
+                              lineHeight: 1,
+                            }}
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
+                          <span>${fmt(pos.avg_cost)}</span>
+                          <button
+                            onClick={() => {
+                              setEditingKey(rowKey)
+                              setEditValue(String(pos.avg_cost))
+                            }}
+                            title="Edit filled price"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: C.muted,
+                              cursor: 'pointer',
+                              padding: '0 2px',
+                              lineHeight: 1,
+                              fontSize: '12px',
+                              opacity: 0.7,
+                            }}
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td style={{ ...styles.td, color: C.muted }}>${fmt(totalCost, 0)}</td>
                     <td style={styles.td}>${fmt(pos.current_price)}</td>
                     <td style={{ ...styles.td, color: pnlColor, fontWeight: 600 }}>
