@@ -283,11 +283,12 @@ export interface TradeStructure {
 
 export interface IVAnalysis {
   symbol: string
-  current_iv: number
+  current_iv: number | null
   iv_rank: number
-  hv_30d: number
-  hv_52wk_high: number
-  hv_52wk_low: number
+  iv_source: 'volradar' | 'option_chain' | 'hv_proxy'
+  hv_30d: number | null
+  hv_52wk_high: number | null
+  hv_52wk_low: number | null
   iv_environment: string
   percentile_label: string
   error?: string
@@ -325,6 +326,7 @@ export interface ScanResult {
   price: number
   iv_rank: number
   current_iv: number
+  iv_source: 'volradar' | 'option_chain' | 'hv_proxy'
   iv_environment: string
   percentile_label: string
   bias: string

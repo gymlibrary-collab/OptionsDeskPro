@@ -65,9 +65,17 @@ function BiasBadge({ bias }: { bias: string }) {
 }
 
 
-function IVRBar({ rank }: { rank: number }) {
+type IVSource = 'volradar' | 'option_chain' | 'hv_proxy'
+const IV_SOURCE_META: Record<IVSource, { dot: string; title: string }> = {
+  volradar:     { dot: '#38bdf8', title: 'Real IVR — volradar.com' },
+  option_chain: { dot: '#facc15', title: 'IVR approx — ATM IV / yfinance' },
+  hv_proxy:     { dot: '#9ca3af', title: 'IVR approx — HV proxy / yfinance' },
+}
+
+function IVRBar({ rank, source }: { rank: number; source?: IVSource }) {
   const pct = Math.max(0, Math.min(100, rank))
   const color = pct > 50 ? C.red : pct < 30 ? C.green : C.yellow
+  const src = source && IV_SOURCE_META[source] ? IV_SOURCE_META[source] : IV_SOURCE_META.hv_proxy
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
       <div style={{ background: C.surface2, borderRadius: '3px', height: '6px', width: '48px', overflow: 'hidden', flexShrink: 0 }}>
@@ -76,6 +84,7 @@ function IVRBar({ rank }: { rank: number }) {
       <span style={{ color, fontWeight: 700, fontSize: '12px', fontVariantNumeric: 'tabular-nums', minWidth: '28px' }}>
         {pct.toFixed(0)}
       </span>
+      <span title={src.title} style={{ color: src.dot, fontSize: '8px', cursor: 'help' }}>⬤</span>
     </div>
   )
 }
@@ -443,7 +452,7 @@ export default function StrategyScanner({ onSelectTrade, onMethodologyClick }: P
                       {r.error && <span title={r.error} style={{ marginLeft: '6px', color: C.red, fontSize: '10px' }}>!</span>}
                     </td>
                     <td style={{ padding: '10px 14px', color: C.text, fontVariantNumeric: 'tabular-nums' }}>${fmt(r.price)}</td>
-                    <td style={{ padding: '10px 14px' }}><IVRBar rank={r.iv_rank} /></td>
+                    <td style={{ padding: '10px 14px' }}><IVRBar rank={r.iv_rank} source={r.iv_source as IVSource} /></td>
                     <td style={{ padding: '10px 14px' }}><IVEnvBadge env={r.iv_environment} /></td>
                     <td style={{ padding: '10px 14px' }}><BiasBadge bias={r.bias} /></td>
                     <td style={{ padding: '10px 14px', color: C.text, fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>

@@ -91,6 +91,31 @@ function IVRGauge({ rank }: { rank: number }) {
   )
 }
 
+type IVSource = 'volradar' | 'option_chain' | 'hv_proxy'
+
+function IVSourcePill({ source }: { source?: IVSource }) {
+  const meta: Record<IVSource, { label: string; bg: string; color: string; title: string }> = {
+    volradar:     { label: 'volradar.com', bg: '#0a1f2e', color: '#38bdf8', title: 'Real IVR from historical implied volatility (volradar.com)' },
+    option_chain: { label: 'ATM IV / yfinance', bg: '#1a1a0a', color: '#facc15', title: 'IVR approximated using ATM implied volatility from yfinance options chain' },
+    hv_proxy:     { label: 'HV proxy / yfinance', bg: '#1a1a1a', color: '#9ca3af', title: 'IVR approximated using 30-day historical volatility (yfinance) — least accurate' },
+  }
+  const s = source && meta[source] ? meta[source] : meta.hv_proxy
+  return (
+    <span
+      title={s.title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        background: s.bg, color: s.color,
+        border: `1px solid ${s.color}44`, borderRadius: '4px',
+        padding: '2px 7px', fontSize: '10px', fontWeight: 600,
+        letterSpacing: '0.04em', cursor: 'help', whiteSpace: 'nowrap',
+      }}
+    >
+      <span style={{ fontSize: '8px' }}>⬤</span> {s.label}
+    </span>
+  )
+}
+
 function IVEnvBadge({ env }: { env: string }) {
   const map: Record<string, { bg: string; color: string }> = {
     HIGH: { bg: '#2d0f0f', color: C.red },
@@ -893,6 +918,7 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
           <IVRGauge rank={iv.iv_rank} />
           <IVEnvBadge env={iv.iv_environment} />
           <div style={{ fontSize: '11px', color: C.muted }}>{iv.percentile_label}</div>
+          <IVSourcePill source={iv.iv_source as IVSource} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div>
