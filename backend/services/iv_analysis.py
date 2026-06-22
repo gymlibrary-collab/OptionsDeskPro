@@ -205,12 +205,16 @@ def get_iv_rank(symbol: str) -> dict:
         except Exception as e:
             logger.warning(f"Could not get ATM IV for {symbol}: {e}")
 
-        # IVR: ATM IV (or HV proxy) ranked against the 52-week HV range.
+        # IVR: current HV ranked against the 52-week HV range.
+        # ATM IV is NOT used as the numerator — IV is structurally above HV
+        # (variance risk premium), so ranking IV against the HV range would
+        # routinely produce values above 100 (clamped to 100). Using HV for
+        # both numerator and denominator keeps the comparison on the same scale.
         hv_range = hv_52wk_high - hv_52wk_low
         if hv_range < 0.001:
             iv_rank = 50.0
         else:
-            iv_rank = round((current_iv - hv_52wk_low) / hv_range * 100.0, 1)
+            iv_rank = round((current_hv - hv_52wk_low) / hv_range * 100.0, 1)
             iv_rank = max(0.0, min(100.0, iv_rank))
 
         # Classify environment
