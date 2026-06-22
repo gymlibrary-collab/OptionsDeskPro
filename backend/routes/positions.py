@@ -1,7 +1,10 @@
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from services.auth_utils import verify_token, get_user_id
 from services.db import get_supabase
@@ -237,19 +240,22 @@ async def get_positions_risk(payload: dict = Depends(verify_token)):
     market = {sym: (iv, bias) for sym, iv, bias in results}
     risk_items = [_assess_risk(pos, *market.get(pos.symbol, (None, None))) for pos in positions]
 
-    # Fetch the most recent narrative for each strategy (first leg only stores narrative_json)
-    sb = get_supabase()
-    narratives_result = sb.table("orders")\
-        .select("strategy_key, narrative_json")\
-        .eq("user_id", user_id)\
-        .not_.is_("narrative_json", "null")\
-        .order("created_at", desc=True)\
-        .execute()
+    # Fetch the most recent narrative per strategy (requires migration 022)
     narrative_by_strategy: dict = {}
-    for row in (narratives_result.data or []):
-        sk = row.get("strategy_key")
-        if sk and sk not in narrative_by_strategy:
-            narrative_by_strategy[sk] = row["narrative_json"]
+    try:
+        sb = get_supabase()
+        narratives_result = sb.table("orders")\
+            .select("strategy_key, narrative_json")\
+            .eq("user_id", user_id)\
+            .not_.is_("narrative_json", "null")\
+            .order("created_at", desc=True)\
+            .execute()
+        for row in (narratives_result.data or []):
+            sk = row.get("strategy_key")
+            if sk and sk not in narrative_by_strategy:
+                narrative_by_strategy[sk] = row["narrative_json"]
+    except Exception as e:
+        logger.warning("narrative_json fetch failed (migration 022 pending?): %s", e)
 
     for item in risk_items:
         item["narrative"] = narrative_by_strategy.get(item.get("strategy_key"))
