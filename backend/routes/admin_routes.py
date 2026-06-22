@@ -526,116 +526,70 @@ async def get_user_activity_log(
 @router.get("/admin/debug/ivr-fetch")
 def debug_ivr_fetch(symbol: str = "AAPL", payload: dict = Depends(admin_required)):
     """
-    Diagnostic: attempt the volradar.com IVR fetch and return the raw outcome.
-    Probes the SSR page (?symbol=), candidate Next.js API routes, and scans
-    for RSC / __NEXT_DATA__ payloads in the HTML.  Admin-only.
+    Diagnostic: run the two-step volradar.com IVR fetch and return the raw outcome.
+    Step 1 loads the page (to get cf_clearance cookie), step 2 calls the JSON API.
+    Admin-only.
     """
-    import re as _re
-    import json as _json
-    from services.iv_analysis import _VOLRADAR_URL, _VOLRADAR_TIMEOUT, _parse_ivr_from_html
+    from services.iv_analysis import (
+        _VOLRADAR_PAGE_URL, _VOLRADAR_API_URL, _VOLRADAR_TIMEOUT, _fetch_volradar_ivr
+    )
 
     SYM = symbol.upper()
-    results = []
+    steps = []
 
     try:
         from curl_cffi import requests as cffi_requests
 
-        def _get(url, accept="text/html,application/xhtml+xml,*/*;q=0.8"):
-            return cffi_requests.get(
-                url, impersonate="chrome120", timeout=_VOLRADAR_TIMEOUT,
-                headers={"Accept": accept, "Accept-Language": "en-US,en;q=0.5",
-                         "Referer": "https://volradar.com/"},
-            )
+        session = cffi_requests.Session()
 
-        # ── 1. SSR page (?symbol= param) ─────────────────────────────────────
-        page_url = f"{_VOLRADAR_URL}?symbol={SYM}"
+        # Step 1 — page load (gets cf_clearance)
         try:
-            resp = _get(page_url)
-            html = resp.text or ""
-            parsed = _parse_ivr_from_html(html) if resp.status_code == 200 else None
-
-            # Extract the page-specific JS chunk URL for step 2
-            chunk_match = _re.search(
-                r'/_next/static/chunks/app/tools/iv-rank-lookup/page-[^"\']+\.js', html
+            r1 = session.get(
+                _VOLRADAR_PAGE_URL, impersonate="chrome120", timeout=_VOLRADAR_TIMEOUT,
+                headers={"Accept": "text/html,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"},
             )
-            chunk_url = ("https://volradar.com" + chunk_match.group(0)) if chunk_match else None
+            steps.append({"step": "page_load", "url": _VOLRADAR_PAGE_URL,
+                          "status_code": r1.status_code, "content_length": len(r1.text or ""),
+                          "cf_clearance_set": "cf_clearance" in session.cookies})
+        except Exception as e:
+            steps.append({"step": "page_load", "error": str(e)})
 
-            # Look for __NEXT_DATA__ JSON (Pages Router)
-            next_data_match = _re.search(
-                r'<script id="__NEXT_DATA__"[^>]*>(.+?)</script>', html, _re.DOTALL
+        # Step 2 — JSON API call
+        api_url = f"{_VOLRADAR_API_URL}?ticker={SYM}"
+        try:
+            r2 = session.get(
+                _VOLRADAR_API_URL, impersonate="chrome120", timeout=_VOLRADAR_TIMEOUT,
+                params={"ticker": SYM},
+                headers={"Accept": "*/*", "Accept-Language": "en-US,en;q=0.9",
+                         "Referer": _VOLRADAR_PAGE_URL,
+                         "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
+                         "Sec-Fetch-Site": "same-origin"},
             )
-            next_data = None
-            if next_data_match:
-                try:
-                    next_data = _json.loads(next_data_match.group(1))
-                except Exception:
-                    next_data = "parse error"
-
-            # Look for RSC payload (App Router: self.__next_f.push)
-            rsc_hits = _re.findall(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', html)
-            rsc_snippet = rsc_hits[0][:500] if rsc_hits else None
-
-            results.append({
-                "url": page_url,
-                "status_code": resp.status_code,
-                "content_length": len(html),
-                "parsed_ivr": parsed,
-                "chunk_url": chunk_url,
-                "next_data": next_data,
-                "rsc_snippet": rsc_snippet,
-                "html_snippet": html[:2000],
+            body = r2.text or ""
+            parsed_json = None
+            try:
+                parsed_json = r2.json()
+            except Exception:
+                pass
+            steps.append({
+                "step": "api_call", "url": api_url,
+                "status_code": r2.status_code,
+                "content_length": len(body),
+                "parsed_json": parsed_json,
+                "raw_snippet": body[:500],
             })
         except Exception as e:
-            results.append({"url": page_url, "error": str(e)})
-            chunk_url = None
-
-        # ── 2. Fetch the page JS chunk and scan for API patterns ─────────────
-        if chunk_url:
-            try:
-                js_resp = _get(chunk_url, accept="*/*")
-                js = js_resp.text or ""
-                # Find fetch/axios calls and string literals that look like API paths
-                api_hits = _re.findall(r'["\`](/(?:api|v\d)[^"\`\s]{3,60})["\`]', js)
-                fetch_hits = _re.findall(r'fetch\(["\`]([^"\`]+)["\`]', js)
-                ivr_ctx = _re.findall(r'.{0,80}(?:ivr|iv.rank|iv_rank).{0,80}', js, _re.IGNORECASE)
-                results.append({
-                    "url": chunk_url,
-                    "status_code": js_resp.status_code,
-                    "content_length": len(js),
-                    "api_paths_found": list(set(api_hits))[:20],
-                    "fetch_calls_found": list(set(fetch_hits))[:10],
-                    "ivr_context": ivr_ctx[:5],
-                    "js_snippet": js[:1000],
-                })
-            except Exception as e:
-                results.append({"url": chunk_url, "error": str(e)})
-
-        # ── 3. Probe candidate Next.js API routes ────────────────────────────
-        candidate_apis = [
-            f"https://volradar.com/api/iv-rank?symbol={SYM}",
-            f"https://volradar.com/api/ivrank?symbol={SYM}",
-            f"https://volradar.com/api/iv-rank-lookup?symbol={SYM}",
-            f"https://volradar.com/api/tools/iv-rank?symbol={SYM}",
-            f"https://volradar.com/api/tools/iv-rank-lookup?symbol={SYM}",
-        ]
-        for api_url in candidate_apis:
-            try:
-                r2 = _get(api_url, accept="application/json,*/*")
-                results.append({
-                    "url": api_url,
-                    "status_code": r2.status_code,
-                    "content_length": len(r2.text or ""),
-                    "parsed_ivr": _parse_ivr_from_html(r2.text) if r2.status_code == 200 else None,
-                    "html_snippet": (r2.text or "")[:500],
-                })
-            except Exception as e:
-                results.append({"url": api_url, "error": str(e)})
+            steps.append({"step": "api_call", "url": api_url, "error": str(e)})
 
     except ImportError as e:
-        return {"error": f"curl_cffi not available: {e}", "results": []}
+        return {"error": f"curl_cffi not available: {e}"}
+
+    # Also run the real production function so we can compare
+    production_result = _fetch_volradar_ivr(SYM)
 
     return {
         "symbol": SYM,
-        "volradar_url": _VOLRADAR_URL,
-        "attempts": results,
+        "api_endpoint": _VOLRADAR_API_URL,
+        "steps": steps,
+        "production_fetch_result": production_result,
     }

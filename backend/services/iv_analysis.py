@@ -1,5 +1,6 @@
 """IV Rank and IV environment classification using yfinance historical data."""
 import re
+import json
 import yfinance as yf
 import numpy as np
 import logging
@@ -8,84 +9,127 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 # ── Volradar IVR scraper ──────────────────────────────────────────────────────
-# volradar.com uses Cloudflare protection; curl_cffi impersonates real browser
-# TLS fingerprints and bypasses it. Falls back to yfinance HV-proxy on any error.
+# Two-step approach:
+#   1. Load the main page in a curl_cffi session — Cloudflare issues cf_clearance cookie
+#   2. Call /api/tools/iv-rank?ticker=SYMBOL within the same session, which carries
+#      the cookie and the correct Sec-Fetch-* headers the endpoint requires.
+# Falls back to yfinance HV-proxy on any error.
 
-_VOLRADAR_URL = "https://volradar.com/tools/iv-rank-lookup"
-_VOLRADAR_TIMEOUT = 8  # seconds
+_VOLRADAR_PAGE_URL = "https://volradar.com/tools/iv-rank-lookup"
+_VOLRADAR_API_URL  = "https://volradar.com/api/tools/iv-rank"
+_VOLRADAR_TIMEOUT  = 10  # seconds
+
+# Keep for the admin debug endpoint
+_VOLRADAR_URL = _VOLRADAR_PAGE_URL
 
 
-def _fetch_volradar_ivr(symbol: str) -> float | None:
+def _fetch_volradar_ivr(symbol: str) -> dict | None:
     """
-    Fetch IVR for *symbol* from volradar.com.
+    Fetch IVR data for *symbol* from volradar.com/api/tools/iv-rank.
 
-    Returns the IVR as a 0–100 float, or None on any failure (network error,
-    parse failure, unexpected response format).  Never raises.
+    Returns a dict with iv_rank, current_iv, iv_52w_low, iv_52w_high,
+    iv_percentile — or None on any failure.  Never raises.
+
+    Endpoint discovered via browser DevTools:
+      GET https://volradar.com/api/tools/iv-rank?ticker=AMZN
+      Response: {"status":"success","iv_rank":52.0,"current_iv":30.5,...}
     """
     try:
         from curl_cffi import requests as cffi_requests
 
-        # Try ?symbol= first, then ?ticker= as fallback
-        for param in (f"?symbol={symbol.upper()}", f"?ticker={symbol.upper()}"):
-            url = _VOLRADAR_URL + param
-            resp = cffi_requests.get(
-                url,
-                impersonate="chrome120",
-                timeout=_VOLRADAR_TIMEOUT,
-                headers={
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                },
-            )
-            if resp.status_code != 200:
-                continue
+        # curl_cffi Session keeps cookies across requests so cf_clearance
+        # obtained from the page load is sent automatically to the API.
+        session = cffi_requests.Session()
 
-            html = resp.text
-            ivr = _parse_ivr_from_html(html)
-            if ivr is not None:
-                logger.info(f"volradar IVR for {symbol}: {ivr}")
-                return ivr
+        # Step 1 — load the page to negotiate Cloudflare and receive cf_clearance
+        session.get(
+            _VOLRADAR_PAGE_URL,
+            impersonate="chrome120",
+            timeout=_VOLRADAR_TIMEOUT,
+            headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
 
-        logger.warning(f"volradar: no IVR found in response for {symbol}")
-        return None
+        # Step 2 — call the JSON API with the fetch headers the browser sends
+        resp = session.get(
+            _VOLRADAR_API_URL,
+            impersonate="chrome120",
+            timeout=_VOLRADAR_TIMEOUT,
+            params={"ticker": symbol.upper()},
+            headers={
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": _VOLRADAR_PAGE_URL,
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+
+        if resp.status_code != 200:
+            logger.warning(f"volradar API returned {resp.status_code} for {symbol}")
+            return None
+
+        data = resp.json()
+        if data.get("status") != "success":
+            logger.warning(f"volradar non-success for {symbol}: {data.get('status')}")
+            return None
+
+        iv_rank = data.get("iv_rank")
+        if iv_rank is None:
+            logger.warning(f"volradar: iv_rank missing in response for {symbol}")
+            return None
+
+        logger.info(f"volradar IVR for {symbol}: {iv_rank}")
+        return {
+            "iv_rank":      float(iv_rank),
+            "current_iv":   data.get("current_iv"),
+            "iv_52w_low":   data.get("iv_52w_low"),
+            "iv_52w_high":  data.get("iv_52w_high"),
+            "iv_percentile": data.get("iv_percentile"),
+        }
 
     except Exception as e:
         logger.warning(f"volradar fetch failed for {symbol}: {e}")
         return None
 
 
-def _parse_ivr_from_html(html: str) -> float | None:
+def _parse_ivr_from_html(text: str) -> float | None:
     """
-    Extract IVR from volradar HTML.  Tries multiple patterns:
-      1. JSON in a <script> tag: "ivRank":45.2 / "iv_rank":45.2 / "IVRank":45.2
-      2. Rendered text: "IV Rank: 45.2" / "IVR: 45.2"
-      3. Any standalone 0-100 number adjacent to the words "iv" and "rank"
-    Returns None if nothing matches.
+    Extract IVR from a volradar HTML or JSON response string.
+    Used by the admin debug endpoint which may receive either format.
     """
-    # Pattern 1 — JSON property in any <script> block
-    json_patterns = [
-        r'"ivRank"\s*:\s*([\d.]+)',
+    # Try JSON parse first (API response)
+    try:
+        data = json.loads(text)
+        val = data.get("iv_rank")
+        if val is not None and 0.0 <= float(val) <= 100.0:
+            return float(val)
+    except Exception:
+        pass
+
+    # JSON property embedded in HTML/script
+    for pattern in [
         r'"iv_rank"\s*:\s*([\d.]+)',
+        r'"ivRank"\s*:\s*([\d.]+)',
         r'"IVRank"\s*:\s*([\d.]+)',
         r'"ivr"\s*:\s*([\d.]+)',
-        r'"IVR"\s*:\s*([\d.]+)',
         r'"iv_percentile"\s*:\s*([\d.]+)',
-    ]
-    for pattern in json_patterns:
-        m = re.search(pattern, html)
+    ]:
+        m = re.search(pattern, text)
         if m:
             val = float(m.group(1))
             if 0.0 <= val <= 100.0:
                 return val
 
-    # Pattern 2 — rendered text labels
-    text_patterns = [
+    # Rendered text labels
+    for pattern in [
         r'IV\s*Rank\s*[:\-]\s*([\d.]+)',
         r'IVR\s*[:\-]\s*([\d.]+)',
-        r'IV\s*Percentile\s*[:\-]\s*([\d.]+)',
-    ]
-    for pattern in text_patterns:
-        m = re.search(pattern, html, re.IGNORECASE)
+    ]:
+        m = re.search(pattern, text, re.IGNORECASE)
         if m:
             val = float(m.group(1))
             if 0.0 <= val <= 100.0:
@@ -129,24 +173,25 @@ def get_iv_rank(symbol: str) -> dict:
         iv_environment, percentile_label, iv_source, and optional error field.
     """
     # ── Primary: real IVR from volradar.com ──────────────────────────────────
-    volradar_ivr = _fetch_volradar_ivr(symbol)
-    if volradar_ivr is not None:
-        if volradar_ivr > 50:
+    vr = _fetch_volradar_ivr(symbol)
+    if vr is not None:
+        iv_rank = vr["iv_rank"]
+        if iv_rank > 50:
             iv_environment = "HIGH"
-        elif volradar_ivr < 30:
+        elif iv_rank < 30:
             iv_environment = "LOW"
         else:
             iv_environment = "MEDIUM"
         return {
             "symbol": symbol,
-            "current_iv": None,          # not separately reported by volradar
-            "iv_rank": volradar_ivr,
+            "current_iv": vr.get("current_iv"),
+            "iv_rank": iv_rank,
             "iv_source": "volradar",
             "hv_30d": None,
-            "hv_52wk_high": None,
-            "hv_52wk_low": None,
+            "hv_52wk_high": vr.get("iv_52w_high"),
+            "hv_52wk_low":  vr.get("iv_52w_low"),
             "iv_environment": iv_environment,
-            "percentile_label": f"IVR {volradar_ivr:.0f} — {iv_environment.capitalize()} IV",
+            "percentile_label": f"IVR {iv_rank:.0f} — {iv_environment.capitalize()} IV",
         }
 
     # ── Fallback: yfinance HV-proxy ───────────────────────────────────────────
