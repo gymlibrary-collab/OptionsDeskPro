@@ -747,9 +747,6 @@ function IvrDebugTool() {
   const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
   const C = { bg: '#0f1117', surface: '#1a1d2e', border: '#2a2d3e', text: '#e2e8f0', muted: '#64748b', blue: '#38bdf8', green: '#4ade80', red: '#f87171', yellow: '#facc15' }
 
-  const sourceColor = (parsed: number | null | undefined) =>
-    parsed != null ? C.green : C.red
-
   return (
     <div style={{ fontFamily: font, marginTop: '32px', borderTop: `1px solid ${C.border}`, paddingTop: '24px' }}>
       <h4 style={{ color: C.text, fontSize: '14px', fontWeight: 600, margin: '0 0 12px' }}>
@@ -796,46 +793,54 @@ function IvrDebugTool() {
               {result.error}
             </div>
           )}
-          {result.attempts?.map((a, i) => (
+          {result.steps?.map((s, i) => (
             <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '14px' }}>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
-                <span style={{ color: C.muted, fontSize: '11px' }}>URL</span>
-                <span style={{ color: C.blue, fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{a.url}</span>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+                <span style={{ color: C.yellow, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>{s.step}</span>
+                <span style={{ color: C.blue, fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{s.url}</span>
               </div>
-              {a.error ? (
-                <div style={{ color: C.red, fontSize: '12px' }}>{a.error}</div>
+              {s.error ? (
+                <div style={{ color: C.red, fontSize: '12px' }}>{s.error}</div>
               ) : (
                 <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '10px' }}>
                   <div>
                     <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>HTTP STATUS</div>
-                    <div style={{ color: a.status_code === 200 ? C.green : C.red, fontWeight: 700, fontSize: '14px' }}>{a.status_code}</div>
+                    <div style={{ color: s.status_code === 200 ? C.green : C.red, fontWeight: 700, fontSize: '14px' }}>{s.status_code}</div>
                   </div>
                   <div>
                     <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>CONTENT LENGTH</div>
-                    <div style={{ color: C.text, fontWeight: 600, fontSize: '14px' }}>{a.content_length?.toLocaleString()} chars</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '14px' }}>{s.content_length?.toLocaleString()} chars</div>
                   </div>
-                  <div>
-                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>PARSED IVR</div>
-                    <div style={{ color: sourceColor(a.parsed_ivr), fontWeight: 700, fontSize: '14px' }}>
-                      {a.parsed_ivr != null ? a.parsed_ivr.toFixed(1) : 'null — regex no match'}
+                  {s.cf_clearance_set !== undefined && (
+                    <div>
+                      <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px' }}>CF COOKIE</div>
+                      <div style={{ color: s.cf_clearance_set ? C.green : C.red, fontWeight: 700, fontSize: '14px' }}>{s.cf_clearance_set ? 'Set ✓' : 'Missing'}</div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
-              {a.html_snippet && (
-                <details>
-                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>HTML snippet (first 2000 chars)</summary>
-                  <pre style={{
-                    background: C.bg, border: `1px solid ${C.border}`, borderRadius: '4px',
-                    padding: '10px', marginTop: '8px', fontSize: '10px', color: C.muted,
-                    overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflowY: 'auto',
-                  }}>
-                    {a.html_snippet}
+              {s.parsed_json && (
+                <details open>
+                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>API response JSON</summary>
+                  <pre style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '4px', padding: '10px', marginTop: '8px', fontSize: '10px', color: C.green, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '300px', overflowY: 'auto' }}>
+                    {JSON.stringify(s.parsed_json, null, 2)}
                   </pre>
                 </details>
               )}
             </div>
           ))}
+          {result.production_fetch_result !== undefined && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '14px' }}>
+              <div style={{ color: C.yellow, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '10px' }}>Production Result</div>
+              {result.production_fetch_result === null
+                ? <div style={{ color: C.red, fontSize: '13px' }}>null — fetch failed, fallback will be used</div>
+                : <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                    <div><div style={{ color: C.muted, fontSize: '10px' }}>IVR</div><div style={{ color: C.green, fontWeight: 700, fontSize: '18px' }}>{(result.production_fetch_result.iv_rank as number)?.toFixed(1)}</div></div>
+                    <div><div style={{ color: C.muted, fontSize: '10px' }}>Current IV</div><div style={{ color: C.text, fontWeight: 600, fontSize: '14px' }}>{result.production_fetch_result.current_iv != null ? `${result.production_fetch_result.current_iv}%` : '—'}</div></div>
+                  </div>
+              }
+            </div>
+          )}
         </div>
       )}
     </div>

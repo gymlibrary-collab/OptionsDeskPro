@@ -176,39 +176,79 @@ function IvrDebugTool() {
               {result.error}
             </div>
           )}
-          {result.attempts?.map((a, i) => (
+
+          {/* Per-step results */}
+          {result.steps?.map((s, i) => (
             <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
-              <div style={{ fontSize: '11px', color: '#38bdf8', fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: '12px' }}>{a.url}</div>
-              {a.error ? (
-                <div style={{ color: C.error, fontSize: '12px' }}>{a.error}</div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: C.accent, letterSpacing: '0.05em' }}>{s.step}</span>
+                <span style={{ fontSize: '11px', color: '#38bdf8', fontFamily: 'monospace', wordBreak: 'break-all' }}>{s.url}</span>
+              </div>
+              {s.error ? (
+                <div style={{ color: C.error, fontSize: '12px' }}>{s.error}</div>
               ) : (
-                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: s.parsed_json ? '12px' : '0' }}>
                   <div>
                     <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>HTTP Status</div>
-                    <div style={{ color: a.status_code === 200 ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>{a.status_code}</div>
+                    <div style={{ color: s.status_code === 200 ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>{s.status_code}</div>
                   </div>
                   <div>
                     <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>Content Length</div>
-                    <div style={{ color: C.text, fontWeight: 600, fontSize: '16px' }}>{a.content_length?.toLocaleString()} chars</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '16px' }}>{s.content_length?.toLocaleString()} chars</div>
                   </div>
-                  <div>
-                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>Parsed IVR</div>
-                    <div style={{ color: a.parsed_ivr != null ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>
-                      {a.parsed_ivr != null ? a.parsed_ivr.toFixed(1) : 'null — regex no match'}
+                  {s.cf_clearance_set !== undefined && (
+                    <div>
+                      <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>cf_clearance cookie</div>
+                      <div style={{ color: s.cf_clearance_set ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>{s.cf_clearance_set ? 'Set ✓' : 'Missing ✗'}</div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
-              {a.html_snippet && (
-                <details>
-                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>HTML snippet (first 2000 chars)</summary>
-                  <pre style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '10px', marginTop: '8px', fontSize: '10px', color: C.muted, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '280px', overflowY: 'auto' }}>
-                    {a.html_snippet}
+              {s.parsed_json && (
+                <details open>
+                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>API response JSON</summary>
+                  <pre style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '10px', marginTop: '8px', fontSize: '10px', color: C.success, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '280px', overflowY: 'auto' }}>
+                    {JSON.stringify(s.parsed_json, null, 2)}
                   </pre>
                 </details>
               )}
             </div>
           ))}
+
+          {/* Production fetch result summary */}
+          {result.production_fetch_result !== undefined && (
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: C.accent, letterSpacing: '0.05em', marginBottom: '10px' }}>
+                Production Function Result
+              </div>
+              {result.production_fetch_result === null ? (
+                <div style={{ color: C.error, fontSize: '13px', fontWeight: 600 }}>null — fetch failed, fallback will be used</div>
+              ) : (
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>IVR</div>
+                    <div style={{ color: C.success, fontWeight: 700, fontSize: '22px' }}>
+                      {(result.production_fetch_result.iv_rank as number)?.toFixed(1)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>Current IV</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '16px' }}>
+                      {result.production_fetch_result.current_iv != null ? `${result.production_fetch_result.current_iv}%` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>52W Range</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '16px' }}>
+                      {result.production_fetch_result.iv_52w_low != null
+                        ? `${result.production_fetch_result.iv_52w_low}% – ${result.production_fetch_result.iv_52w_high}%`
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

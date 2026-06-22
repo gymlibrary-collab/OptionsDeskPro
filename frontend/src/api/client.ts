@@ -717,22 +717,27 @@ export interface HealthCheckResponse {
 export const getHealthCheck = (): Promise<HealthCheckResponse> =>
   api.get('/admin/health-check', { timeout: 30000 }).then(r => r.data)
 
+export interface IvrDebugStep {
+  step: string
+  url?: string
+  status_code?: number
+  content_length?: number
+  cf_clearance_set?: boolean
+  parsed_json?: Record<string, unknown> | null
+  raw_snippet?: string
+  error?: string
+}
+
 export interface IvrFetchDebugResult {
   symbol: string
-  volradar_url: string
-  attempts: Array<{
-    url: string
-    status_code?: number
-    content_length?: number
-    parsed_ivr?: number | null
-    html_snippet?: string
-    error?: string
-  }>
+  api_endpoint: string
+  steps: IvrDebugStep[]
+  production_fetch_result: Record<string, unknown> | null
   error?: string
 }
 
 export const debugIvrFetch = (symbol: string): Promise<IvrFetchDebugResult> =>
-  api.get('/admin/debug/ivr-fetch', { params: { symbol }, timeout: 20000 }).then(r => r.data)
+  api.get('/admin/debug/ivr-fetch', { params: { symbol }, timeout: 30000 }).then(r => r.data)
 
 // ─── Admin User Actions Log ────────────────────────────────────────────────
 
