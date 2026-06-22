@@ -1,10 +1,97 @@
 """IV Rank and IV environment classification using yfinance historical data."""
+import re
 import yfinance as yf
 import numpy as np
 import logging
 from datetime import date
 
 logger = logging.getLogger(__name__)
+
+# ── Volradar IVR scraper ──────────────────────────────────────────────────────
+# volradar.com uses Cloudflare protection; curl_cffi impersonates real browser
+# TLS fingerprints and bypasses it. Falls back to yfinance HV-proxy on any error.
+
+_VOLRADAR_URL = "https://volradar.com/tools/iv-rank-lookup"
+_VOLRADAR_TIMEOUT = 8  # seconds
+
+
+def _fetch_volradar_ivr(symbol: str) -> float | None:
+    """
+    Fetch IVR for *symbol* from volradar.com.
+
+    Returns the IVR as a 0–100 float, or None on any failure (network error,
+    parse failure, unexpected response format).  Never raises.
+    """
+    try:
+        from curl_cffi import requests as cffi_requests
+
+        # Try ?symbol= first, then ?ticker= as fallback
+        for param in (f"?symbol={symbol.upper()}", f"?ticker={symbol.upper()}"):
+            url = _VOLRADAR_URL + param
+            resp = cffi_requests.get(
+                url,
+                impersonate="chrome120",
+                timeout=_VOLRADAR_TIMEOUT,
+                headers={
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                },
+            )
+            if resp.status_code != 200:
+                continue
+
+            html = resp.text
+            ivr = _parse_ivr_from_html(html)
+            if ivr is not None:
+                logger.info(f"volradar IVR for {symbol}: {ivr}")
+                return ivr
+
+        logger.warning(f"volradar: no IVR found in response for {symbol}")
+        return None
+
+    except Exception as e:
+        logger.warning(f"volradar fetch failed for {symbol}: {e}")
+        return None
+
+
+def _parse_ivr_from_html(html: str) -> float | None:
+    """
+    Extract IVR from volradar HTML.  Tries multiple patterns:
+      1. JSON in a <script> tag: "ivRank":45.2 / "iv_rank":45.2 / "IVRank":45.2
+      2. Rendered text: "IV Rank: 45.2" / "IVR: 45.2"
+      3. Any standalone 0-100 number adjacent to the words "iv" and "rank"
+    Returns None if nothing matches.
+    """
+    # Pattern 1 — JSON property in any <script> block
+    json_patterns = [
+        r'"ivRank"\s*:\s*([\d.]+)',
+        r'"iv_rank"\s*:\s*([\d.]+)',
+        r'"IVRank"\s*:\s*([\d.]+)',
+        r'"ivr"\s*:\s*([\d.]+)',
+        r'"IVR"\s*:\s*([\d.]+)',
+        r'"iv_percentile"\s*:\s*([\d.]+)',
+    ]
+    for pattern in json_patterns:
+        m = re.search(pattern, html)
+        if m:
+            val = float(m.group(1))
+            if 0.0 <= val <= 100.0:
+                return val
+
+    # Pattern 2 — rendered text labels
+    text_patterns = [
+        r'IV\s*Rank\s*[:\-]\s*([\d.]+)',
+        r'IVR\s*[:\-]\s*([\d.]+)',
+        r'IV\s*Percentile\s*[:\-]\s*([\d.]+)',
+    ]
+    for pattern in text_patterns:
+        m = re.search(pattern, html, re.IGNORECASE)
+        if m:
+            val = float(m.group(1))
+            if 0.0 <= val <= 100.0:
+                return val
+
+    return None
 
 
 def _calculate_rsi(prices: np.ndarray, period: int = 14) -> float:
@@ -33,15 +120,36 @@ def _calculate_rsi(prices: np.ndarray, period: int = 14) -> float:
 def get_iv_rank(symbol: str) -> dict:
     """
     Calculate IV Rank (IVR) for a symbol.
-    IVR = (Current IV - 52wk Low IV) / (52wk High IV - 52wk Low IV) * 100
 
-    Uses 30-day rolling historical volatility as a proxy for IV history
-    since yfinance does not store IV history. Uses ATM option IV as current IV.
+    Primary source: volradar.com (real IVR from historical implied volatility).
+    Fallback: 30-day rolling HV ranked against its own 52-week range (proxy).
 
     Returns:
         dict with symbol, current_iv, iv_rank, hv_30d, hv_52wk_high, hv_52wk_low,
-        iv_environment, percentile_label, and optional error field.
+        iv_environment, percentile_label, iv_source, and optional error field.
     """
+    # ── Primary: real IVR from volradar.com ──────────────────────────────────
+    volradar_ivr = _fetch_volradar_ivr(symbol)
+    if volradar_ivr is not None:
+        if volradar_ivr > 50:
+            iv_environment = "HIGH"
+        elif volradar_ivr < 30:
+            iv_environment = "LOW"
+        else:
+            iv_environment = "MEDIUM"
+        return {
+            "symbol": symbol,
+            "current_iv": None,          # not separately reported by volradar
+            "iv_rank": volradar_ivr,
+            "iv_source": "volradar",
+            "hv_30d": None,
+            "hv_52wk_high": None,
+            "hv_52wk_low": None,
+            "iv_environment": iv_environment,
+            "percentile_label": f"IVR {volradar_ivr:.0f} — {iv_environment.capitalize()} IV",
+        }
+
+    # ── Fallback: yfinance HV-proxy ───────────────────────────────────────────
     try:
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period="1y")
