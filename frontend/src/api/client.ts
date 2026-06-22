@@ -140,6 +140,7 @@ export interface PositionRisk {
   iv_environment?: string
   bias?: string
   signals: RiskSignal[]
+  narrative?: Record<string, unknown>
 }
 
 export const getQuote = (symbol: string) =>
@@ -420,6 +421,7 @@ export interface TradeRecordRequest {
   expiry: string
   profit_target_pct: number
   legs: TradeLegRecord[]
+  narrative_json?: Record<string, unknown>
 }
 
 export const recordTrade = (req: TradeRecordRequest): Promise<{ recorded: number; strategy: string }> =>

@@ -308,6 +308,166 @@ function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }
   )
 }
 
+interface StrategyGroup {
+  key: string
+  label: string
+  positions: PositionRisk[]
+  narrative: Record<string, unknown> | undefined
+}
+
+function NarrativePanel({ narrative }: { narrative: Record<string, unknown> }) {
+  const profit = narrative.profit_scenario as string | undefined
+  const loss = narrative.loss_scenario as string | undefined
+  const defensive = narrative.defensive_tactic as string | undefined
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+      {profit && (
+        <div style={{ background: '#0f2d1a', border: '1px solid #22c55e44', borderRadius: '6px', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>
+            IF IT WORKS — PROFIT SCENARIO
+          </div>
+          <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>{profit}</div>
+        </div>
+      )}
+      {loss && (
+        <div style={{ background: '#2d0f0f', border: '1px solid #ef444444', borderRadius: '6px', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>
+            IF IT DOESN'T — LOSS SCENARIO
+          </div>
+          <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>{loss}</div>
+        </div>
+      )}
+      {defensive && (
+        <div style={{ background: '#2d1f0a', border: '1px solid #f59e0b44', borderRadius: '6px', padding: '10px 12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>
+            IF IT GOES WRONG — DEFENSIVE TACTIC
+          </div>
+          <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>{defensive}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StrategyGroupCard({
+  group,
+  rollAdvisorEnabled,
+  sessionClicks,
+  onSessionClick,
+}: {
+  group: StrategyGroup
+  rollAdvisorEnabled: boolean
+  sessionClicks: number
+  onSessionClick: () => void
+}) {
+  const [narrativeOpen, setNarrativeOpen] = useState(false)
+
+  const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+  const worstLevel = group.positions.reduce<'green' | 'yellow' | 'red'>((worst, p) => {
+    return riskRank[p.risk_level] < riskRank[worst] ? p.risk_level : worst
+  }, 'green')
+  const combinedPnl = group.positions.reduce((sum, p) => sum + p.pnl, 0)
+  const legCount = group.positions.length
+  const hasNarrative = !!group.narrative
+
+  const sortedPositions = [...group.positions].sort(
+    (a, b) => riskRank[a.risk_level] - riskRank[b.risk_level]
+  )
+
+  const isUngrouped = group.key === '_ungrouped'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {/* Strategy group header — only show for named strategies */}
+      {!isUngrouped && (
+        <div style={{
+          background: C.surface2,
+          border: `1px solid ${C.border}`,
+          borderLeft: `3px solid ${riskColor(worstLevel)}`,
+          borderRadius: '8px',
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flexWrap: 'wrap' as const,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{group.label}</span>
+              <span style={{
+                fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744',
+                color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600,
+              }}>
+                {legCount} leg{legCount !== 1 ? 's' : ''}
+              </span>
+              <span style={{
+                fontSize: '10px', fontWeight: 700,
+                color: riskColor(worstLevel),
+                background: riskBg(worstLevel),
+                border: `1px solid ${riskColor(worstLevel)}44`,
+                padding: '1px 7px', borderRadius: '8px',
+                textTransform: 'uppercase' as const,
+              }}>
+                {riskLabel(worstLevel)}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-end', gap: '1px' }}>
+              <span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Combined P&L</span>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
+                {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
+              </span>
+            </div>
+            {hasNarrative && (
+              <button
+                onClick={() => setNarrativeOpen(o => !o)}
+                style={{
+                  background: narrativeOpen ? '#1a1440' : 'transparent',
+                  border: `1px solid ${C.accent}66`,
+                  borderRadius: '6px',
+                  color: C.accent,
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  whiteSpace: 'nowrap' as const,
+                }}
+              >
+                {narrativeOpen ? '▲' : '▼'} Trade Narrative
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Narrative panels */}
+      {!isUngrouped && narrativeOpen && group.narrative && (
+        <div style={{ paddingLeft: '12px' }}>
+          <NarrativePanel narrative={group.narrative} />
+        </div>
+      )}
+
+      {/* Individual leg cards */}
+      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px', paddingLeft: isUngrouped ? '0' : '12px' }}>
+        {sortedPositions.map((pos, i) => (
+          <PositionCard
+            key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+            pos={pos}
+            rollAdvisorEnabled={rollAdvisorEnabled}
+            sessionClicks={sessionClicks}
+            onSessionClick={onSessionClick}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function RiskMonitor() {
   const { entitlements } = useEntitlements()
   const [data, setData] = useState<PositionRisk[]>([])
@@ -366,6 +526,33 @@ export default function RiskMonitor() {
   const redCount = data.filter(p => p.risk_level === 'red').length
   const yellowCount = data.filter(p => p.risk_level === 'yellow').length
 
+  // Group positions by strategy_key; ungrouped positions use '_ungrouped' key
+  const groups: StrategyGroup[] = (() => {
+    const groupMap = new Map<string, StrategyGroup>()
+    for (const pos of data) {
+      const key = pos.strategy_key || '_ungrouped'
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          label: pos.strategy_name || key,
+          positions: [],
+          narrative: pos.narrative,
+        })
+      }
+      const g = groupMap.get(key)!
+      g.positions.push(pos)
+      // Use the first non-null narrative found in the group
+      if (!g.narrative && pos.narrative) g.narrative = pos.narrative
+    }
+    // Sort groups by worst risk level
+    const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+    return [...groupMap.values()].sort((a, b) => {
+      const aWorst = a.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
+      const bWorst = b.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
+      return aWorst - bWorst
+    })
+  })()
+
   return (
     <div style={{ marginTop: '16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
@@ -378,23 +565,19 @@ export default function RiskMonitor() {
         {lastUpdated && <span style={{ fontSize: '10px', color: C.muted }}>{refreshing ? 'Updating…' : lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
         <button onClick={() => load(true)} disabled={refreshing || loading} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '3px 8px', fontSize: '11px', cursor: 'pointer', opacity: refreshing ? 0.5 : 1 }}>Refresh</button>
       </div>
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {loading && <div style={{ color: C.muted, fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Analysing your positions…</div>}
         {!loading && error && <div style={{ color: C.red, fontSize: '12px', padding: '10px' }}>{error}</div>}
         {!loading && !error && data.length === 0 && <div style={{ color: C.muted, fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>No open positions to monitor</div>}
-        {!loading && data.length > 0 && (
-          [...data]
-            .sort((a, b) => { const rank: Record<string, number> = { red: 0, yellow: 1, green: 2 }; return rank[a.risk_level] - rank[b.risk_level] })
-            .map((pos, i) => (
-              <PositionCard
-                key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
-                pos={pos}
-                rollAdvisorEnabled={rollAdvisorEnabled}
-                sessionClicks={rollSessionClicks}
-                onSessionClick={() => setRollSessionClicks(n => n + 1)}
-              />
-            ))
-        )}
+        {!loading && data.length > 0 && groups.map(group => (
+          <StrategyGroupCard
+            key={group.key}
+            group={group}
+            rollAdvisorEnabled={rollAdvisorEnabled}
+            sessionClicks={rollSessionClicks}
+            onSessionClick={() => setRollSessionClicks(n => n + 1)}
+          />
+        ))}
         {!loading && data.length > 0 && aiEnabled && (
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button

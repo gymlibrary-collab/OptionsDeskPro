@@ -357,6 +357,7 @@ def record_trade(user_id: str, req) -> dict:
             "strategy_key": req.strategy_key,
             "strategy_name": req.strategy_name,
             "profit_target_pct": req.profit_target_pct,
+            "narrative_json": req.narrative_json if (recorded == 0 and req.narrative_json) else None,
         }).execute()
         recorded += 1
     return {"recorded": recorded, "strategy": req.strategy_name}

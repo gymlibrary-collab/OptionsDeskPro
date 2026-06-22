@@ -110,3 +110,4 @@ class TradeRecordRequest(BaseModel):
     expiry: str
     profit_target_pct: float
     legs: List[TradeLegRecord]
+    narrative_json: Optional[dict] = None

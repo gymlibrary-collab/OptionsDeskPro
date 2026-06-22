@@ -168,6 +168,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
         expiry: trade.expiry,
         profit_target_pct: trade.profit_target_pct,
         legs,
+        narrative_json: trade.narrative as Record<string, unknown> | undefined,
       })
       setFeedback({ ok: true, msg: `Recorded ${result.recorded} leg${result.recorded !== 1 ? 's' : ''} — ${result.strategy}` })
       onRecorded()
