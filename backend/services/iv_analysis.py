@@ -94,14 +94,14 @@ def _fetch_volradar_ivr_uncached(symbol: str) -> dict | None:
 
 # ── Tier 2: CBOE Volatility Index ────────────────────────────────────────────
 # Maps each index symbol to its CBOE vol index proxy.
-# ^VIX is intentionally absent — it self-ranks via Tier 3/4 using its own
-# price history, which is exactly what "is VIX high or low?" means.
-
+# ^VIX self-references so its price (which IS implied vol) is ranked against
+# its own 52-week price history — the correct interpretation of "is VIX high?"
 _INDEX_PROXY: dict[str, str] = {
     "^SPX":  "^VIX",
     "^GSPC": "^VIX",
     "^NDX":  "^VXN",
     "^RUT":  "^RVX",
+    "^VIX":  "^VIX",   # self-referencing: rank VIX price vs its own price history
 }
 
 _CBOE_CACHE: dict[str, tuple[float, dict | None]] = {}
