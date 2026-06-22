@@ -43,7 +43,8 @@ async def _warm_watchlist(user_id: str) -> None:
         logger.debug("Watchlist pre-warm failed for user %s: %s", user_id, exc)
 
 # The backend callback URL that Supabase redirects back to after Google OAuth
-_FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://optionscompass.up.railway.app")
+_FRONTEND_ORIGIN       = os.getenv("FRONTEND_ORIGIN", "https://optionscompass.up.railway.app")
+_ADMIN_FRONTEND_ORIGIN = os.getenv("ADMIN_FRONTEND_ORIGIN", "")   # e.g. https://optionscompass-admin.up.railway.app
 _CALLBACK_URL = f"{os.getenv('BACKEND_URL', 'https://optionscompass-backend.up.railway.app')}/api/auth/callback"
 
 
@@ -211,11 +212,14 @@ async def _sync_profile(request: Request, user, access_token: str) -> dict:
 # ── Google OAuth initiation ───────────────────────────────────────────────────
 
 @router.get("/auth/google")
-async def auth_google():
+async def auth_google(portal: str = "client"):
     """
     Initiates the Google OAuth flow by constructing a Supabase OAuth URL with
     the backend callback as the redirect_uri, then returning a 302 redirect.
     No auth required.
+
+    portal: "client" (default) or "admin" — stored in a short-lived cookie so
+    the callback knows which frontend URL to redirect to after authentication.
     """
     try:
         sb = get_supabase()
@@ -227,16 +231,28 @@ async def auth_google():
         if not oauth_url:
             raise ValueError("No OAuth URL returned by Supabase")
         response = RedirectResponse(url=oauth_url, status_code=302)
+        secure = os.getenv("ENVIRONMENT", "").lower() != "development"
         # supabase-py stores the PKCE code_verifier in its in-memory client
         # storage (not on OAuthResponse). Read it out before the client is GC'd
         # and persist it in a short-lived cookie for the stateless callback request.
         _sk = getattr(sb.auth, "_storage_key", "supabase.auth.token")
         code_verifier = sb.auth._storage.get_item(f"{_sk}-code-verifier")
         if code_verifier:
-            secure = os.getenv("ENVIRONMENT", "").lower() != "development"
             response.set_cookie(
                 "pkce_code_verifier",
                 code_verifier,
+                httponly=True,
+                secure=secure,
+                max_age=600,
+                samesite="lax",
+                path="/",
+            )
+        # Remember which portal initiated the flow so the callback can redirect
+        # to the right frontend URL (client portal vs admin portal).
+        if portal == "admin" and _ADMIN_FRONTEND_ORIGIN:
+            response.set_cookie(
+                "auth_portal",
+                "admin",
                 httponly=True,
                 secure=secure,
                 max_age=600,
@@ -315,18 +331,28 @@ async def auth_callback(request: Request, code: str, state: str = None):
             status_code=302,
         )
 
+    # Choose redirect destination: admin portal if the flow was initiated from
+    # there (auth_portal=admin cookie) and ADMIN_FRONTEND_ORIGIN is configured.
+    import urllib.parse
+    portal_cookie = request.cookies.get("auth_portal", "client")
+    if portal_cookie == "admin" and _ADMIN_FRONTEND_ORIGIN:
+        target_origin = _ADMIN_FRONTEND_ORIGIN
+    else:
+        target_origin = _FRONTEND_ORIGIN
+
     # Redirect to the frontend with tokens in the URL fragment so the frontend
     # can store them in localStorage and send them as Bearer headers.  This
     # bypasses cross-domain cookie blocking (Firefox ETP, Safari ITP, etc.)
     # which would prevent SameSite=None cookies from being sent on XHR requests
     # from optionscompass.up.railway.app to optionscompass-backend.up.railway.app.
-    import urllib.parse
     at = urllib.parse.quote(session.access_token, safe='')
     rt = urllib.parse.quote(session.refresh_token, safe='')
     response = RedirectResponse(
-        url=f"{_FRONTEND_ORIGIN}/#sb_access_token={at}&sb_refresh_token={rt}",
+        url=f"{target_origin}/#sb_access_token={at}&sb_refresh_token={rt}",
         status_code=302,
     )
+    # Clear the portal cookie — it's single-use.
+    response.delete_cookie("auth_portal", path="/")
     # Also set cookies so the same flow works if the app is ever served from the
     # same domain as the backend (same-origin deployment).
     _set_auth_cookies(response, session.access_token, session.refresh_token)

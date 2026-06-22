@@ -142,7 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signInWithGoogle = () => {
-    window.location.href = `${BACKEND_URL}/api/auth/google`
+    const portalMode = (import.meta.env.VITE_PORTAL_MODE as string | undefined) || 'client'
+    window.location.href = `${BACKEND_URL}/api/auth/google?portal=${portalMode}`
   }
 
   const signInWithEmail = async (email: string, password: string) => {
