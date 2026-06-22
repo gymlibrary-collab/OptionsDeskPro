@@ -324,6 +324,75 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
   )
 }
 
+const GREEK_META: { key: 'delta' | 'gamma' | 'theta' | 'vega'; symbol: string; label: string; hint: string }[] = [
+  { key: 'delta', symbol: 'Δ', label: 'Delta', hint: 'Directional exposure' },
+  { key: 'gamma', symbol: 'Γ', label: 'Gamma', hint: 'Rate of delta change' },
+  { key: 'theta', symbol: 'Θ', label: 'Theta', hint: 'Time decay' },
+  { key: 'vega', symbol: 'ν', label: 'Vega', hint: 'Volatility exposure' },
+]
+
+function signColor(sign: string): string {
+  if (sign.startsWith('long')) return C.green
+  if (sign.startsWith('short')) return C.red
+  if (sign.startsWith('flat')) return C.muted
+  return C.blue // dynamic
+}
+
+function titleCase(s: string): string {
+  return s.split('/').map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' / ')
+}
+
+// Whether the computed net-greek sign is consistent with the strategy's intended
+// profile. "dynamic" means the sign flips across strikes, so any net sign is fine.
+function greekMatches(expected: string, actual: string): boolean {
+  const tokens = expected.split('/')
+  return tokens.includes('dynamic') || tokens.includes(actual)
+}
+
+function GreeksPanel({ trade }: { trade: TradeStructure }) {
+  const profile = trade.greek_profile
+  const net = trade.net_greeks
+  if (!profile && !net) return null
+
+  return (
+    <div style={{ background: C.surface2, borderRadius: '6px', padding: '10px 12px' }}>
+      <div style={{ color: C.muted, fontSize: '10px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em' }}>
+        Greeks — intended profile vs. this trade
+      </div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {GREEK_META.map(({ key, symbol, label, hint }) => {
+          const expected = profile?.[key]
+          const actualSign = net?.signs?.[key]
+          const actualVal = net?.[key]
+          const mismatch = expected && actualSign ? !greekMatches(expected, actualSign) : false
+          return (
+            <div key={key} title={hint} style={{ flex: 1, minWidth: 92, background: C.surface, borderRadius: '6px', padding: '8px 10px', border: `1px solid ${C.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                <span style={{ color: C.accent, fontWeight: 700, fontSize: '14px' }}>{symbol}</span>
+                <span style={{ color: C.text, fontSize: '11px', fontWeight: 600 }}>{label}</span>
+              </div>
+              {expected && (
+                <div style={{ fontSize: '12px', fontWeight: 700, color: signColor(expected) }}>
+                  {titleCase(expected)}
+                </div>
+              )}
+              {net && actualSign && (
+                <div style={{ fontSize: '10px', color: C.muted, marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
+                  net {fmtGreek(actualVal ?? null)}
+                  {' '}
+                  <span style={{ color: mismatch ? C.yellow : signColor(actualSign) }}>
+                    {mismatch ? '⚠' : '✓'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function TradeCard({ rec, symbol, onSelectTrade, newsSentiment }: {
   rec: StrategyRecommendation
   symbol: string
@@ -384,6 +453,7 @@ function TradeCard({ rec, symbol, onSelectTrade, newsSentiment }: {
           </div>
         )}
       </div>
+      <GreeksPanel trade={trade} />
       {(trade.breakeven_low != null || trade.breakeven_high != null) && (
         <div style={{ fontSize: '11px', color: C.muted }}>
           Breakevens:{' '}

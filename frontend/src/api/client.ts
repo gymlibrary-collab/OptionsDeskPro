@@ -168,6 +168,29 @@ export const getPositionsRisk = (): Promise<PositionRisk[]> =>
 
 // ─── Strategy Intelligence ──────────────────────────────────────────────────────
 
+export type GreekSign = 'long' | 'short' | 'flat' | 'dynamic'
+  | 'long/dynamic' | 'short/dynamic' | 'flat/dynamic'
+
+export interface GreekProfile {
+  delta: GreekSign
+  gamma: GreekSign
+  theta: GreekSign
+  vega: GreekSign
+}
+
+export interface NetGreeks {
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+  signs: {
+    delta: 'long' | 'short' | 'flat'
+    gamma: 'long' | 'short' | 'flat'
+    theta: 'long' | 'short' | 'flat'
+    vega: 'long' | 'short' | 'flat'
+  }
+}
+
 export interface StrategyRecommendation {
   key: string
   name: string
@@ -179,6 +202,7 @@ export interface StrategyRecommendation {
   dte_target: number
   pop_range: [number, number]
   profit_target_pct: number
+  greek_profile?: GreekProfile
   trade?: TradeStructure
 }
 
@@ -213,6 +237,9 @@ export interface TradeLeg {
   option_type: string
   strike: number
   delta: number
+  gamma?: number | null
+  theta?: number | null
+  vega?: number | null
   bid: number
   ask: number
   mid: number
@@ -248,6 +275,8 @@ export interface TradeStructure {
   tastylive_profit_target: number | null
   risk_type: string
   profit_target_pct: number
+  greek_profile?: GreekProfile
+  net_greeks?: NetGreeks
   narrative?: Narrative
   error?: string
 }
