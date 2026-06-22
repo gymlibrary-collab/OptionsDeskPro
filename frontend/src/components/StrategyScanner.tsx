@@ -67,9 +67,9 @@ function BiasBadge({ bias }: { bias: string }) {
 
 type IVSource = 'volradar' | 'option_chain' | 'hv_proxy'
 const IV_SOURCE_META: Record<IVSource, { dot: string; title: string }> = {
-  volradar:     { dot: '#38bdf8', title: 'Real IVR — volradar.com' },
-  option_chain: { dot: '#facc15', title: 'IVR approx — ATM IV / yfinance' },
-  hv_proxy:     { dot: '#9ca3af', title: 'IVR approx — HV proxy / yfinance' },
+  volradar:     { dot: '#38bdf8', title: 'Primary source IVR' },
+  option_chain: { dot: '#facc15', title: 'Secondary source IVR (ATM IV approx)' },
+  hv_proxy:     { dot: '#9ca3af', title: 'Secondary source IVR (HV approx)' },
 }
 
 function IVRBar({ rank, source }: { rank: number; source?: IVSource }) {
