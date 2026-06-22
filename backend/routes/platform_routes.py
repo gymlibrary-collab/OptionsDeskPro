@@ -321,17 +321,25 @@ async def set_tier_override(
     """Set or clear admin_override_tier_key on the subscriber's subscription."""
     sb = get_supabase()
 
-    # Get current state for audit
+    # Get current state for audit (may be None for free users with no sub row)
     current = sb.table("subscriptions").select("admin_override_tier_key, tier_key").eq("user_id", user_id).maybe_single().execute()
-    if not current.data:
-        raise HTTPException(status_code=404, detail="Subscriber subscription not found.")
+    before = current.data.get("admin_override_tier_key") if current.data else None
 
-    before = current.data.get("admin_override_tier_key")
-
-    sb.table("subscriptions").update({
+    # Upsert so the override works even when no subscriptions row exists yet
+    sb.table("subscriptions").upsert({
+        "user_id":                user_id,
+        "tier_key":               (current.data or {}).get("tier_key", "free"),
+        "status":                 "active",
         "admin_override_tier_key": body.tier_key,
-        "updated_at": "now()",
-    }).eq("user_id", user_id).execute()
+        "updated_at":             "now()",
+    }, on_conflict="user_id").execute()
+
+    # Sync user_profiles.subscription_tier so the session endpoint reflects it
+    # immediately without requiring the user to log out and back in.
+    effective = body.tier_key or (current.data or {}).get("tier_key", "free")
+    sb.table("user_profiles").update({
+        "subscription_tier": effective,
+    }).eq("id", user_id).execute()
 
     _audit(staff, "tier_override", target_user_id=user_id, payload={
         "before": before,
