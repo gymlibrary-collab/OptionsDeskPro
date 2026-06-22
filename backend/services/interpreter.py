@@ -172,10 +172,10 @@ def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) 
 
 def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
     ivr = iv_analysis.get("iv_rank", 0.0)
-    iv_pct = iv_analysis.get("current_iv", 0.0) * 100
-    hv_30 = iv_analysis.get("hv_30d", 0.0) * 100
-    hv_high = iv_analysis.get("hv_52wk_high", 0.0) * 100
-    hv_low = iv_analysis.get("hv_52wk_low", 0.0) * 100
+    iv_pct = (iv_analysis.get("current_iv") or 0.0) * 100
+    hv_30 = (iv_analysis.get("hv_30d") or 0.0) * 100
+    hv_high = (iv_analysis.get("hv_52wk_high") or 0.0) * 100
+    hv_low = (iv_analysis.get("hv_52wk_low") or 0.0) * 100
 
     iv_vs_hv = iv_pct - hv_30
     iv_premium = "premium" if iv_vs_hv > 0 else "discount"
@@ -1246,8 +1246,8 @@ def generate_narrative(
     expiry = trade.get("expiry", "")
     dte = _days_to_expiry(expiry)
     net_dollars = abs(net) * 100
-    hv_30 = iv_analysis.get("hv_30d", 0.0) * 100
-    iv_pct = iv_analysis.get("current_iv", 0.0) * 100
+    hv_30 = (iv_analysis.get("hv_30d") or 0.0) * 100
+    iv_pct = (iv_analysis.get("current_iv") or 0.0) * 100
 
     if net >= 0:
         if iv_env == "HIGH":
