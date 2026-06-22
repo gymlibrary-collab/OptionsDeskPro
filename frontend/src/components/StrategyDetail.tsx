@@ -916,9 +916,9 @@ export default function StrategyDetail({ symbol, onSelectTrade }: Props) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <IVRGauge rank={iv.iv_rank} />
+          <IVSourcePill source={iv.iv_source as IVSource} />
           <IVEnvBadge env={iv.iv_environment} />
           <div style={{ fontSize: '11px', color: C.muted }}>{iv.percentile_label}</div>
-          <IVSourcePill source={iv.iv_source as IVSource} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div>
