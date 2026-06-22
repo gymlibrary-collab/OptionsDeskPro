@@ -20,11 +20,44 @@ logger = logging.getLogger(__name__)
 
 _VOLRADAR_PAGE_URL = "https://volradar.com/tools/iv-rank-lookup"
 _VOLRADAR_API_URL  = "https://volradar.com/api/tools/iv-rank"
-_VOLRADAR_TIMEOUT  = 10
+_VOLRADAR_TIMEOUT  = 12
+_VOLRADAR_IMPERSONATE = "chrome136"  # keep close to current stable Chrome
 
 _VOLRADAR_CACHE: dict[str, tuple[float, dict | None]] = {}
 _VOLRADAR_TTL_OK   = 3600   # 1 hour — stay unblocked; IVR buckets rarely flip within an hour
 _VOLRADAR_TTL_FAIL = 600    # 10 min — lightweight circuit breaker on outage
+
+# Persistent session reused across all symbol lookups so cookies and TLS
+# fingerprint remain consistent — closer to a real browser session.
+_volradar_session = None
+_volradar_session_lock = threading.Lock()
+_volradar_session_born: float = 0.0
+_VOLRADAR_SESSION_TTL = 1800  # recycle session every 30 min
+
+
+def _get_volradar_session():
+    """Return (or create) a long-lived curl_cffi session for volradar."""
+    global _volradar_session, _volradar_session_born
+    now = time.time()
+    with _volradar_session_lock:
+        if _volradar_session is None or (now - _volradar_session_born) > _VOLRADAR_SESSION_TTL:
+            from curl_cffi import requests as cffi_requests
+            _volradar_session = cffi_requests.Session()
+            _volradar_session_born = now
+            try:
+                _volradar_session.get(
+                    _VOLRADAR_PAGE_URL,
+                    impersonate=_VOLRADAR_IMPERSONATE,
+                    timeout=_VOLRADAR_TIMEOUT,
+                    headers={
+                        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9",
+                    },
+                )
+                time.sleep(0.8)
+            except Exception as e:
+                logger.warning(f"volradar session warm-up failed: {e}")
+        return _volradar_session
 
 
 def _to_decimal(val) -> float | None:
@@ -54,22 +87,22 @@ def _fetch_volradar_ivr(symbol: str) -> dict | None:
 
 
 def _fetch_volradar_ivr_uncached(symbol: str) -> dict | None:
-    """Two-step curl_cffi session fetch from volradar. Never raises."""
+    """Fetch from volradar using the shared persistent session. Never raises."""
     try:
-        from curl_cffi import requests as cffi_requests
-        session = cffi_requests.Session()
-        session.get(
-            _VOLRADAR_PAGE_URL, impersonate="chrome120", timeout=_VOLRADAR_TIMEOUT,
-            headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-                     "Accept-Language": "en-US,en;q=0.9"},
-        )
+        session = _get_volradar_session()
         resp = session.get(
-            _VOLRADAR_API_URL, impersonate="chrome120", timeout=_VOLRADAR_TIMEOUT,
+            _VOLRADAR_API_URL,
+            impersonate=_VOLRADAR_IMPERSONATE,
+            timeout=_VOLRADAR_TIMEOUT,
             params={"ticker": symbol.upper()},
-            headers={"Accept": "*/*", "Accept-Language": "en-US,en;q=0.9",
-                     "Referer": _VOLRADAR_PAGE_URL,
-                     "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors",
-                     "Sec-Fetch-Site": "same-origin"},
+            headers={
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": _VOLRADAR_PAGE_URL,
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+            },
         )
         if resp.status_code != 200:
             logger.warning(f"volradar {resp.status_code} for {symbol}")
