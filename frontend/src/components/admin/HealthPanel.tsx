@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getHealthData, HealthData } from '../../api/client'
+import { getHealthData, debugIvrFetch, HealthData, type IvrFetchDebugResult } from '../../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -109,6 +109,106 @@ export default function HealthPanel() {
               ))
             )}
           </Section>
+        </div>
+      )}
+
+      <IvrDebugTool />
+    </div>
+  )
+}
+
+function IvrDebugTool() {
+  const [symbol, setSymbol] = useState('AAPL')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<IvrFetchDebugResult | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const run = async () => {
+    if (!symbol.trim()) return
+    setLoading(true)
+    setFetchError(null)
+    setResult(null)
+    try {
+      setResult(await debugIvrFetch(symbol.trim().toUpperCase()))
+    } catch (e: unknown) {
+      setFetchError((e as { message?: string })?.message ?? 'Request failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '32px', borderTop: `1px solid ${C.border}`, paddingTop: '24px' }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        IVR Source Diagnostic
+      </h3>
+      <p style={{ margin: '0 0 16px', fontSize: '12px', color: C.muted, lineHeight: 1.6 }}>
+        Tests the volradar.com fetch for a symbol. Returns HTTP status, response size, parsed IVR, and the first 2000 chars of HTML so you can tune the parser if needed.
+      </p>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <input
+          value={symbol}
+          onChange={e => setSymbol(e.target.value.toUpperCase())}
+          onKeyDown={e => e.key === 'Enter' && run()}
+          placeholder="AAPL"
+          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', color: C.text, padding: '7px 12px', fontSize: '13px', width: '120px', outline: 'none', fontFamily: FONT }}
+        />
+        <button
+          onClick={run}
+          disabled={loading}
+          style={{ background: loading ? C.surface : C.accent, border: 'none', borderRadius: '8px', color: loading ? C.muted : '#fff', padding: '7px 18px', fontSize: '13px', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: FONT }}
+        >
+          {loading ? 'Fetching…' : 'Test Fetch'}
+        </button>
+      </div>
+
+      {fetchError && (
+        <div style={{ background: '#2d0f0f', border: `1px solid ${C.error}44`, borderRadius: '8px', padding: '10px 14px', color: C.error, fontSize: '12px', marginBottom: '12px' }}>
+          {fetchError}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {result.error && (
+            <div style={{ background: '#2d0f0f', border: `1px solid ${C.error}44`, borderRadius: '8px', padding: '10px 14px', color: C.error, fontSize: '12px' }}>
+              {result.error}
+            </div>
+          )}
+          {result.attempts?.map((a, i) => (
+            <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
+              <div style={{ fontSize: '11px', color: '#38bdf8', fontFamily: 'monospace', wordBreak: 'break-all', marginBottom: '12px' }}>{a.url}</div>
+              {a.error ? (
+                <div style={{ color: C.error, fontSize: '12px' }}>{a.error}</div>
+              ) : (
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>HTTP Status</div>
+                    <div style={{ color: a.status_code === 200 ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>{a.status_code}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>Content Length</div>
+                    <div style={{ color: C.text, fontWeight: 600, fontSize: '16px' }}>{a.content_length?.toLocaleString()} chars</div>
+                  </div>
+                  <div>
+                    <div style={{ color: C.muted, fontSize: '10px', marginBottom: '2px', textTransform: 'uppercase' }}>Parsed IVR</div>
+                    <div style={{ color: a.parsed_ivr != null ? C.success : C.error, fontWeight: 700, fontSize: '16px' }}>
+                      {a.parsed_ivr != null ? a.parsed_ivr.toFixed(1) : 'null — regex no match'}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {a.html_snippet && (
+                <details>
+                  <summary style={{ color: C.muted, fontSize: '11px', cursor: 'pointer', userSelect: 'none' }}>HTML snippet (first 2000 chars)</summary>
+                  <pre style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '10px', marginTop: '8px', fontSize: '10px', color: C.muted, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '280px', overflowY: 'auto' }}>
+                    {a.html_snippet}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
