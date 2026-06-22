@@ -146,4 +146,7 @@ async def get_public_config():
     """Public platform configuration flags. No auth required."""
     from services.stripe_service import get_platform_settings
     settings = get_platform_settings()
-    return {"ai_features_enabled": settings.get("ai_features_enabled", True)}
+    return {
+        "ai_features_enabled":      settings.get("ai_features_enabled", True),
+        "trading_desk_enabled":     settings.get("trading_desk_enabled", True),
+    }

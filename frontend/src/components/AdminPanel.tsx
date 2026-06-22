@@ -92,12 +92,14 @@ export default function AdminPanel() {
 
   // Platform settings
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [tradingDeskEnabled, setTradingDeskEnabled] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
 
   const loadPlatformSettings = useCallback(async () => {
     try {
       const cfg = await getPublicConfig()
       setAiEnabled(cfg.ai_features_enabled)
+      setTradingDeskEnabled(cfg.trading_desk_enabled)
     } catch {}
   }, [])
 
@@ -108,6 +110,18 @@ export default function AdminPanel() {
     try {
       await patchAdminPlatformSettings({ ai_features_enabled: enabled })
       setAiEnabled(enabled)
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Failed to save setting.')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleToggleTradingDesk = async (enabled: boolean) => {
+    setSavingSettings(true)
+    try {
+      await patchAdminPlatformSettings({ trading_desk_enabled: enabled })
+      setTradingDeskEnabled(enabled)
     } catch (e: any) {
       alert(e?.response?.data?.detail || 'Failed to save setting.')
     } finally {
@@ -512,6 +526,34 @@ export default function AdminPanel() {
                 </button>
               </div>
               {savingSettings && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>Saving...</div>}
+            </div>
+
+            <div style={{ background: '#1a1d27', border: '1px solid #2d3148', borderRadius: '10px', padding: '20px 24px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0', marginBottom: '4px' }}>Trading Desk Tab</div>
+                  <div style={{ fontSize: '13px', color: '#94a3b8' }}>Show or hide the Trading Desk workspace for all users.</div>
+                </div>
+                <button
+                  onClick={() => handleToggleTradingDesk(!tradingDeskEnabled)}
+                  disabled={savingSettings}
+                  style={{
+                    width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+                    background: tradingDeskEnabled ? '#7c6af7' : '#3a3f5c',
+                    cursor: savingSettings ? 'not-allowed' : 'pointer',
+                    position: 'relative', transition: 'background 0.2s',
+                    flexShrink: 0, opacity: savingSettings ? 0.6 : 1,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: '3px',
+                    left: tradingDeskEnabled ? '23px' : '3px',
+                    width: '18px', height: '18px',
+                    borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
             </div>
           </div>
         )}

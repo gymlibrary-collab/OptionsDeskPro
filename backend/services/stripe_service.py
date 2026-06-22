@@ -670,7 +670,7 @@ def get_platform_settings() -> dict:
     if _settings_cache and (now - _settings_cache_ts) < _SETTINGS_TTL:
         return _settings_cache
 
-    defaults = {"invite_only_mode": False, "maintenance_mode": False, "ai_features_enabled": True}
+    defaults = {"invite_only_mode": False, "maintenance_mode": False, "ai_features_enabled": True, "trading_desk_enabled": True}
     try:
         from services.db import get_supabase
         result = get_supabase().table("platform_settings").select("*").eq("id", 1).maybe_single().execute()
@@ -679,6 +679,7 @@ def get_platform_settings() -> dict:
                 "invite_only_mode": result.data.get("invite_only_mode", False),
                 "maintenance_mode": result.data.get("maintenance_mode", False),
                 "ai_features_enabled": result.data.get("ai_features_enabled", True),
+                "trading_desk_enabled": result.data.get("trading_desk_enabled", True),
             }
             _settings_cache_ts = now
             return _settings_cache

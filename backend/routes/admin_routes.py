@@ -201,6 +201,7 @@ async def get_stats(payload: dict = Depends(admin_required)):
 
 class PlatformSettingsUpdate(BaseModel):
     ai_features_enabled: Optional[bool] = None
+    trading_desk_enabled: Optional[bool] = None
 
 
 @router.patch("/admin/platform-settings")
@@ -213,6 +214,8 @@ async def update_platform_settings(
     update_payload: dict = {"updated_at": "now()"}
     if body.ai_features_enabled is not None:
         update_payload["ai_features_enabled"] = body.ai_features_enabled
+    if body.trading_desk_enabled is not None:
+        update_payload["trading_desk_enabled"] = body.trading_desk_enabled
     sb.table("platform_settings").update(update_payload).eq("id", 1).execute()
     from services.stripe_service import invalidate_settings_cache
     invalidate_settings_cache()

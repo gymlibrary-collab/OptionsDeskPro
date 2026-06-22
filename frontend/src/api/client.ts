@@ -609,6 +609,7 @@ export const getPublicFaq = (): Promise<PublicFaqResponse> =>
 
 export interface PublicConfig {
   ai_features_enabled: boolean
+  trading_desk_enabled: boolean
 }
 
 export const getPublicConfig = (): Promise<PublicConfig> =>
@@ -1055,7 +1056,7 @@ export const getPlatformSettings = (): Promise<PlatformSettings> =>
 export const patchPlatformSettings = (req: Partial<PlatformSettings>): Promise<{ ok: boolean }> =>
   api.patch('/platform/settings', req).then(r => r.data)
 
-export const patchAdminPlatformSettings = (req: { ai_features_enabled?: boolean }): Promise<{ ok: boolean }> =>
+export const patchAdminPlatformSettings = (req: { ai_features_enabled?: boolean; trading_desk_enabled?: boolean }): Promise<{ ok: boolean }> =>
   api.patch('/admin/platform-settings', req).then(r => r.data)
 
 // ─── Legal Terms Acknowledgment ──────────────────────────────────────────────

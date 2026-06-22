@@ -63,6 +63,7 @@ function Dashboard() {
   const [showPricing, setShowPricing] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [tradingDeskEnabled, setTradingDeskEnabled] = useState(true)
 
   // Set initial symbol to the first entry in the user's scanner watchlist.
   // Persists to localStorage so the next hard refresh prefetches the right symbol.
@@ -90,8 +91,15 @@ function Dashboard() {
   }, [])
 
   useEffect(() => {
-    getPublicConfig().then(cfg => setAiEnabled(cfg.ai_features_enabled)).catch(() => {})
+    getPublicConfig().then(cfg => {
+      setAiEnabled(cfg.ai_features_enabled)
+      setTradingDeskEnabled(cfg.trading_desk_enabled)
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!tradingDeskEnabled && activeDesk === 'trading') setActiveDesk('options')
+  }, [tradingDeskEnabled, activeDesk])
 
   useEffect(() => {
     if (!aiEnabled && activeTab === 'ai') setActiveTab('chain')
@@ -233,7 +241,7 @@ function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                 {deskBtn('options', 'Options')}
-                {deskBtn('trading', 'Trading')}
+                {tradingDeskEnabled && deskBtn('trading', 'Trading')}
               </div>
               {activeDesk === 'options' && <>
                 <input
@@ -260,7 +268,7 @@ function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', gap: '4px', flexShrink: 0, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '3px' }}>
               {deskBtn('options', '⬡ Options Compass')}
-              {deskBtn('trading', '◈ Trading Desk')}
+              {tradingDeskEnabled && deskBtn('trading', '◈ Trading Desk')}
             </div>
 
             {activeDesk === 'options' && (
