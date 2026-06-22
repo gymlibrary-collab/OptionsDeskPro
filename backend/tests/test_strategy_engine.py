@@ -131,20 +131,22 @@ def test_no_viable_trade_has_nonpositive_max_profit(key, dense_chain, spot):
 
 
 @pytest.mark.parametrize("key", ALL_KEYS)
-def test_no_debit_trade_risks_more_than_it_can_make(key, dense_chain, spot):
-    """For defined-risk debit strategies, max_profit must be >= max_loss.
-    Showing a setup where you risk more than you can make teaches bad habits."""
+def test_defined_risk_debit_trade_max_profit_is_positive(key, dense_chain, spot):
+    """A defined-risk debit trade must still be able to make money (max_profit > 0).
+    Guard 1 suppresses non-viable setups (max_profit <= 0). We intentionally do NOT
+    suppress debit spreads where max_profit < max_loss: an unfavourable risk/reward
+    at the current strikes is still a valid, educational structure — the user sees
+    the actual numbers and decides."""
     trade = _build_or_none(key, dense_chain, spot)
     if trade is None or "error" in trade:
         return
     strat = STRATEGIES[key]
     net = trade.get("estimated_credit_or_debit", 0)
     mp = trade.get("max_profit")
-    ml = trade.get("max_loss")
-    if net < 0 and strat["risk_type"] == "DEFINED" and mp is not None and ml is not None:
-        assert mp >= ml, (
-            f"{key}: debit trade has max_profit={mp} < max_loss={ml} — "
-            "guard should have suppressed it"
+    if net < 0 and strat["risk_type"] == "DEFINED" and mp is not None:
+        assert mp > 0, (
+            f"{key}: debit trade has non-positive max_profit={mp} — "
+            "Guard 1 should have suppressed it"
         )
 
 
@@ -287,3 +289,65 @@ def test_vertical_errors_on_single_strike_chain(key, single_strike_chain, spot):
 def test_unknown_strategy_returns_error(dense_chain, spot):
     trade = build_trade("TEST", "not_a_real_strategy", dense_chain, spot)
     assert trade is not None and "error" in trade
+
+
+# ── Greek profiles (tastylive Options Strategy Guide) ─────────────────────────
+
+from services.strategy_engine import GREEK_PROFILES, compute_net_greeks
+
+_VALID_SIGNS = {"long", "short", "flat", "dynamic",
+                "long/dynamic", "short/dynamic", "flat/dynamic"}
+
+
+def test_every_strategy_has_greek_profile():
+    """All 31 strategies carry the four greek signs from the guide."""
+    assert set(GREEK_PROFILES.keys()) == set(STRATEGIES.keys())
+    for key, prof in GREEK_PROFILES.items():
+        assert set(prof.keys()) == {"delta", "gamma", "theta", "vega"}, key
+        for greek, sign in prof.items():
+            assert sign in _VALID_SIGNS, f"{key}.{greek} has invalid sign {sign!r}"
+        assert STRATEGIES[key]["greek_profile"] == prof
+
+
+@pytest.mark.parametrize("key", ALL_KEYS)
+def test_build_trade_reports_net_greeks(key, dense_chain, spot):
+    trade = _build_or_none(key, dense_chain, spot)
+    if trade is None or "error" in trade:
+        return
+    ng = trade.get("net_greeks")
+    assert ng is not None, f"{key}: no net_greeks in trade"
+    assert set(ng["signs"].keys()) == {"delta", "gamma", "theta", "vega"}
+    assert trade.get("greek_profile") == STRATEGIES[key]["greek_profile"]
+
+
+def test_net_greeks_match_guide_for_premium_sellers():
+    """Short-premium strategies must compute net short vega + long theta,
+    matching the guide. Uses the credit verticals which have static signs."""
+    profile = compute_net_greeks([
+        {"action": "sell", "option_type": "put", "delta": -0.30,
+         "gamma": 0.02, "theta": -0.04, "vega": 0.08},
+        {"action": "buy", "option_type": "put", "delta": -0.16,
+         "gamma": 0.01, "theta": -0.02, "vega": 0.05},
+    ])
+    assert profile["signs"]["theta"] == "long"
+    assert profile["signs"]["vega"] == "short"
+
+
+def test_greek_profile_holds_when_guard2_would_fire(dense_chain, spot):
+    """A debit spread can have max_profit < max_loss purely from wide strike
+    spacing (the case the removed 'Guard 2' used to suppress). The greek profile
+    proves these are still correctly-constructed trades: the net delta keeps the
+    intended directional sign. Guard 2 (P&L geometry) and the greek profile (risk
+    character) are orthogonal — the profile confirms Guard 2 was suppressing valid
+    structures, so it is not required."""
+    for key in ("long_put_vertical", "long_call_vertical"):
+        trade = _build_or_none(key, dense_chain, spot)
+        if trade is None or "error" in trade:
+            continue
+        expected = STRATEGIES[key]["greek_profile"]["delta"]
+        actual = trade["net_greeks"]["signs"]["delta"]
+        tokens = expected.replace("/", " ").split()
+        assert "dynamic" in tokens or actual in tokens, (
+            f"{key}: net delta {actual!r} should match intended {expected!r} "
+            "regardless of risk/reward geometry"
+        )

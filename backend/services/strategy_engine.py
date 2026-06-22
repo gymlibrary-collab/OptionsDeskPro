@@ -617,6 +617,68 @@ STRATEGIES = {
     },
 }
 
+# ── Greek profiles (tastylive Options Strategy Guide, 2023) ──────────────────
+# The expected SIGN of each position greek for every strategy, taken directly
+# from the EXAMPLE box on each strategy's page in the guide. These describe the
+# intended risk profile of the structure:
+#   delta — directional exposure (long = bullish, short = bearish, flat = neutral)
+#   gamma — how fast delta changes as the underlying moves
+#   theta — time decay (long = decay helps you, short = decay hurts you)
+#   vega  — volatility exposure (long = profits from IV rise, short = from IV fall)
+# "dynamic" means the greek flips sign across the structure's strikes (back-ratios
+# and butterflies) and cannot be summarised by a single static sign.
+# build_trade() computes the ACTUAL net greeks of the selected strikes and the
+# frontend compares them against these expected signs.
+#
+# SOURCE OF TRUTH: strategy_catalog.greek_{delta,gamma,theta,vega} columns
+# (backend/migrations/020_strategy_greek_profiles.sql). This dict MIRRORS those
+# columns. Any change here MUST be made in a migration FIRST, then mirrored here —
+# same migration-first governance as direction/iv_environment/complexity/etc.
+GREEK_PROFILES = {
+    # Bullish
+    "covered_call":           {"delta": "long",          "gamma": "dynamic", "theta": "long",  "vega": "short"},
+    "long_call_vertical":     {"delta": "long",          "gamma": "flat",    "theta": "flat",  "vega": "flat"},
+    "call_zebra":             {"delta": "long/dynamic",  "gamma": "dynamic", "theta": "flat",  "vega": "flat"},
+    "poor_mans_covered_call": {"delta": "long",          "gamma": "dynamic", "theta": "flat",  "vega": "long"},
+    "call_calendar":          {"delta": "long",          "gamma": "dynamic", "theta": "short", "vega": "long"},
+    "call_butterfly":         {"delta": "long/dynamic",  "gamma": "dynamic", "theta": "short", "vega": "long"},
+    "big_lizard":             {"delta": "long",          "gamma": "short",   "theta": "long",  "vega": "short"},
+    # Bearish
+    "covered_put":            {"delta": "short",         "gamma": "dynamic", "theta": "long",  "vega": "short"},
+    "long_put_vertical":      {"delta": "short",         "gamma": "flat",    "theta": "flat",  "vega": "flat"},
+    "put_zebra":              {"delta": "short/dynamic", "gamma": "dynamic", "theta": "flat",  "vega": "flat"},
+    "poor_mans_covered_put":  {"delta": "short",         "gamma": "dynamic", "theta": "flat",  "vega": "long"},
+    "put_calendar":           {"delta": "short",         "gamma": "dynamic", "theta": "short", "vega": "long"},
+    "put_butterfly":          {"delta": "short/dynamic", "gamma": "dynamic", "theta": "short", "vega": "long"},
+    "reverse_big_lizard":     {"delta": "short",         "gamma": "short",   "theta": "long",  "vega": "short"},
+    # Omnidirectional
+    "put_front_ratio":            {"delta": "long/dynamic",  "gamma": "dynamic", "theta": "long", "vega": "short"},
+    "call_front_ratio":           {"delta": "short/dynamic", "gamma": "dynamic", "theta": "long", "vega": "short"},
+    "put_broken_wing_butterfly":  {"delta": "long/dynamic",  "gamma": "dynamic", "theta": "long", "vega": "short"},
+    "call_broken_wing_butterfly": {"delta": "short/dynamic", "gamma": "dynamic", "theta": "long", "vega": "short"},
+    "call_broken_heart_butterfly":{"delta": "flat/dynamic",  "gamma": "dynamic", "theta": "long", "vega": "short"},
+    "put_broken_heart_butterfly": {"delta": "flat/dynamic",  "gamma": "dynamic", "theta": "long", "vega": "short"},
+    # Neutral
+    "short_strangle":            {"delta": "flat", "gamma": "short", "theta": "long", "vega": "short"},
+    "short_straddle":            {"delta": "flat", "gamma": "short", "theta": "long", "vega": "short"},
+    "iron_condor":               {"delta": "flat", "gamma": "flat",  "theta": "long", "vega": "short"},
+    "dynamic_width_iron_condor": {"delta": "flat", "gamma": "flat",  "theta": "long", "vega": "short"},
+    "iron_fly":                  {"delta": "flat", "gamma": "flat",  "theta": "long", "vega": "short"},
+    # Neutral-Bullish
+    "short_naked_put":    {"delta": "long", "gamma": "short", "theta": "long", "vega": "short"},
+    "short_put_vertical": {"delta": "long", "gamma": "flat",  "theta": "long", "vega": "short"},
+    "jade_lizard":        {"delta": "long", "gamma": "short", "theta": "long", "vega": "short"},
+    # Neutral-Bearish
+    "short_naked_call":    {"delta": "short", "gamma": "short", "theta": "long", "vega": "short"},
+    "short_call_vertical": {"delta": "short", "gamma": "flat",  "theta": "long", "vega": "short"},
+    "reverse_jade_lizard": {"delta": "short", "gamma": "short", "theta": "long", "vega": "short"},
+}
+
+# Attach the expected greek profile to each strategy in the catalog.
+for _key, _profile in GREEK_PROFILES.items():
+    if _key in STRATEGIES:
+        STRATEGIES[_key]["greek_profile"] = _profile
+
 SELLER_STRATEGIES = {
     "covered_call", "covered_put",
     "short_naked_put", "short_put_vertical", "jade_lizard",
@@ -755,6 +817,7 @@ def recommend_by_category(iv_env: str) -> dict:
                 "dte_target": strat["dte_target"],
                 "pop_range": strat["pop_range"],
                 "profit_target_pct": strat["profit_target_pct"],
+                "greek_profile": strat.get("greek_profile"),
             }
             for _, key, strat in matches[:3]
         ]
@@ -1006,6 +1069,50 @@ def _mid(contract: dict) -> float:
     return round(contract.get("lastPrice", 0.0), 2)
 
 
+def _sign_label(value: float, flat_threshold: float) -> str:
+    """Classify a net greek into long / short / flat for comparison with the
+    catalog's expected profile."""
+    if abs(value) < flat_threshold:
+        return "flat"
+    return "long" if value > 0 else "short"
+
+
+def compute_net_greeks(legs: list) -> dict:
+    """
+    Sum the per-share greeks of every leg into the net position greeks, applying
+    +1 for long (buy) legs and -1 for short (sell) legs and scaling to one
+    100-share contract. The sign convention matches the tastylive guide:
+      net positive theta  → "long theta"  (time decay works for you)
+      net positive vega   → "long vega"   (profits from rising IV)
+      net positive gamma  → "long gamma"
+      net positive delta  → bullish
+    Stock legs contribute delta only (±1 per share); their gamma/theta/vega are 0.
+    Returns both the raw values and their long/short/flat classification.
+    """
+    net = {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0}
+    for leg in legs:
+        sign = 1.0 if leg.get("action") == "buy" else -1.0
+        for g in net:
+            val = leg.get(g)
+            if val is None:
+                continue
+            net[g] += sign * float(val)
+
+    # Scale to a single 100-share contract for realistic position greeks.
+    scaled = {g: round(v * 100, 2) for g, v in net.items()}
+    # Flat thresholds are generous for delta (share-equivalent) and tight for the
+    # smaller per-contract greeks so genuine exposure is not labelled "flat".
+    return {
+        **scaled,
+        "signs": {
+            "delta": _sign_label(scaled["delta"], 8.0),
+            "gamma": _sign_label(scaled["gamma"], 0.5),
+            "theta": _sign_label(scaled["theta"], 0.5),
+            "vega": _sign_label(scaled["vega"], 1.0),
+        },
+    }
+
+
 def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price: float, earnings_data: dict | None = None) -> dict:
     """
     Given a strategy key and live options chain (already enriched with greeks),
@@ -1073,6 +1180,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             "option_type": option_type,
             "strike": c["strike"],
             "delta": c.get("delta", 0.0),
+            "gamma": c.get("gamma"),
             "theta": c.get("theta"),
             "vega": c.get("vega"),
             "bid": c.get("bid", 0.0),
@@ -1537,6 +1645,7 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
             "option_type": l["option_type"],
             "strike": l["strike"],
             "delta": l["delta"],
+            "gamma": l.get("gamma"),
             "theta": l.get("theta"),
             "vega": l.get("vega"),
             "bid": l["bid"],
@@ -1547,6 +1656,11 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         if "expiry" in l:
             leg_out["expiry"] = l["expiry"]
         clean_legs.append(leg_out)
+
+    # Net position greeks of the selected strikes, plus the strategy's expected
+    # greek profile from the tastylive guide so the frontend can show whether the
+    # built trade matches the intended risk profile.
+    net_greeks = compute_net_greeks(legs)
 
     return {
         "strategy": strat["name"],
@@ -1562,6 +1676,8 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         "tastylive_profit_target": tastylive_profit_target,
         "risk_type": strat["risk_type"],
         "profit_target_pct": strat["profit_target_pct"],
+        "greek_profile": strat.get("greek_profile"),
+        "net_greeks": net_greeks,
         "earnings_adjusted": earnings_adjusted,
         "earnings_note": earnings_note,
     }

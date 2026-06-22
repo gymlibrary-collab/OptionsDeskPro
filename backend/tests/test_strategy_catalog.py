@@ -13,7 +13,7 @@ VALID_DIRECTIONS = {
 REQUIRED_FIELDS = {
     "name", "direction", "iv_environment", "risk_type", "complexity",
     "dte_target", "pop_range", "profit_target_pct", "description",
-    "legs", "delta_targets", "condition_explanation",
+    "legs", "delta_targets", "condition_explanation", "greek_profile",
 }
 
 
