@@ -430,12 +430,12 @@ export default function StrategyScanner({ onSelectTrade, onMethodologyClick }: P
       {/* Results Table */}
       {scanned && results.length > 0 && !selectedSymbol && (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr style={{ background: C.surface2 }}>
                   {['Symbol', 'Price', 'IVR', 'IV Env', 'Bias', 'Strategies Available', 'Condition Matches', ''].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: C.muted, fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap', background: C.surface2 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
