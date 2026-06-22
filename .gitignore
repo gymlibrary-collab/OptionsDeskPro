@@ -19,3 +19,4 @@ frontend/.env
 frontend/playwright-report/
 frontend/test-results/
 frontend/playwright/.auth/user.json
+.claude/worktrees/
