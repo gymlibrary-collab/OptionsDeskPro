@@ -490,6 +490,7 @@ export const getRollAdvisor = (positionId: string): Promise<RollAdvisorResponse>
 export interface GreeksCoachingResponse {
   coaching: string
   net_delta: number
+  net_gamma: number
   net_theta: number
   net_vega: number
 }

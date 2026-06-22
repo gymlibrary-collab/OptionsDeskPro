@@ -551,7 +551,7 @@ async def ai_portfolio_greeks_coaching(request: Request, payload: dict = Depends
     Fetches all open positions, computes net delta/theta/vega, then calls Claude
     Haiku for a 2-3 sentence concentration-risk coaching paragraph.
 
-    Response: {"coaching": "...", "net_delta": 0.45, "net_theta": -12.3, "net_vega": 89.2}
+    Response: {"coaching": "...", "net_delta": 0.45, "net_gamma": 0.03, "net_theta": -12.3, "net_vega": 89.2}
     """
     user_id = get_user_id(payload)
     _require_ai_feature(user_id, "greeks_coaching")
@@ -574,15 +574,18 @@ async def ai_portfolio_greeks_coaching(request: Request, payload: dict = Depends
         positions = []
 
     net_delta = 0.0
+    net_gamma = 0.0
     net_theta = 0.0
     net_vega = 0.0
     pos_dicts: list[dict] = []
 
     for p in positions:
         delta = float(p.delta or 0.0)
+        gamma = float(getattr(p, "gamma", 0.0) or 0.0)
         # Position-level delta contribution (sign already baked in via quantity)
         pos_delta = delta * p.quantity
         net_delta += pos_delta
+        net_gamma += gamma * p.quantity
 
         # Theta and vega require the greeks dict which Position may not carry directly.
         # Recompute via Black-Scholes if needed.
@@ -618,6 +621,7 @@ async def ai_portfolio_greeks_coaching(request: Request, payload: dict = Depends
     return {
         "coaching": coaching,
         "net_delta": round(net_delta, 4),
+        "net_gamma": round(net_gamma, 4),
         "net_theta": round(net_theta, 4),
         "net_vega": round(net_vega, 4),
     }

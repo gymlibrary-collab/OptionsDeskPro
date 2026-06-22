@@ -218,6 +218,12 @@ function PortfolioGreeksStrip({ entitledToCoaching }: { entitledToCoaching: bool
             </span>
           </div>
           <div style={styles.card}>
+            <span style={styles.cardLabel}>Net Gamma</span>
+            <span style={{ ...styles.cardValue, fontSize: '18px', color: coaching.net_gamma >= 0 ? C.green : C.red }}>
+              {fmtGreek(coaching.net_gamma, 2)}
+            </span>
+          </div>
+          <div style={styles.card}>
             <span style={styles.cardLabel}>Net Theta</span>
             <span style={{ ...styles.cardValue, fontSize: '18px', color: coaching.net_theta >= 0 ? C.green : C.red }}>
               {fmtGreek(coaching.net_theta, 2)}

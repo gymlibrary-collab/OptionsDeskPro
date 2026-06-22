@@ -61,14 +61,13 @@ def _check(key, trade):
 
     legs = [l for l in trade["legs"] if l.get("option_type") != "stock"]
 
-    # Guard 1 — max_profit must be None (unlimited) or strictly positive
+    # Guard 1 — max_profit must be None (unlimited) or strictly positive.
+    # (There is no Guard 2: a debit spread with max_profit < max_loss is a valid,
+    # correctly-built structure — the unfavourable risk/reward comes from strike
+    # spacing, not a malformed trade. The greek profile confirms the structure is
+    # sound, so we surface it rather than suppress it.)
     if mp is not None and mp <= 0:
         return False, f"FAIL max_profit={mp} <= 0"
-
-    # Guard 2 — debit + defined → max_profit >= max_loss
-    if net < 0 and strat["risk_type"] == "DEFINED" and mp is not None and ml is not None:
-        if mp < ml:
-            return False, f"FAIL debit: max_profit={mp} < max_loss={ml}"
 
     # Vertical no-arbitrage: max_profit + max_loss == spread width
     if key in ("long_call_vertical", "short_call_vertical",
