@@ -521,3 +521,51 @@ async def get_user_activity_log(
     rows = q.execute().data or []
 
     return {"total": total, "page": page, "page_size": page_size, "results": rows}
+
+
+@router.get("/admin/debug/ivr-fetch")
+def debug_ivr_fetch(symbol: str = "AAPL", payload: dict = Depends(admin_required)):
+    """
+    Diagnostic: attempt the volradar.com IVR fetch and return the raw outcome.
+    Admin-only. Use to verify the scraper works in production.
+    """
+    import re as _re
+    from services.iv_analysis import _VOLRADAR_URL, _VOLRADAR_TIMEOUT, _parse_ivr_from_html
+
+    results = []
+
+    try:
+        from curl_cffi import requests as cffi_requests
+
+        for param in (f"?symbol={symbol.upper()}", f"?ticker={symbol.upper()}"):
+            url = _VOLRADAR_URL + param
+            try:
+                resp = cffi_requests.get(
+                    url,
+                    impersonate="chrome120",
+                    timeout=_VOLRADAR_TIMEOUT,
+                    headers={
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.5",
+                    },
+                )
+                html_snippet = resp.text[:2000] if resp.text else ""
+                parsed = _parse_ivr_from_html(resp.text) if resp.status_code == 200 else None
+                results.append({
+                    "url": url,
+                    "status_code": resp.status_code,
+                    "content_length": len(resp.text or ""),
+                    "parsed_ivr": parsed,
+                    "html_snippet": html_snippet,
+                })
+            except Exception as e:
+                results.append({"url": url, "error": str(e)})
+
+    except ImportError as e:
+        return {"error": f"curl_cffi not available: {e}", "results": []}
+
+    return {
+        "symbol": symbol.upper(),
+        "volradar_url": _VOLRADAR_URL,
+        "attempts": results,
+    }
