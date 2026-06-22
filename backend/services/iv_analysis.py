@@ -60,6 +60,10 @@ def _fetch_volradar_ivr(symbol: str) -> dict | None:
 
     result = _fetch_volradar_ivr_uncached(symbol)
     ttl = _VOLRADAR_TTL_OK if result is not None else _VOLRADAR_TTL_FAIL
+    # Evict oldest entry when cap is reached (FIFO, ~250 bytes per entry → ~250 KB at limit).
+    if len(_VOLRADAR_CACHE) >= 1000:
+        oldest_key = next(iter(_VOLRADAR_CACHE))
+        del _VOLRADAR_CACHE[oldest_key]
     _VOLRADAR_CACHE[symbol.upper()] = (time.time() + ttl, result)
     return result
 

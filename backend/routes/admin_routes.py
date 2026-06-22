@@ -577,7 +577,6 @@ def debug_ivr_fetch(symbol: str = "AAPL", payload: dict = Depends(admin_required
                 "status_code": r2.status_code,
                 "content_length": len(body),
                 "parsed_json": parsed_json,
-                "raw_snippet": body[:500],
             })
         except Exception as e:
             steps.append({"step": "api_call", "url": api_url, "error": str(e)})
