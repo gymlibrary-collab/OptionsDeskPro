@@ -648,10 +648,17 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
                 f"As a good practice, it is recommended NOT to wait for maximum profit — close early once you've captured a meaningful portion of the potential gain."
             )
     else:
-        profit_detail = (
-            f"Your profit is uncapped on the upside — it grows the further {symbol} moves in your favour. "
-            f"As a good practice, it is recommended to close when you've captured 50% of the initial credit collected."
-        )
+        if net >= 0:
+            profit_detail = (
+                f"Your profit is uncapped on the upside — it grows the further {symbol} moves in your favour. "
+                f"As a good practice, it is recommended to close when you've captured 50% of the initial credit collected."
+            )
+        else:
+            profit_detail = (
+                f"Your profit is uncapped on the upside — it grows the further {symbol} moves beyond your short strike. "
+                f"This structure behaves like a leveraged long position above the short strike with defined downside risk. "
+                f"Close when your thesis has played out or when you've achieved a meaningful gain relative to what you paid."
+            )
 
     if net >= 0:  # credit spread
         early_exit = (
@@ -663,16 +670,26 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
             f"Closing early also frees up your capital to put on the next trade."
         )
     else:  # debit spread: net is negative
-        max_profit_dollars_val = (max_profit * 100) if max_profit else 0
-        gain_target = round(max_profit_dollars_val * profit_target_pct / 100)
-        sell_for = round(abs(net) * 100 + gain_target)
-        early_exit = (
-            f"A common exit guideline is to close the trade when it reaches {profit_target_pct}% of max profit "
-            f"({target_dollars}). "
-            f"Since you paid ${abs(net)*100:.0f} as a net debit, aim to sell the spread for approximately "
-            f"${sell_for:.0f} — that locks in ${gain_target:.0f} of the ${max_profit_dollars_val:.0f} maximum profit. "
-            f"Closing early avoids the risk of a reversal eroding your unrealized gain."
-        )
+        if max_profit is not None:
+            gain_target = round(max_profit * 100 * profit_target_pct / 100)
+            sell_for = round(abs(net) * 100 + gain_target)
+            early_exit = (
+                f"A common exit guideline is to close the trade when it reaches {profit_target_pct}% of max profit "
+                f"({target_dollars}). "
+                f"Since you paid ${abs(net)*100:.0f} as a net debit, aim to sell the spread for approximately "
+                f"${sell_for:.0f} — that locks in ${gain_target:.0f} of the ${max_profit * 100:.0f} maximum profit. "
+                f"Closing early avoids the risk of a reversal eroding your unrealized gain."
+            )
+        else:
+            # Unlimited upside debit (e.g. ZEBRA): no fixed max profit to target
+            double_target = round(abs(net) * 200)
+            early_exit = (
+                f"For unlimited-upside structures like this, set a personal monetary target rather than a fixed % of max. "
+                f"A common approach: close when the position has doubled in value (i.e. you can sell it for ~${double_target:.0f}, "
+                f"locking in a ${round(abs(net)*100):.0f} gain per contract). "
+                f"Also apply the 21 DTE rule — close or roll any time the position reaches 21 days to expiration, "
+                f"regardless of P&L, as gamma risk accelerates sharply inside three weeks."
+            )
 
     pop_note = (
         f"Based on the delta of the short strikes, this setup has an estimated {pop_range[0]}–{pop_range[1]}% "
