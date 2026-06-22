@@ -320,33 +320,39 @@ async def get_morning_briefing(request: Request, payload: dict = Depends(verify_
             pass
         return {"briefing": briefing_text, "date": today, "symbols": [], "cached": False}
 
-    # Lightweight IV+bias scan (yfinance).
+    # IV+bias scan. get_iv_rank now makes blocking external calls (volradar),
+    # so run each symbol in a worker thread and gather concurrently rather than
+    # blocking the event loop in a sequential loop.
     # We import here to avoid module-level side effects.
     from services.iv_analysis import get_iv_rank, get_directional_bias
     from services.market_context import get_earnings_info
 
-    market_contexts: list[dict] = []
-    for sym in watchlist:
+    def _scan_symbol(sym: str) -> dict:
         try:
             iv_data = get_iv_rank(sym)
             bias_data = get_directional_bias(sym)
             earnings = get_earnings_info(sym)
-            market_contexts.append({
+            return {
                 "symbol": sym,
                 "iv_environment": iv_data.get("iv_environment", "MEDIUM"),
                 "bias": bias_data.get("bias", "NEUTRAL"),
                 "iv_rank": iv_data.get("iv_rank", 0.0),
                 "earnings_soon": earnings.get("earnings_soon", False),
-            })
+            }
         except Exception as exc:
             logger.debug("Morning briefing scan failed for %s: %s", sym, exc)
-            market_contexts.append({
+            return {
                 "symbol": sym,
                 "iv_environment": "MEDIUM",
                 "bias": "NEUTRAL",
                 "iv_rank": 0.0,
                 "earnings_soon": False,
-            })
+            }
+
+    loop = asyncio.get_running_loop()
+    market_contexts: list[dict] = list(await asyncio.gather(
+        *[loop.run_in_executor(None, _scan_symbol, sym) for sym in watchlist]
+    ))
 
     from services import ai_service
     briefing_text = ai_service.generate_morning_briefing(user_id, watchlist, market_contexts)

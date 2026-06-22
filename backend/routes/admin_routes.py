@@ -531,7 +531,8 @@ def debug_ivr_fetch(symbol: str = "AAPL", payload: dict = Depends(admin_required
     Admin-only.
     """
     from services.iv_analysis import (
-        _VOLRADAR_PAGE_URL, _VOLRADAR_API_URL, _VOLRADAR_TIMEOUT, _fetch_volradar_ivr
+        _VOLRADAR_PAGE_URL, _VOLRADAR_API_URL, _VOLRADAR_TIMEOUT,
+        _fetch_volradar_ivr_uncached,
     )
 
     SYM = symbol.upper()
@@ -584,8 +585,9 @@ def debug_ivr_fetch(symbol: str = "AAPL", payload: dict = Depends(admin_required
     except ImportError as e:
         return {"error": f"curl_cffi not available: {e}"}
 
-    # Also run the real production function so we can compare
-    production_result = _fetch_volradar_ivr(SYM)
+    # Also run the real production fetch (uncached, so the diagnostic always
+    # reflects a live call) so we can compare against the manual steps above.
+    production_result = _fetch_volradar_ivr_uncached(SYM)
 
     return {
         "symbol": SYM,

@@ -1,6 +1,5 @@
 """IV Rank and IV environment classification using yfinance historical data."""
-import re
-import json
+import time
 import yfinance as yf
 import numpy as np
 import logging
@@ -19,8 +18,26 @@ _VOLRADAR_PAGE_URL = "https://volradar.com/tools/iv-rank-lookup"
 _VOLRADAR_API_URL  = "https://volradar.com/api/tools/iv-rank"
 _VOLRADAR_TIMEOUT  = 10  # seconds
 
-# Keep for the admin debug endpoint
-_VOLRADAR_URL = _VOLRADAR_PAGE_URL
+# In-process TTL cache for volradar results, keyed by symbol. Each IVR lookup
+# costs two external HTTP round-trips, so we cache aggressively to keep latency
+# down and to avoid hammering (and getting blocked by) volradar. Successful
+# results are cached longer; failures are cached briefly so a transient outage
+# doesn't trigger a retry storm (acts as a lightweight circuit breaker) while
+# still recovering within minutes.
+_VOLRADAR_CACHE: dict[str, tuple[float, dict | None]] = {}
+_VOLRADAR_TTL_OK   = 3600   # 1 hour for a good result
+_VOLRADAR_TTL_FAIL = 600    # 10 minutes for a failure
+
+
+def _to_decimal(val) -> float | None:
+    """volradar reports IV in percentage points (e.g. 30.5); the rest of the
+    app works in decimal fractions (0.305). Normalise, preserving None."""
+    if val is None:
+        return None
+    try:
+        return float(val) / 100.0
+    except (TypeError, ValueError):
+        return None
 
 
 def _fetch_volradar_ivr(symbol: str) -> dict | None:
@@ -34,6 +51,23 @@ def _fetch_volradar_ivr(symbol: str) -> dict | None:
       GET https://volradar.com/api/tools/iv-rank?ticker=AMZN
       Response: {"status":"success","iv_rank":52.0,"current_iv":30.5,...}
     """
+    # Serve from cache when warm (covers both successes and recent failures).
+    cached = _VOLRADAR_CACHE.get(symbol.upper())
+    if cached is not None:
+        expires_at, value = cached
+        if time.time() < expires_at:
+            return value
+
+    result = _fetch_volradar_ivr_uncached(symbol)
+    ttl = _VOLRADAR_TTL_OK if result is not None else _VOLRADAR_TTL_FAIL
+    _VOLRADAR_CACHE[symbol.upper()] = (time.time() + ttl, result)
+    return result
+
+
+def _fetch_volradar_ivr_uncached(symbol: str) -> dict | None:
+    """Underlying two-step volradar fetch. See _fetch_volradar_ivr for the
+    cached wrapper. Values are normalised to decimal fractions to match the
+    rest of the app (volradar reports IV in percentage points). Never raises."""
     try:
         from curl_cffi import requests as cffi_requests
 
@@ -83,59 +117,19 @@ def _fetch_volradar_ivr(symbol: str) -> dict | None:
             return None
 
         logger.info(f"volradar IVR for {symbol}: {iv_rank}")
+        # iv_rank stays on the 0–100 scale; IV magnitudes are normalised to
+        # decimal fractions so they render correctly downstream (frontend ×100).
         return {
             "iv_rank":      float(iv_rank),
-            "current_iv":   data.get("current_iv"),
-            "iv_52w_low":   data.get("iv_52w_low"),
-            "iv_52w_high":  data.get("iv_52w_high"),
+            "current_iv":   _to_decimal(data.get("current_iv")),
+            "iv_52w_low":   _to_decimal(data.get("iv_52w_low")),
+            "iv_52w_high":  _to_decimal(data.get("iv_52w_high")),
             "iv_percentile": data.get("iv_percentile"),
         }
 
     except Exception as e:
         logger.warning(f"volradar fetch failed for {symbol}: {e}")
         return None
-
-
-def _parse_ivr_from_html(text: str) -> float | None:
-    """
-    Extract IVR from a volradar HTML or JSON response string.
-    Used by the admin debug endpoint which may receive either format.
-    """
-    # Try JSON parse first (API response)
-    try:
-        data = json.loads(text)
-        val = data.get("iv_rank")
-        if val is not None and 0.0 <= float(val) <= 100.0:
-            return float(val)
-    except Exception:
-        pass
-
-    # JSON property embedded in HTML/script
-    for pattern in [
-        r'"iv_rank"\s*:\s*([\d.]+)',
-        r'"ivRank"\s*:\s*([\d.]+)',
-        r'"IVRank"\s*:\s*([\d.]+)',
-        r'"ivr"\s*:\s*([\d.]+)',
-        r'"iv_percentile"\s*:\s*([\d.]+)',
-    ]:
-        m = re.search(pattern, text)
-        if m:
-            val = float(m.group(1))
-            if 0.0 <= val <= 100.0:
-                return val
-
-    # Rendered text labels
-    for pattern in [
-        r'IV\s*Rank\s*[:\-]\s*([\d.]+)',
-        r'IVR\s*[:\-]\s*([\d.]+)',
-    ]:
-        m = re.search(pattern, text, re.IGNORECASE)
-        if m:
-            val = float(m.group(1))
-            if 0.0 <= val <= 100.0:
-                return val
-
-    return None
 
 
 def _calculate_rsi(prices: np.ndarray, period: int = 14) -> float:
@@ -228,9 +222,10 @@ def get_iv_rank(symbol: str) -> dict:
         hv_52wk_high = float(np.max(hv_series))
         hv_52wk_low = float(np.min(hv_series))
 
-        # Get current ATM IV from nearest expiry options chain.
-        # ATM IV is the numerator in the IVR formula when available.
-        # Falls back to current_hv when the chain is unavailable.
+        # Get current ATM IV from nearest expiry options chain — used only as
+        # the displayed "Current IV" figure. The rank itself is always HV-based
+        # (see below), so the source stays "hv_proxy" regardless; we do not
+        # claim the rank is IV-derived when it isn't.
         current_iv = current_hv
         iv_source = "hv_proxy"
         try:
@@ -246,7 +241,6 @@ def get_iv_rank(symbol: str) -> dict:
                     atm_iv = float(atm_row.get("impliedVolatility", 0))
                     if atm_iv > 0.01:
                         current_iv = atm_iv
-                        iv_source = "option_chain"
         except Exception as e:
             logger.warning(f"Could not get ATM IV for {symbol}: {e}")
 
@@ -270,8 +264,7 @@ def get_iv_rank(symbol: str) -> dict:
         else:
             iv_environment = "MEDIUM"
 
-        rank_label = "IVR" if iv_source == "option_chain" else "HV Rank"
-        percentile_label = f"{rank_label} {iv_rank:.0f} — {iv_environment.capitalize()} IV"
+        percentile_label = f"HV Rank {iv_rank:.0f} — {iv_environment.capitalize()} IV"
 
         return {
             "symbol": symbol,
