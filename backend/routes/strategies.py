@@ -229,7 +229,7 @@ async def analyze_symbol(
                 lambda: generate_narrative(symbol, iv_data, bias_data, strategy_catalog_entry, trade, market_context=market_ctx),
             )
         except Exception as e:
-            logger.warning(f"generate_narrative failed for {strategy_key}: {e}")
+            logger.warning("generate_narrative failed for %s/%s: %s", symbol, strategy_key, e, exc_info=True)
             narrative = None
         if narrative:
             trade["narrative"] = narrative
