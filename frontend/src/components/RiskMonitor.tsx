@@ -276,14 +276,46 @@ function DefensiveNarrativeSingle({ pos, stockPrice }: { pos: PositionRisk; stoc
 
 function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: PositionRisk[]; stockPrices: Record<string, number> }) {
   const combinedPnl = positions.reduce((s, p) => s + p.pnl, 0)
-  if (combinedPnl >= 0) return null
-
   const netPremium = positions.reduce((s, p) => s + p.avg_cost * p.quantity * 100, 0)
   const isCredit = netPremium > 0
-  const netLoss = Math.abs(combinedPnl)
   const maxDte = Math.max(...positions.map(p => p.dte))
   const symbol = positions[0]?.symbol ?? ''
   const stockPrice = stockPrices[symbol]
+  const losingLegs = positions.filter(p => p.pnl < 0)
+
+  // Strategy is net profitable — show context, not alarm
+  if (combinedPnl >= 0) {
+    const netProfit = combinedPnl
+    const losingLeg = losingLegs[0]
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+        <NarrativeBox bg='#0a2d14' border='#22c55e33' color={C.green} title='Strategy Context'>
+          <p style={{ margin: '0 0 6px' }}>
+            This strategy is <strong style={{ color: C.green }}>net profitable</strong> at <strong style={{ color: C.green }}>+${fmt(netProfit, 0)}</strong> across all {positions.length} legs — the strategy is working as designed.
+          </p>
+          {losingLeg && (
+            <p style={{ margin: '0 0 6px' }}>
+              The <strong>{losingLeg.option_type.toUpperCase()} ${fmt(losingLeg.strike, 0)}</strong> leg is down −${fmt(Math.abs(losingLeg.pnl), 0)}, but that is offset by the gains on the other leg{positions.length > 2 ? 's' : ''}.
+              {isCredit ? ' For a credit spread, the long leg losing value is expected when the trade is moving in your favour.' : ' This is normal for a multi-leg debit strategy where legs move in opposite directions.'}
+            </p>
+          )}
+          <p style={{ margin: '0' }}>
+            Evaluate this strategy by its <strong>net P&L (+${fmt(netProfit, 0)})</strong>, not by individual legs.
+            Monitor for the combined P&L approaching zero or turning negative.
+          </p>
+        </NarrativeBox>
+        <SummaryBox>
+          The strategy net is <strong style={{ color: C.green }}>+${fmt(netProfit, 0)}</strong> with {maxDte} day{maxDte !== 1 ? 's' : ''} remaining.
+          {isCredit
+            ? ` As a credit strategy, your profit target is to keep most of the net credit collected ($${fmt(Math.abs(netPremium), 0)}). Consider closing early if you have reached 50% of max profit.`
+            : ` Watch for the net P&L to drop below zero — that is when active management becomes necessary.`}
+        </SummaryBox>
+      </div>
+    )
+  }
+
+  // Net losing — full defensive narrative below
+  const netLoss = Math.abs(combinedPnl)
 
   if (isCredit) {
     const netCredit = netPremium
@@ -540,7 +572,6 @@ function StrategyGroupCard({
     return riskRank[p.risk_level] < riskRank[worst] ? p.risk_level : worst
   }, 'green')
   const combinedPnl = group.positions.reduce((sum, p) => sum + p.pnl, 0)
-  const isGroupLosing = combinedPnl < 0
   const anyLegLosing = group.positions.some(p => p.pnl < 0)
   const legCount = group.positions.length
   const hasNarrative = !!group.narrative
@@ -629,13 +660,8 @@ function StrategyGroupCard({
       {/* Action Plan panel — shown when toggled */}
       {actionPlanOpen && (
         <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {group.positions.length === 1 || !isGroupLosing
-            ? group.positions.filter(p => p.pnl < 0).map((p, i) => (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <DefensiveNarrativeSingle pos={p} stockPrice={stockPrices[p.symbol]} />
-                  <CloseInstructions pos={p} />
-                </div>
-              ))
+          {group.positions.length === 1
+            ? (() => { const p = group.positions[0]; return <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}><DefensiveNarrativeSingle pos={p} stockPrice={stockPrices[p.symbol]} /><CloseInstructions pos={p} /></div> })()
             : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
           }
         </div>
