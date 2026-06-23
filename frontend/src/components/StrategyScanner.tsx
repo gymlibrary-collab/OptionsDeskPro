@@ -457,7 +457,7 @@ export default function StrategyScanner({ onSelectTrade, onMethodologyClick }: P
                     <td style={{ padding: '10px 14px' }}><IVEnvBadge env={r.iv_environment} /></td>
                     <td style={{ padding: '10px 14px' }}><BiasBadge bias={r.bias} /></td>
                     <td style={{ padding: '10px 14px', color: C.text, fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
-                      {r.strategy_count != null ? `${r.strategy_count} strategies` : '—'}
+                      {r.strategy_count != null ? `${r.strategy_count} IV-fit` : '—'}
                     </td>
                     <td style={{ padding: '10px 14px', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
                       {r.condition_matches != null ? (

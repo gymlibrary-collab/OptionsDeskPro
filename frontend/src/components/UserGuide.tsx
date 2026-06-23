@@ -184,8 +184,8 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Current IV">The annualised implied volatility of the at-the-money option, expressed as a percentage.</Term>
           <Term term="IV Environment">HIGH (IVR &gt; 50), MEDIUM, or LOW — determines whether to favour selling or buying strategies.</Term>
           <Term term="Bias">The directional signal based on RSI and moving averages: BULLISH, BEARISH, NEUTRAL, NEUTRAL_BULLISH, or NEUTRAL_BEARISH.</Term>
-          <Term term="Strategies Available">The count of strategies that are mathematically applicable to this symbol's current IV environment and direction.</Term>
-          <Term term="Condition Matches">The number of those strategies where both the IV and directional conditions align with current market data — shown in green when greater than zero.</Term>
+          <Term term="IV-Fit Strategies">The count of strategies that suit the current IV environment only (HIGH / MEDIUM / LOW). This is a first-pass filter — it does not account for directional bias.</Term>
+          <Term term="Condition Matches">The number of strategies where <em>both</em> IV environment and directional bias align. This is the actionable number. <strong>When matches = 0, no strategy is recommended for the current conditions</strong> — the market setup does not cleanly map to any of the 31 strategies. Consider waiting for a clearer bias signal or scanning a different symbol. The IV-fit count will still be non-zero because those strategies suit the IV environment in isolation, but without a directional match they are not deployed.</Term>
         </Sub>
         <P>
           Click <strong>Analyze</strong> on any row to run a full deep-dive analysis on that symbol, including
