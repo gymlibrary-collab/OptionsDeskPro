@@ -454,6 +454,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{pos.symbol}</span>
+            {stockPrice != null && <span style={{ fontSize: '13px', color: C.muted, fontVariantNumeric: 'tabular-nums' }}>${fmt(stockPrice)}</span>}
             <ActionBadge action={entryAction} />
             <TypeBadge type={pos.option_type} />
             <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {pos.expiry}</span>

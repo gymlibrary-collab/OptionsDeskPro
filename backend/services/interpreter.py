@@ -733,7 +733,7 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
                 ratio = max_reward / max_loss_dollars
                 loss_frame += (
                     f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
-                    f"${max_reward:.0f} — a {ratio:.1f}:1 risk/reward ratio. "
+                    f"${max_reward:.0f} — a 1:{ratio:.1f} risk/reward ratio (risk : reward). "
                     f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
                 )
             else:

@@ -41,6 +41,20 @@ function LegRow({ leg, qty }: { leg: TradeLeg; qty: number }) {
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}22` }}>
       <td style={{ padding: '6px 8px', color: C.muted, fontSize: '11px', whiteSpace: 'nowrap' }}>{leg.role.replace(/ [12]$/, '')}</td>
+      <td style={{ padding: '6px 8px' }}>
+        <span style={{
+          background: isBuy ? '#0f2d1a' : '#2d0f0f',
+          color: isBuy ? C.green : C.red,
+          border: `1px solid ${isBuy ? C.green : C.red}44`,
+          borderRadius: '3px',
+          padding: '1px 5px',
+          fontSize: '10px',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+        }}>
+          {leg.action}
+        </span>
+      </td>
       <td style={{ padding: '6px 8px', color: typeColor, fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
         {leg.option_type}
       </td>
@@ -58,20 +72,6 @@ function LegRow({ leg, qty }: { leg: TradeLeg; qty: number }) {
       </td>
       <td style={{ padding: '6px 8px', fontVariantNumeric: 'tabular-nums', color: C.text, fontWeight: 600 }}>
         {fmt(leg.mid)}
-      </td>
-      <td style={{ padding: '6px 8px' }}>
-        <span style={{
-          background: isBuy ? '#0f2d1a' : '#2d0f0f',
-          color: isBuy ? C.green : C.red,
-          border: `1px solid ${isBuy ? C.green : C.red}44`,
-          borderRadius: '3px',
-          padding: '1px 5px',
-          fontSize: '10px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-        }}>
-          {leg.action}
-        </span>
       </td>
     </tr>
   )
@@ -248,7 +248,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr>
-                  {['Role', 'Type', 'Qty', 'Strike', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
+                  {['Role', 'Action', 'Type', 'Qty', 'Strike', 'Bid', 'Ask', 'Mid'].map(h => (
                     <th key={h} style={{
                       textAlign: 'left', padding: '4px 8px',
                       color: C.muted, fontWeight: 600, fontSize: '10px',
