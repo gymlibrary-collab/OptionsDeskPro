@@ -130,8 +130,11 @@ def _update_position(sb, user_id: str, req, price: float):
             if new_qty == 0:
                 sb.table("positions").delete().eq("id", pos["id"]).execute()
             else:
+                # Weighted average of premiums collected across all short entries
+                new_avg = (abs(qty) * avg + req.quantity * price) / abs(new_qty)
                 sb.table("positions").update({
                     "quantity": new_qty,
+                    "avg_cost": round(new_avg, 4),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }).eq("id", pos["id"]).execute()
     else:
