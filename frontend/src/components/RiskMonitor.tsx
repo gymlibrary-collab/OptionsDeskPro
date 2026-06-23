@@ -556,6 +556,7 @@ function StrategyGroupCard({
   }, 'green')
   const combinedPnl = group.positions.reduce((sum, p) => sum + p.pnl, 0)
   const isGroupLosing = combinedPnl < 0
+  const anyLegLosing = group.positions.some(p => p.pnl < 0)
   const legCount = group.positions.length
   const hasNarrative = !!group.narrative
 
@@ -605,7 +606,7 @@ function StrategyGroupCard({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {isGroupLosing && (
+            {anyLegLosing && (
               <button
                 onClick={() => setActionPlanOpen(o => !o)}
                 style={{
@@ -667,11 +668,13 @@ function StrategyGroupCard({
         ))}
       </div>
 
-      {/* Action Plan panel — single-leg uses individual narrative, multi-leg uses group narrative */}
+      {/* Action Plan panel */}
       {!isUngrouped && actionPlanOpen && (
-        <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
-          {group.positions.length === 1
-            ? <DefensiveNarrativeSingle pos={group.positions[0]} stockPrice={stockPrices[group.positions[0].symbol]} />
+        <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {group.positions.length === 1 || !isGroupLosing
+            ? group.positions.filter(p => p.pnl < 0).map((p, i) => (
+                <DefensiveNarrativeSingle key={i} pos={p} stockPrice={stockPrices[p.symbol]} />
+              ))
             : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
           }
         </div>
