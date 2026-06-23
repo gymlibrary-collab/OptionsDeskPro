@@ -532,21 +532,21 @@ function RecordTradeForm({ onSuccess }: RecordTradeFormProps) {
                 />
               </div>
 
-              {/* Type toggle */}
-              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : 'auto', flex: '0 0 auto' }}>
-                <label style={labelStyle}>Type</label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button type="button" onClick={() => setOptionType('call')} disabled={submitting} style={toggleStyle(optionType === 'call', '#3b82f6')}>CALL</button>
-                  <button type="button" onClick={() => setOptionType('put')} disabled={submitting} style={toggleStyle(optionType === 'put', '#a855f7')}>PUT</button>
-                </div>
-              </div>
-
               {/* Action toggle */}
               <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : 'auto', flex: '0 0 auto' }}>
                 <label style={labelStyle}>Action</label>
                 <div style={{ display: 'flex', gap: '4px' }}>
                   <button type="button" onClick={() => setAction('buy')} disabled={submitting} style={toggleStyle(action === 'buy', C.green)}>BUY</button>
                   <button type="button" onClick={() => setAction('sell')} disabled={submitting} style={toggleStyle(action === 'sell', C.red)}>SELL</button>
+                </div>
+              </div>
+
+              {/* Type toggle */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : 'auto', flex: '0 0 auto' }}>
+                <label style={labelStyle}>Type</label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button type="button" onClick={() => setOptionType('call')} disabled={submitting} style={toggleStyle(optionType === 'call', '#3b82f6')}>CALL</button>
+                  <button type="button" onClick={() => setOptionType('put')} disabled={submitting} style={toggleStyle(optionType === 'put', '#a855f7')}>PUT</button>
                 </div>
               </div>
 
