@@ -525,6 +525,8 @@ export default function RiskMonitor() {
 
   const redCount = data.filter(p => p.risk_level === 'red').length
   const yellowCount = data.filter(p => p.risk_level === 'yellow').length
+  const greenCount = data.filter(p => p.risk_level === 'green').length
+  const totalPnl = data.reduce((sum, p) => sum + p.pnl, 0)
 
   // Group positions by strategy_key; ungrouped positions use '_ungrouped' key
   const groups: StrategyGroup[] = (() => {
@@ -557,14 +559,50 @@ export default function RiskMonitor() {
     <div style={{ marginTop: '16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Risk Monitor</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Risk Monitor</div>
+            {redCount > 0 && <span style={{ fontSize: '11px', color: C.red, fontWeight: 700 }}>🔴 HIGH RISK</span>}
+          </div>
           <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>Watches each open trade for time decay, P&L thresholds, volatility shifts, and market direction changes</div>
         </div>
-        {redCount > 0 && <span style={{ fontSize: '11px', background: '#2d0a0a', border: `1px solid ${C.red}44`, color: C.red, padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{redCount} urgent</span>}
-        {yellowCount > 0 && <span style={{ fontSize: '11px', background: '#2a2000', border: `1px solid ${C.yellow}44`, color: C.yellow, padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{yellowCount} watch</span>}
         {lastUpdated && <span style={{ fontSize: '10px', color: C.muted }}>{refreshing ? 'Updating…' : lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
         <button onClick={() => load(true)} disabled={refreshing || loading} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '3px 8px', fontSize: '11px', cursor: 'pointer', opacity: refreshing ? 0.5 : 1 }}>Refresh</button>
       </div>
+
+      {/* Summary stat panels */}
+      {!loading && data.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ flex: 1, minWidth: '120px', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Portfolio P&L</div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: totalPnl >= 0 ? C.green : C.red }}>
+              {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: '100px', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Positions</div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: C.text }}>{data.length}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: '100px', background: redCount > 0 ? '#2d0a0a' : C.surface2, border: `1px solid ${redCount > 0 ? C.red + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: redCount > 0 ? C.red : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {redCount > 0 && <span>🔴</span>} High Risk
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: redCount > 0 ? C.red : C.muted }}>{redCount}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: '100px', background: yellowCount > 0 ? '#2a2000' : C.surface2, border: `1px solid ${yellowCount > 0 ? C.yellow + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: yellowCount > 0 ? C.yellow : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {yellowCount > 0 && <span>🟡</span>} Watch
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: yellowCount > 0 ? C.yellow : C.muted }}>{yellowCount}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: '120px', background: greenCount > 0 ? '#0a2d14' : C.surface2, border: `1px solid ${greenCount > 0 ? C.green + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: greenCount > 0 ? C.green : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {greenCount > 0 && <span>🟢</span>} In the money
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: greenCount > 0 ? C.green : C.muted }}>{greenCount}</div>
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {loading && <div style={{ color: C.muted, fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Analysing your positions…</div>}
         {!loading && error && <div style={{ color: C.red, fontSize: '12px', padding: '10px' }}>{error}</div>}
