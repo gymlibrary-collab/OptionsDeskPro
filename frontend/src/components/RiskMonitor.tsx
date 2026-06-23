@@ -401,6 +401,9 @@ function StrategyGroupCard({
               }}>
                 {legCount} leg{legCount !== 1 ? 's' : ''}
               </span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
+                {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
+              </span>
               <span style={{
                 fontSize: '10px', fontWeight: 700,
                 color: riskColor(worstLevel),
@@ -414,12 +417,6 @@ function StrategyGroupCard({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-end', gap: '1px' }}>
-              <span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Combined P&L</span>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
-                {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
-              </span>
-            </div>
             {hasNarrative && (
               <button
                 onClick={() => setNarrativeOpen(o => !o)}
@@ -571,7 +568,7 @@ export default function RiskMonitor() {
 
       {/* Summary stat panels */}
       {!loading && data.length > 0 && (
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 16px', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
           {([
             { label: 'Portfolio P&L', value: `${totalPnl >= 0 ? '+' : ''}$${fmt(totalPnl)}`, color: totalPnl >= 0 ? C.green : C.red, bg: C.surface2, border: C.border },
             { label: 'Positions', value: String(data.length), color: C.text, bg: C.surface2, border: C.border },
@@ -579,9 +576,9 @@ export default function RiskMonitor() {
             { label: '🟡 Watch', value: String(yellowCount), color: yellowCount > 0 ? C.yellow : C.muted, bg: yellowCount > 0 ? '#2a2000' : C.surface2, border: yellowCount > 0 ? C.yellow + '33' : C.border },
             { label: '🟢 In the money', value: String(greenCount), color: greenCount > 0 ? C.green : C.muted, bg: greenCount > 0 ? '#0a2d14' : C.surface2, border: greenCount > 0 ? C.green + '33' : C.border },
           ] as const).map(p => (
-            <div key={p.label} style={{ flex: 1, minWidth: '90px', background: p.bg, border: `1px solid ${p.border}`, borderRadius: '6px', padding: '6px 10px' }}>
-              <div style={{ fontSize: '9px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '2px', whiteSpace: 'nowrap' }}>{p.label}</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: p.color }}>{p.value}</div>
+            <div key={p.label} style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: '6px', padding: '6px 12px', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '9px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '3px' }}>{p.label}</div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: p.color, lineHeight: 1 }}>{p.value}</div>
             </div>
           ))}
         </div>
