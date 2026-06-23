@@ -109,44 +109,43 @@ def _update_position(sb, user_id: str, req, price: float):
         .eq("option_type", req.option_type.lower())\
         .execute()
 
+    # Signed delta: buy increases qty, sell decreases it.
+    is_buy = req.action.lower() == "buy"
+    delta = req.quantity if is_buy else -req.quantity
+
     if existing.data:
         pos = existing.data[0]
-        qty = pos["quantity"]
+        qty = pos["quantity"]        # signed: positive=long, negative=short
         avg = float(pos["avg_cost"])
-        if req.action.lower() == "buy":
-            new_qty = qty + req.quantity
-            if new_qty == 0:
-                # Buying exactly covers a short — position is flat, remove it.
-                sb.table("positions").delete().eq("id", pos["id"]).execute()
-            else:
-                new_avg = (avg * qty + price * req.quantity) / new_qty
-                sb.table("positions").update({
-                    "quantity": new_qty,
-                    "avg_cost": new_avg,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", pos["id"]).execute()
+        new_qty = qty + delta
+
+        if new_qty == 0:
+            # Trade exactly closes the position — remove it.
+            sb.table("positions").delete().eq("id", pos["id"]).execute()
         else:
-            new_qty = qty - req.quantity
-            if new_qty == 0:
-                sb.table("positions").delete().eq("id", pos["id"]).execute()
+            # avg_cost only changes when ADDING contracts in the same direction
+            # (delta and qty share the same sign).  Partial closes keep the
+            # existing cost basis — the price you're closing at doesn't alter
+            # what you originally paid/collected on the remaining contracts.
+            if (delta > 0 and qty > 0) or (delta < 0 and qty < 0):
+                new_avg = (abs(qty) * avg + abs(delta) * price) / abs(new_qty)
             else:
-                # Weighted average of premiums collected across all short entries
-                new_avg = (abs(qty) * avg + req.quantity * price) / abs(new_qty)
-                sb.table("positions").update({
-                    "quantity": new_qty,
-                    "avg_cost": round(new_avg, 4),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", pos["id"]).execute()
+                new_avg = avg   # partial close — basis unchanged
+
+            sb.table("positions").update({
+                "quantity": new_qty,
+                "avg_cost": round(new_avg, 4),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", pos["id"]).execute()
     else:
-        qty = req.quantity if req.action.lower() == "buy" else -req.quantity
-        # Strategy metadata stored on first open — drives P&L monitoring
+        # No existing position — create it.
         sb.table("positions").insert({
             "user_id": user_id,
             "symbol": req.symbol.upper(),
             "expiry": req.expiry,
             "strike": req.strike,
             "option_type": req.option_type.lower(),
-            "quantity": qty,
+            "quantity": delta,
             "avg_cost": price,
             "strategy_key": req.strategy_key,
             "strategy_name": req.strategy_name,
