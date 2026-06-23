@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getRollAdvisor, RollAdvisorResponse, getQuote } from '../api/client'
-import { useEntitlements } from '../context/EntitlementsContext'
+import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getQuote } from '../api/client'
 
 const C = {
   bg: '#0f1117',
@@ -104,65 +103,6 @@ function CloseInstructions({ pos }: { pos: PositionRisk }) {
         <li>Set Action to <strong style={{ color: closeAction === 'SELL' ? C.red : C.green }}>{closeAction}</strong> · Quantity <strong>{qty}</strong></li>
         <li>Confirm the order. This position will disappear once filled.</li>
       </ol>
-    </div>
-  )
-}
-
-function RollAdvisorPanel({ suggestions, summary }: RollAdvisorResponse) {
-  const urgencyColor = (u: string) => {
-    if (u === 'HIGH') return C.red
-    if (u === 'MEDIUM') return C.yellow
-    return C.green
-  }
-  return (
-    <div style={{
-      background: '#0d1a2d',
-      border: `1px solid #3b82f644`,
-      borderRadius: '8px',
-      padding: '12px 14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      marginTop: '6px',
-    }}>
-      <div style={{ fontSize: '10px', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        Roll / Adjustment Suggestions
-      </div>
-      {suggestions.map((s, i) => (
-        <div key={i} style={{
-          background: '#0f1117',
-          border: `1px solid ${urgencyColor(s.urgency)}33`,
-          borderLeft: `3px solid ${urgencyColor(s.urgency)}`,
-          borderRadius: '6px',
-          padding: '8px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{s.action}</span>
-            <span style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              color: urgencyColor(s.urgency),
-              background: `${urgencyColor(s.urgency)}22`,
-              border: `1px solid ${urgencyColor(s.urgency)}44`,
-              borderRadius: '3px',
-              padding: '1px 5px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}>
-              {s.urgency}
-            </span>
-          </div>
-          <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.55 }}>{s.rationale}</div>
-        </div>
-      ))}
-      {summary && (
-        <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.6, borderTop: `1px solid ${C.border}`, paddingTop: '8px' }}>
-          {summary}
-        </div>
-      )}
     </div>
   )
 }
@@ -450,19 +390,13 @@ function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: Positi
   )
 }
 
-function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSessionClick }: {
+function PositionCard({ pos, stockPrice, isInGroup }: {
   pos: PositionRisk
   stockPrice?: number
-  rollAdvisorEnabled: boolean
-  sessionClicks: number
-  onSessionClick: () => void
+  isInGroup?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [actionPlanOpen, setActionPlanOpen] = useState(false)
-  const [rollData, setRollData] = useState<RollAdvisorResponse | null>(null)
-  const [rollLoading, setRollLoading] = useState(false)
-  const [rollError, setRollError] = useState<string | null>(null)
-  const [rollOpen, setRollOpen] = useState(false)
   const isLosing = pos.pnl < 0
 
   const borderColor = riskColor(pos.risk_level)
@@ -480,28 +414,7 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
   const greenSignals = pos.signals.filter(s => s.level === 'green')
   const urgentSignals = [...redSignals, ...yellowSignals]
 
-  const isUrgent = pos.risk_level === 'red' || pos.risk_level === 'yellow'
-  const sessionCapped = sessionClicks >= 5
 
-  const handleRollAdvisor = async () => {
-    if (rollOpen) { setRollOpen(false); return }
-    if (rollData) { setRollOpen(true); return }
-    onSessionClick()
-    setRollOpen(true)
-    setRollLoading(true)
-    setRollError(null)
-    try {
-      const posId = `${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}`
-      const result = await getRollAdvisor(posId)
-      setRollData(result)
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } }
-      setRollError(err?.response?.data?.detail || 'Could not load suggestions.')
-      setRollOpen(false)
-    } finally {
-      setRollLoading(false)
-    }
-  }
 
   return (
     <div style={{ background: bgColor, border: `1px solid ${borderColor}44`, borderLeft: `3px solid ${borderColor}`, borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -519,24 +432,6 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {isLosing && (
-            <button
-              onClick={() => setActionPlanOpen(o => !o)}
-              style={{
-                background: actionPlanOpen ? '#1c1800' : 'transparent',
-                border: `1px solid ${C.yellow}66`,
-                borderRadius: '5px',
-                color: C.yellow,
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '3px 10px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              ⚠ {actionPlanOpen ? 'Hide' : 'Action Plan'}
-            </button>
-          )}
           <span style={{ fontSize: '11px', fontWeight: 700, color: borderColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{riskLabel(pos.risk_level)}</span>
           <button onClick={() => setExpanded(e => !e)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}>{expanded ? '▲' : '▼'}</button>
         </div>
@@ -555,56 +450,37 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
       {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
 
-      {/* Action Plan — defensive narrative for losing positions */}
-      {actionPlanOpen && (
+      {/* Action Plan button — only for single/manual positions (not individual legs inside a strategy group) */}
+      {!isInGroup && isLosing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setActionPlanOpen(o => !o)}
+            style={{
+              background: actionPlanOpen ? '#1c1800' : 'transparent',
+              border: `1px solid ${C.yellow}66`,
+              borderRadius: '6px',
+              color: C.yellow,
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '5px 12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
+          >
+            <span>⚠</span>
+            {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
+          </button>
+        </div>
+      )}
+
+      {/* Action Plan panel */}
+      {!isInGroup && actionPlanOpen && (
         <div style={{ borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
           <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
         </div>
       )}
-
-      {/* E5 — Roll / Adjustment Advisor (red or yellow positions only) */}
-      {isUrgent && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {rollAdvisorEnabled ? (
-            <button
-              onClick={handleRollAdvisor}
-              disabled={rollLoading || (sessionCapped && !rollOpen && !rollData)}
-              title={sessionCapped && !rollData ? 'Session limit reached (5 uses)' : undefined}
-              style={{
-                background: rollOpen ? `#3b82f622` : 'transparent',
-                border: `1px solid #3b82f666`,
-                borderRadius: '6px',
-                color: '#3b82f6',
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: (rollLoading || (sessionCapped && !rollOpen && !rollData)) ? 'not-allowed' : 'pointer',
-                opacity: (sessionCapped && !rollOpen && !rollData) ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              <span style={{ fontSize: '13px' }}>⚙</span>
-              {rollLoading ? 'Fetching suggestions…' : rollOpen ? 'Hide suggestions' : 'Suggest adjustment'}
-            </button>
-          ) : (
-            <span
-              title="Requires Pro"
-              style={{ fontSize: '12px', color: C.muted, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'default' }}
-            >
-              🔒 <span>Suggest adjustment — Requires Pro</span>
-            </span>
-          )}
-          {rollAdvisorEnabled && sessionCapped && !rollData && (
-            <span style={{ fontSize: '11px', color: C.muted }}>Session limit reached</span>
-          )}
-        </div>
-      )}
-      {rollError && (
-        <div style={{ fontSize: '12px', color: C.red }}>{rollError}</div>
-      )}
-      {rollOpen && rollData && <RollAdvisorPanel suggestions={rollData.suggestions} summary={rollData.summary} />}
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -667,15 +543,9 @@ function NarrativePanel({ narrative }: { narrative: Record<string, unknown> }) {
 function StrategyGroupCard({
   group,
   stockPrices,
-  rollAdvisorEnabled,
-  sessionClicks,
-  onSessionClick,
 }: {
   group: StrategyGroup
   stockPrices: Record<string, number>
-  rollAdvisorEnabled: boolean
-  sessionClicks: number
-  onSessionClick: () => void
 }) {
   const [narrativeOpen, setNarrativeOpen] = useState(false)
   const [actionPlanOpen, setActionPlanOpen] = useState(false)
@@ -792,9 +662,7 @@ function StrategyGroupCard({
             key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
             pos={pos}
             stockPrice={stockPrices[pos.symbol]}
-            rollAdvisorEnabled={rollAdvisorEnabled}
-            sessionClicks={sessionClicks}
-            onSessionClick={onSessionClick}
+            isInGroup={!isUngrouped}
           />
         ))}
       </div>
@@ -810,7 +678,6 @@ function StrategyGroupCard({
 }
 
 export default function RiskMonitor() {
-  const { entitlements } = useEntitlements()
   const [data, setData] = useState<PositionRisk[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -821,10 +688,6 @@ export default function RiskMonitor() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [stockPrices, setStockPrices] = useState<Record<string, number>>({})
-  // E5: session-level roll advisor click counter (max 5)
-  const [rollSessionClicks, setRollSessionClicks] = useState(0)
-
-  const rollAdvisorEnabled = entitlements?.features?.roll_advisor ?? false
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
@@ -945,9 +808,6 @@ export default function RiskMonitor() {
             key={group.key}
             group={group}
             stockPrices={stockPrices}
-            rollAdvisorEnabled={rollAdvisorEnabled}
-            sessionClicks={rollSessionClicks}
-            onSessionClick={() => setRollSessionClicks(n => n + 1)}
           />
         ))}
         {!loading && data.length > 0 && aiEnabled && (
