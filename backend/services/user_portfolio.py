@@ -100,6 +100,11 @@ def place_order(user_id: str, req: OrderRequest) -> Order:
     )
 
 
+def _strategy_group(key) -> str:
+    """Normalise strategy key for position-matching. Manual and legacy None rows share one group."""
+    return "manual" if key in (None, "manual") else key
+
+
 def _update_position(sb, user_id: str, req, price: float):
     existing = sb.table("positions").select("*")\
         .eq("user_id", user_id)\
@@ -109,12 +114,18 @@ def _update_position(sb, user_id: str, req, price: float):
         .eq("option_type", req.option_type.lower())\
         .execute()
 
+    # Only merge into a row whose strategy group matches this trade.
+    # Manual trades (strategy_key='manual'/None) never touch strategy-linked rows
+    # and vice-versa, so each strategy's position is tracked independently.
+    req_group = _strategy_group(req.strategy_key)
+    matched = [p for p in (existing.data or []) if _strategy_group(p.get("strategy_key")) == req_group]
+
     # Signed delta: buy increases qty, sell decreases it.
     is_buy = req.action.lower() == "buy"
     delta = req.quantity if is_buy else -req.quantity
 
-    if existing.data:
-        pos = existing.data[0]
+    if matched:
+        pos = matched[0]
         qty = pos["quantity"]        # signed: positive=long, negative=short
         avg = float(pos["avg_cost"])
         new_qty = qty + delta
@@ -138,7 +149,7 @@ def _update_position(sb, user_id: str, req, price: float):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", pos["id"]).execute()
     else:
-        # No existing position — create it.
+        # No matching position for this strategy group — create a new row.
         sb.table("positions").insert({
             "user_id": user_id,
             "symbol": req.symbol.upper(),
