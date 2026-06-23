@@ -458,10 +458,12 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
   onSessionClick: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [actionPlanOpen, setActionPlanOpen] = useState(false)
   const [rollData, setRollData] = useState<RollAdvisorResponse | null>(null)
   const [rollLoading, setRollLoading] = useState(false)
   const [rollError, setRollError] = useState<string | null>(null)
   const [rollOpen, setRollOpen] = useState(false)
+  const isLosing = pos.pnl < 0
 
   const borderColor = riskColor(pos.risk_level)
   const bgColor = riskBg(pos.risk_level)
@@ -517,6 +519,24 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {isLosing && (
+            <button
+              onClick={() => setActionPlanOpen(o => !o)}
+              style={{
+                background: actionPlanOpen ? '#1c1800' : 'transparent',
+                border: `1px solid ${C.yellow}66`,
+                borderRadius: '5px',
+                color: C.yellow,
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '3px 10px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ⚠ {actionPlanOpen ? 'Hide' : 'Action Plan'}
+            </button>
+          )}
           <span style={{ fontSize: '11px', fontWeight: 700, color: borderColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{riskLabel(pos.risk_level)}</span>
           <button onClick={() => setExpanded(e => !e)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}>{expanded ? '▲' : '▼'}</button>
         </div>
@@ -534,6 +554,13 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
       </div>
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
       {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
+
+      {/* Action Plan — defensive narrative for losing positions */}
+      {actionPlanOpen && (
+        <div style={{ borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
+          <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
+        </div>
+      )}
 
       {/* E5 — Roll / Adjustment Advisor (red or yellow positions only) */}
       {isUrgent && (
@@ -588,7 +615,6 @@ function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSe
             <span>Current price: ${fmt(pos.current_price)}</span>
             {pos.iv_environment && <span>IV environment: {pos.iv_environment}</span>}
           </div>
-          <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
           {(pos.risk_level === 'red' || pos.risk_level === 'yellow') && <CloseInstructions pos={pos} />}
         </div>
       )}
@@ -652,12 +678,14 @@ function StrategyGroupCard({
   onSessionClick: () => void
 }) {
   const [narrativeOpen, setNarrativeOpen] = useState(false)
+  const [actionPlanOpen, setActionPlanOpen] = useState(false)
 
   const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
   const worstLevel = group.positions.reduce<'green' | 'yellow' | 'red'>((worst, p) => {
     return riskRank[p.risk_level] < riskRank[worst] ? p.risk_level : worst
   }, 'green')
   const combinedPnl = group.positions.reduce((sum, p) => sum + p.pnl, 0)
+  const isGroupLosing = combinedPnl < 0
   const legCount = group.positions.length
   const hasNarrative = !!group.narrative
 
@@ -706,7 +734,25 @@ function StrategyGroupCard({
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            {group.positions.length > 1 && isGroupLosing && (
+              <button
+                onClick={() => setActionPlanOpen(o => !o)}
+                style={{
+                  background: actionPlanOpen ? '#1c1800' : 'transparent',
+                  border: `1px solid ${C.yellow}66`,
+                  borderRadius: '5px',
+                  color: C.yellow,
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap' as const,
+                }}
+              >
+                ⚠ {actionPlanOpen ? 'Hide' : 'Action Plan'}
+              </button>
+            )}
             {hasNarrative && (
               <button
                 onClick={() => setNarrativeOpen(o => !o)}
@@ -753,9 +799,9 @@ function StrategyGroupCard({
         ))}
       </div>
 
-      {/* Multi-leg defensive narrative — below all cards, driven by combined P&L */}
-      {!isUngrouped && group.positions.length > 1 && (
-        <div style={{ paddingLeft: '12px' }}>
+      {/* Multi-leg Action Plan — shown when button toggled and combined P&L < 0 */}
+      {!isUngrouped && actionPlanOpen && group.positions.length > 1 && (
+        <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
           <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
         </div>
       )}
