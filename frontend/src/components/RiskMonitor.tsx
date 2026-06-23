@@ -448,9 +448,8 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
         <div style={{ flex: 1, minWidth: '140px' }}><ProgressBar pct={pos.pnl_pct} target={pos.profit_target_pct} level={pos.risk_level} /></div>
       </div>
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
-      {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
 
-      {/* Action Plan button — only for single/manual positions (not individual legs inside a strategy group) */}
+      {/* Action Plan button — above close instructions so it stays visible on mobile */}
       {!isInGroup && isLosing && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
@@ -482,6 +481,8 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
         </div>
       )}
 
+      {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
+
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {greenSignals.map((s, i) => <SignalRow key={i} signal={s} />)}
@@ -491,7 +492,6 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
             <span>Current price: ${fmt(pos.current_price)}</span>
             {pos.iv_environment && <span>IV environment: {pos.iv_environment}</span>}
           </div>
-          {(pos.risk_level === 'red' || pos.risk_level === 'yellow') && <CloseInstructions pos={pos} />}
         </div>
       )}
     </div>
