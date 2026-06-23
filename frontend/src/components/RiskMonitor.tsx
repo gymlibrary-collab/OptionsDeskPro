@@ -571,35 +571,19 @@ export default function RiskMonitor() {
 
       {/* Summary stat panels */}
       {!loading && data.length > 0 && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ flex: 1, minWidth: '120px', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Portfolio P&L</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: totalPnl >= 0 ? C.green : C.red }}>
-              {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 16px', borderBottom: `1px solid ${C.border}` }}>
+          {([
+            { label: 'Portfolio P&L', value: `${totalPnl >= 0 ? '+' : ''}$${fmt(totalPnl)}`, color: totalPnl >= 0 ? C.green : C.red, bg: C.surface2, border: C.border },
+            { label: 'Positions', value: String(data.length), color: C.text, bg: C.surface2, border: C.border },
+            { label: '🔴 High Risk', value: String(redCount), color: redCount > 0 ? C.red : C.muted, bg: redCount > 0 ? '#2d0a0a' : C.surface2, border: redCount > 0 ? C.red + '33' : C.border },
+            { label: '🟡 Watch', value: String(yellowCount), color: yellowCount > 0 ? C.yellow : C.muted, bg: yellowCount > 0 ? '#2a2000' : C.surface2, border: yellowCount > 0 ? C.yellow + '33' : C.border },
+            { label: '🟢 In the money', value: String(greenCount), color: greenCount > 0 ? C.green : C.muted, bg: greenCount > 0 ? '#0a2d14' : C.surface2, border: greenCount > 0 ? C.green + '33' : C.border },
+          ] as const).map(p => (
+            <div key={p.label} style={{ flex: 1, minWidth: '90px', background: p.bg, border: `1px solid ${p.border}`, borderRadius: '6px', padding: '6px 10px' }}>
+              <div style={{ fontSize: '9px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '2px', whiteSpace: 'nowrap' }}>{p.label}</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: p.color }}>{p.value}</div>
             </div>
-          </div>
-          <div style={{ flex: 1, minWidth: '100px', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Positions</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: C.text }}>{data.length}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: '100px', background: redCount > 0 ? '#2d0a0a' : C.surface2, border: `1px solid ${redCount > 0 ? C.red + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: redCount > 0 ? C.red : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {redCount > 0 && <span>🔴</span>} High Risk
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: redCount > 0 ? C.red : C.muted }}>{redCount}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: '100px', background: yellowCount > 0 ? '#2a2000' : C.surface2, border: `1px solid ${yellowCount > 0 ? C.yellow + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: yellowCount > 0 ? C.yellow : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {yellowCount > 0 && <span>🟡</span>} Watch
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: yellowCount > 0 ? C.yellow : C.muted }}>{yellowCount}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: '120px', background: greenCount > 0 ? '#0a2d14' : C.surface2, border: `1px solid ${greenCount > 0 ? C.green + '44' : C.border}`, borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: greenCount > 0 ? C.green : C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {greenCount > 0 && <span>🟢</span>} In the money
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: greenCount > 0 ? C.green : C.muted }}>{greenCount}</div>
-          </div>
+          ))}
         </div>
       )}
 
