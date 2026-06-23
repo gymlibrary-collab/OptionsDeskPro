@@ -225,7 +225,7 @@ function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }
             <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{pos.symbol}</span>
             <ActionBadge action={entryAction} />
             <TypeBadge type={pos.option_type} />
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>${fmt(pos.strike, 0)} · {pos.expiry}</span>
+            <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {pos.expiry}</span>
             {pos.strategy_name && <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>{pos.strategy_name}</span>}
           </div>
           <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>
