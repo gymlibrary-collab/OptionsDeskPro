@@ -180,7 +180,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           to check each symbol manually.
         </P>
         <Sub>
-          <Term term="IVR (IV Rank)">Where today's implied volatility sits relative to the past 52 weeks, on a 0–100 scale. IVR 80 means options are more expensive than 80% of all days in the past year. Higher = better for sellers.</Term>
+          <Term term="IVR (IV Rank)">Where today's implied volatility sits relative to the past 52 weeks, on a 0–100 scale. IVR 80 means options are more expensive than 80% of all days in the past year. Higher = better for sellers. The coloured dot next to the IVR bar shows the data source — <strong style={{color:'#38bdf8'}}>blue</strong> or <strong style={{color:'#34d399'}}>teal</strong> dots mean the IVR comes from a primary real-time feed (most reliable); <strong style={{color:'#facc15'}}>yellow</strong> means the IVR is approximated from the live options chain (secondary); <strong style={{color:'#9ca3af'}}>grey</strong> means it is estimated from historical volatility only (weakest signal). <strong>If the dot is not blue or teal, trade with caution — the IV rank is an approximation and may not reflect true market conditions.</strong></Term>
           <Term term="Current IV">The annualised implied volatility of the at-the-money option, expressed as a percentage.</Term>
           <Term term="IV Environment">HIGH (IVR &gt; 50), MEDIUM, or LOW — determines whether to favour selling or buying strategies.</Term>
           <Term term="Bias">The directional signal based on RSI and moving averages: BULLISH, BEARISH, NEUTRAL, NEUTRAL_BULLISH, or NEUTRAL_BEARISH.</Term>
