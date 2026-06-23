@@ -199,7 +199,7 @@ function LegsTable({ legs }: { legs: TradeLeg[] }) {
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
       <thead>
         <tr>
-          {['Role', 'Type', 'Qty', 'Strike', 'Delta', 'Bid', 'Ask', 'Mid', 'Action'].map(h => (
+          {['Role', 'Action', 'Type', 'Qty', 'Strike', 'Delta', 'Bid', 'Ask', 'Mid'].map(h => (
             <th key={h} style={{
               textAlign: 'left', padding: '5px 8px', color: C.muted, fontWeight: 600,
               fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -215,6 +215,17 @@ function LegsTable({ legs }: { legs: TradeLeg[] }) {
           return (
             <tr key={i} style={{ borderBottom: `1px solid ${C.border}22` }}>
               <td style={{ padding: '5px 8px', color: C.muted, fontSize: '11px' }}>{leg.role.replace(/ [12]$/, '')}</td>
+              <td style={{ padding: '5px 8px' }}>
+                <span style={{
+                  background: isBuy ? '#0f2d1a' : '#2d0f0f',
+                  color: isBuy ? C.green : C.red,
+                  border: `1px solid ${isBuy ? C.green : C.red}44`,
+                  borderRadius: '3px', padding: '1px 6px',
+                  fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                }}>
+                  {leg.action}
+                </span>
+              </td>
               <td style={{ padding: '5px 8px', color: leg.option_type === 'call' ? C.blue : leg.option_type === 'put' ? C.purple : C.muted, fontWeight: 600, textTransform: 'uppercase', fontSize: '11px' }}>
                 {leg.option_type}
               </td>
@@ -235,17 +246,6 @@ function LegsTable({ legs }: { legs: TradeLeg[] }) {
               </td>
               <td style={{ padding: '5px 8px', fontVariantNumeric: 'tabular-nums', color: C.text, fontWeight: 600 }}>
                 {`$${fmt(leg.mid)}`}
-              </td>
-              <td style={{ padding: '5px 8px' }}>
-                <span style={{
-                  background: isBuy ? '#0f2d1a' : '#2d0f0f',
-                  color: isBuy ? C.green : C.red,
-                  border: `1px solid ${isBuy ? C.green : C.red}44`,
-                  borderRadius: '3px', padding: '1px 6px',
-                  fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-                }}>
-                  {leg.action}
-                </span>
               </td>
             </tr>
           )

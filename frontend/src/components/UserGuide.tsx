@@ -188,12 +188,11 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Condition Matches">The number of strategies where <em>both</em> IV environment and directional bias align. This is the only actionable number — <strong>do not deploy any strategy when matches = 0.</strong></Term>
         </Sub>
         <Note color='#b45309'>
-          <strong>Why can IV-Fit be 6 while Condition Matches is 0?</strong> The two columns count different things.
-          IV-Fit asks only: <em>"does this IV level work for this strategy?"</em> — so 6 strategies may suit a LOW or MEDIUM IV environment.
-          Condition Matches then adds the directional gate: <em>"does the market bias also align?"</em> — if those 6 strategies all require a BULLISH or BEARISH conviction
-          but the current bias is NEUTRAL, none pass and matches = 0.
-          In plain terms: the volatility environment is suitable but the market is giving no clear directional edge right now.
-          <strong>0 matches is a "wait" signal</strong> — wait for the bias to resolve, or scan a different symbol where both gates are satisfied.
+          <strong>Two sequential gates — not one.</strong> The 31 strategies are spread across IV environments by design.
+          Gate 1 (IV environment) already shrinks the pool significantly: HIGH IV → ~27 strategies, MEDIUM IV → ~6, LOW IV → ~10.
+          You will never see all 31 in the IV-fit column because strategies designed for selling premium in high-IV markets are irrelevant when IV is low, and vice versa.
+          Gate 2 (directional bias) then filters that smaller pool. For MEDIUM IV + NEUTRAL bias, only 6 strategies pass gate 1 and all 6 require a directional conviction — so gate 2 gives 0 matches.
+          <strong>0 matches is a "wait" signal</strong> — the volatility is suitable but the market is giving no clear directional edge. Wait for the bias to resolve, or scan a symbol with a cleaner setup.
         </Note>
         <P>
           Click <strong>Analyze</strong> on any row to run a full deep-dive analysis on that symbol, including
