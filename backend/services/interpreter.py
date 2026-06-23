@@ -728,13 +728,21 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
             )
         if max_loss_dollars > 0:
             max_profit_trade = trade.get("max_profit")
-            max_reward = (max_profit_trade * 100) if max_profit_trade is not None else abs(net) * 100
-            ratio = max_reward / max_loss_dollars
-            loss_frame += (
-                f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
-                f"${max_reward:.0f} — a {ratio:.1f}:1 risk/reward ratio. "
-                f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
-            )
+            if max_profit_trade is not None:
+                max_reward = max_profit_trade * 100
+                ratio = max_reward / max_loss_dollars
+                loss_frame += (
+                    f"\n\nTo put it in risk/reward terms: you're risking ${max_loss_dollars:.0f} to make up to "
+                    f"${max_reward:.0f} — a {ratio:.1f}:1 risk/reward ratio. "
+                    f"The high probability of profit (from the delta positioning) is what makes this asymmetry acceptable."
+                )
+            else:
+                loss_frame += (
+                    f"\n\nIn risk/reward terms: your maximum loss is capped at ${max_loss_dollars:.0f}, "
+                    f"but your upside is theoretically unlimited — the further {symbol} moves in your favour, "
+                    f"the more this trade makes. There is no ceiling on reward, which means the risk/reward "
+                    f"improves the more the stock moves your way."
+                )
     else:
         loss_frame = (
             f"This is an undefined-risk trade, which means there is no hard ceiling on losses. "
@@ -873,11 +881,27 @@ def _defensive_tactic(strategy_key: str) -> str:
             "The put spread on the downside is defined-risk and self-contained. "
             "Focus your management attention on the naked call leg, as that's where the undefined risk lives."
         ),
+        "call_zebra": (
+            "The ZEBRA has unlimited upside, so there is no fixed 'max profit' to target a percentage of. "
+            "Instead, set a personal monetary target before you enter — a common approach is to close when the position has doubled in value. "
+            "If the stock moves against you, the structure's defined risk means the most you can lose is the net debit paid — "
+            "close if the position loses 50% of what you paid rather than riding to max loss. "
+            "Apply the 21 DTE rule: close or roll at 21 days to expiration regardless of P&L, "
+            "as gamma risk accelerates sharply and can erode gains quickly in the final three weeks."
+        ),
+        "put_zebra": (
+            "The put ZEBRA has unlimited downside profit potential, so there is no fixed 'max profit' to target a percentage of. "
+            "Set a personal monetary target before you enter — a common approach is to close when the position has doubled in value. "
+            "If the stock moves against you (rallies), the defined-risk structure caps your loss at the net debit paid — "
+            "close if the position loses 50% of what you paid rather than riding to max loss. "
+            "Apply the 21 DTE rule: close or roll at 21 days to expiration regardless of P&L."
+        ),
     }
     generic = (
         "Monitor the position daily as expiration approaches. "
         "The established options education methodology for management is: "
-        "(1) Close at 50% of max profit — take the win early and redeploy. "
+        "(1) Close at your profit target — for capped-profit strategies, that is typically 50% of max profit; "
+        "for unlimited-upside structures, set a personal monetary target such as doubling the position value. "
         "(2) Close at 21 DTE regardless of P&L — avoid the accelerated gamma risk in the final three weeks. "
         "(3) Use the 2× credit rule for undefined-risk positions — if you're down 2× what you collected, close without exception. "
         "Rolling (closing the current position and reopening at a later date) is a valid technique when you can do so for a credit, "
