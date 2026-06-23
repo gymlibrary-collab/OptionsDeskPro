@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse, updatePositionAvgCost } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
+import { useWindowSize } from '../hooks/useWindowSize'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -293,6 +294,306 @@ function PortfolioGreeksStrip({ entitledToCoaching }: { entitledToCoaching: bool
   )
 }
 
+interface RecordTradeFormProps {
+  onSuccess: () => void
+}
+
+function RecordTradeForm({ onSuccess }: RecordTradeFormProps) {
+  const { isMobile } = useWindowSize()
+  const [open, setOpen] = useState(false)
+  const [symbol, setSymbol] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [strike, setStrike] = useState('')
+  const [optionType, setOptionType] = useState<'call' | 'put'>('call')
+  const [action, setAction] = useState<'buy' | 'sell'>('buy')
+  const [qty, setQty] = useState('1')
+  const [price, setPrice] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const resetForm = () => {
+    setSymbol('')
+    setExpiry('')
+    setStrike('')
+    setOptionType('call')
+    setAction('buy')
+    setQty('1')
+    setPrice('')
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    resetForm()
+    setOpen(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    const strikeNum = parseFloat(strike)
+    const priceNum = parseFloat(price)
+    const qtyNum = parseInt(qty, 10)
+
+    if (!symbol.trim()) { setError('Symbol is required.'); return }
+    if (!expiry) { setError('Expiry date is required.'); return }
+    if (isNaN(strikeNum) || strikeNum <= 0) { setError('Strike must be a positive number.'); return }
+    if (isNaN(qtyNum) || qtyNum < 1) { setError('Quantity must be a positive integer.'); return }
+    if (isNaN(priceNum) || priceNum < 0) { setError('Price must be a non-negative number.'); return }
+
+    setSubmitting(true)
+    try {
+      await recordTrade({
+        symbol: symbol.trim().toUpperCase(),
+        strategy_key: 'manual',
+        strategy_name: 'Manual',
+        expiry,
+        profit_target_pct: 50,
+        legs: [{
+          role: 'open',
+          option_type: optionType,
+          strike: strikeNum,
+          action,
+          quantity: qtyNum,
+          price: priceNum,
+        }],
+      })
+      resetForm()
+      setOpen(false)
+      onSuccess()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      setError(err?.response?.data?.detail || err?.message || 'Failed to record trade.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const toggleStyle = (active: boolean, color: string): React.CSSProperties => ({
+    padding: '5px 14px',
+    borderRadius: '4px',
+    border: `1px solid ${active ? color : C.border}`,
+    background: active ? `${color}22` : 'transparent',
+    color: active ? color : C.muted,
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    letterSpacing: '0.04em',
+    transition: 'all 0.15s',
+  })
+
+  const inputStyle: React.CSSProperties = {
+    background: '#252836',
+    border: `1px solid ${C.border}`,
+    borderRadius: '5px',
+    color: C.text,
+    fontSize: '13px',
+    padding: '6px 9px',
+    outline: 'none',
+    width: '100%',
+    fontVariantNumeric: 'tabular-nums',
+    boxSizing: 'border-box',
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    minWidth: isMobile ? '100%' : undefined,
+    flex: '1 1 auto',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '10px',
+    fontWeight: 700,
+    color: C.muted,
+    textTransform: 'uppercase',
+    letterSpacing: '0.07em',
+  }
+
+  return (
+    <div>
+      {/* Header row: toggle button lives here, positioned to the right by the parent */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            background: 'transparent',
+            border: `1px solid ${C.accent}`,
+            borderRadius: '6px',
+            color: C.accent,
+            padding: '6px 14px',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            letterSpacing: '0.03em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + Record Trade
+        </button>
+      )}
+
+      {open && (
+        <div style={{
+          background: '#1a1d27',
+          border: `1px solid ${C.border}`,
+          borderRadius: '8px',
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: C.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Record Trade
+            </span>
+            <button
+              onClick={handleCancel}
+              disabled={submitting}
+              style={{ background: 'none', border: 'none', color: C.muted, cursor: submitting ? 'default' : 'pointer', fontSize: '12px', padding: '0', textDecoration: 'underline' }}
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+
+              {/* Symbol */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? '100%' : '80px', maxWidth: isMobile ? '100%' : '100px' }}>
+                <label style={labelStyle}>Symbol</label>
+                <input
+                  type="text"
+                  placeholder="QQQ"
+                  value={symbol}
+                  onChange={e => setSymbol(e.target.value.toUpperCase())}
+                  style={inputStyle}
+                  disabled={submitting}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                />
+              </div>
+
+              {/* Expiry */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? '100%' : '130px', maxWidth: isMobile ? '100%' : '150px' }}>
+                <label style={labelStyle}>Expiry</label>
+                <input
+                  type="date"
+                  value={expiry}
+                  onChange={e => setExpiry(e.target.value)}
+                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Strike */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : '90px', maxWidth: isMobile ? 'calc(50% - 5px)' : '110px' }}>
+                <label style={labelStyle}>Strike</label>
+                <input
+                  type="number"
+                  placeholder="450"
+                  min="0"
+                  step="0.5"
+                  value={strike}
+                  onChange={e => setStrike(e.target.value)}
+                  style={inputStyle}
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Qty */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : '60px', maxWidth: isMobile ? 'calc(50% - 5px)' : '80px' }}>
+                <label style={labelStyle}>Qty</label>
+                <input
+                  type="number"
+                  placeholder="1"
+                  min="1"
+                  step="1"
+                  value={qty}
+                  onChange={e => setQty(e.target.value)}
+                  style={inputStyle}
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Price */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : '80px', maxWidth: isMobile ? 'calc(50% - 5px)' : '100px' }}>
+                <label style={labelStyle}>Price / share</label>
+                <input
+                  type="number"
+                  placeholder="7.30"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={e => setPrice(e.target.value)}
+                  style={inputStyle}
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Type toggle */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : 'auto', flex: '0 0 auto' }}>
+                <label style={labelStyle}>Type</label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button type="button" onClick={() => setOptionType('call')} disabled={submitting} style={toggleStyle(optionType === 'call', '#3b82f6')}>CALL</button>
+                  <button type="button" onClick={() => setOptionType('put')} disabled={submitting} style={toggleStyle(optionType === 'put', '#a855f7')}>PUT</button>
+                </div>
+              </div>
+
+              {/* Action toggle */}
+              <div style={{ ...fieldStyle, minWidth: isMobile ? 'calc(50% - 5px)' : 'auto', flex: '0 0 auto' }}>
+                <label style={labelStyle}>Action</label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button type="button" onClick={() => setAction('buy')} disabled={submitting} style={toggleStyle(action === 'buy', C.green)}>BUY</button>
+                  <button type="button" onClick={() => setAction('sell')} disabled={submitting} style={toggleStyle(action === 'sell', C.red)}>SELL</button>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <div style={{ ...fieldStyle, flex: '0 0 auto', minWidth: isMobile ? '100%' : 'auto' }}>
+                <label style={{ ...labelStyle, visibility: 'hidden' }}>Submit</label>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    background: submitting ? C.border : C.accent,
+                    border: 'none',
+                    borderRadius: '5px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    padding: '6px 18px',
+                    cursor: submitting ? 'default' : 'pointer',
+                    opacity: submitting ? 0.7 : 1,
+                    whiteSpace: 'nowrap',
+                    width: isMobile ? '100%' : undefined,
+                  }}
+                >
+                  {submitting ? 'Recording…' : 'Record Trade'}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: '#2d0f0f',
+                border: `1px solid ${C.red}`,
+                color: C.red,
+                fontSize: '12px',
+              }}>
+                {error}
+              </div>
+            )}
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Positions() {
   const { entitlements } = useEntitlements()
   const [positions, setPositions] = useState<Position[]>([])
@@ -469,6 +770,14 @@ export default function Positions() {
       )}
 
       <AlertBanner alerts={alerts} />
+
+      {/* Positions header row: title + Record Trade */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Open Positions
+        </span>
+        <RecordTradeForm onSuccess={load} />
+      </div>
 
       {/* Summary cards + refresh */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
