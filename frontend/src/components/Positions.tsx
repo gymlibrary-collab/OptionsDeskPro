@@ -594,7 +594,7 @@ function RecordTradeForm({ onSuccess }: RecordTradeFormProps) {
   )
 }
 
-export default function Positions() {
+export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () => void }) {
   const { entitlements } = useEntitlements()
   const [positions, setPositions] = useState<Position[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
@@ -776,7 +776,7 @@ export default function Positions() {
         <span style={{ fontSize: '13px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
           Open Positions
         </span>
-        <RecordTradeForm onSuccess={load} />
+        <RecordTradeForm onSuccess={() => { load(); onTradeRecorded?.() }} />
       </div>
 
       {/* Summary cards + refresh */}
