@@ -690,15 +690,23 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
         option_type: pos.option_type,
         avg_cost: parsed,
       })
+      // Optimistic update — no need to reload live prices from yfinance
+      setPositions(prev => prev.map(p => {
+        if (p.symbol !== pos.symbol || p.expiry !== pos.expiry || p.strike !== pos.strike || p.option_type !== pos.option_type) return p
+        const isLong = (p.entry_action ?? (p.quantity > 0 ? 'buy' : 'sell')) === 'buy'
+        const newPnl = isLong
+          ? (p.current_price - parsed) * p.quantity * 100
+          : (parsed - p.current_price) * Math.abs(p.quantity) * 100
+        return { ...p, avg_cost: parsed, pnl: newPnl }
+      }))
       setEditingKey(null)
-      load()
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string }
       alert(err?.response?.data?.detail || err?.message || 'Failed to update price.')
     } finally {
       setEditSaving(false)
     }
-  }, [editValue, load])
+  }, [editValue])
 
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
