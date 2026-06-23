@@ -601,6 +601,7 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [closingPos, setClosingPos] = useState<Position | null>(null)
+  const [closeQty, setCloseQty] = useState<number>(1)
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
   const [stockPrices, setStockPrices] = useState<Record<string, Quote>>({})
@@ -639,6 +640,9 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
 
   const handleConfirmClose = useCallback(async () => {
     if (!closingPos) return
+    const maxQty = Math.abs(closingPos.quantity)
+    const qty = Math.min(Math.max(1, closeQty), maxQty)
+    const isPartial = qty < maxQty
     setCloseLoading(true)
     setCloseFeedback(null)
     const closeAction = closingPos.quantity > 0 ? 'sell' : 'buy'
@@ -646,7 +650,7 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
       await recordTrade({
         symbol: closingPos.symbol,
         strategy_key: closingPos.strategy_key || 'manual_close',
-        strategy_name: `Close: ${closingPos.strategy_name || 'Manual'}`,
+        strategy_name: `${isPartial ? 'Partial Close' : 'Close'}: ${closingPos.strategy_name || 'Manual'}`,
         expiry: closingPos.expiry,
         profit_target_pct: 0,
         legs: [{
@@ -654,11 +658,14 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
           option_type: closingPos.option_type,
           strike: closingPos.strike,
           action: closeAction,
-          quantity: Math.abs(closingPos.quantity),
+          quantity: qty,
           price: closingPos.current_price,
         }],
       })
-      setCloseFeedback({ success: true, msg: `Closed: ${closingPos.symbol} $${fmt(closingPos.strike)} ${closingPos.option_type.toUpperCase()}` })
+      const label = isPartial
+        ? `Partially closed ${qty}/${maxQty} contracts: ${closingPos.symbol} $${fmt(closingPos.strike)} ${closingPos.option_type.toUpperCase()}`
+        : `Closed: ${closingPos.symbol} $${fmt(closingPos.strike)} ${closingPos.option_type.toUpperCase()}`
+      setCloseFeedback({ success: true, msg: label })
       setClosingPos(null)
       load()
     } catch (e: any) {
@@ -666,7 +673,7 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
     } finally {
       setCloseLoading(false)
     }
-  }, [closingPos, load])
+  }, [closingPos, closeQty, load])
 
   const handleSaveAvgCost = useCallback(async (pos: Position) => {
     const parsed = parseFloat(editValue)
@@ -724,22 +731,53 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
               <strong style={{ color: closingPos.option_type === 'call' ? '#3b82f6' : '#a855f7' }}>{closingPos.option_type.toUpperCase()}</strong>{' '}
               expiring <strong>{closingPos.expiry}</strong>.
             </div>
-            <div style={{ background: '#252836', borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ background: '#252836', borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: C.muted }}>Closing action</span>
                 <strong style={{ color: closingPos.quantity > 0 ? C.red : C.green }}>
-                  {closingPos.quantity > 0 ? 'SELL' : 'BUY'} {Math.abs(closingPos.quantity)} contract{Math.abs(closingPos.quantity) > 1 ? 's' : ''}
+                  {closingPos.quantity > 0 ? 'SELL' : 'BUY'}
                 </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: C.muted }}>
+                  Qty to close
+                  <span style={{ color: C.muted, fontWeight: 400, marginLeft: '4px' }}>
+                    (max {Math.abs(closingPos.quantity)})
+                  </span>
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.abs(closingPos.quantity)}
+                    step={1}
+                    value={closeQty}
+                    onChange={e => setCloseQty(Math.max(1, Math.min(Math.abs(closingPos.quantity), parseInt(e.target.value) || 1)))}
+                    style={{
+                      width: '60px',
+                      background: '#1a1d27',
+                      border: `1px solid ${C.accent}`,
+                      borderRadius: '4px',
+                      color: C.text,
+                      fontSize: '13px',
+                      padding: '3px 7px',
+                      outline: 'none',
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  />
+                  {closeQty < Math.abs(closingPos.quantity) && (
+                    <span style={{ fontSize: '10px', color: C.amber, fontWeight: 700 }}>PARTIAL</span>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: C.muted }}>Close price (current)</span>
                 <strong style={{ color: C.text }}>${fmt(closingPos.current_price)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: C.muted }}>Realized P&L</span>
-                <strong style={{ color: closingPos.pnl >= 0 ? C.green : C.red }}>
-                  {closingPos.pnl >= 0 ? '+' : ''}${fmt(closingPos.pnl)}
-                </strong>
+                <span style={{ color: C.muted }}>Est. proceeds / cost</span>
+                <strong style={{ color: C.text }}>${fmt(closingPos.current_price * closeQty * 100)}</strong>
               </div>
             </div>
             {closeFeedback && !closeFeedback.success && (
@@ -988,7 +1026,7 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
                     <td style={styles.td}>{fmt(pos.delta, 3)}</td>
                     <td style={{ ...styles.td, padding: '6px 8px' }}>
                       <button
-                        onClick={() => { setCloseFeedback(null); setClosingPos(pos) }}
+                        onClick={() => { setCloseFeedback(null); setCloseQty(Math.abs(pos.quantity)); setClosingPos(pos) }}
                         style={{
                           padding: '4px 10px', borderRadius: '5px', border: `1px solid ${C.red}66`,
                           background: '#2d0f0f', color: C.red, fontSize: '11px', fontWeight: 700,
