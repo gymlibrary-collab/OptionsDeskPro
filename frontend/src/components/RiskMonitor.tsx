@@ -605,7 +605,7 @@ function StrategyGroupCard({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {group.positions.length > 1 && isGroupLosing && (
+            {isGroupLosing && (
               <button
                 onClick={() => setActionPlanOpen(o => !o)}
                 style={{
@@ -667,10 +667,13 @@ function StrategyGroupCard({
         ))}
       </div>
 
-      {/* Multi-leg Action Plan — shown when button toggled and combined P&L < 0 */}
-      {!isUngrouped && actionPlanOpen && group.positions.length > 1 && (
+      {/* Action Plan panel — single-leg uses individual narrative, multi-leg uses group narrative */}
+      {!isUngrouped && actionPlanOpen && (
         <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
-          <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
+          {group.positions.length === 1
+            ? <DefensiveNarrativeSingle pos={group.positions[0]} stockPrice={stockPrices[group.positions[0].symbol]} />
+            : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
+          }
         </div>
       )}
     </div>
