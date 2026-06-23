@@ -551,101 +551,84 @@ function StrategyGroupCard({
 
   const isUngrouped = group.key === '_ungrouped'
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {/* Strategy group header — only show for named strategies */}
-      {!isUngrouped && (
-        <div style={{
-          background: C.surface2,
-          border: `1px solid ${C.border}`,
-          borderLeft: `3px solid ${riskColor(worstLevel)}`,
-          borderRadius: '8px',
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flexWrap: 'wrap' as const,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{group.label}</span>
-              <span style={{
-                fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744',
-                color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600,
-              }}>
-                {legCount} leg{legCount !== 1 ? 's' : ''}
-              </span>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
-                {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
-              </span>
-              <span style={{
-                fontSize: '10px', fontWeight: 700,
-                color: riskColor(worstLevel),
-                background: riskBg(worstLevel),
-                border: `1px solid ${riskColor(worstLevel)}44`,
-                padding: '1px 7px', borderRadius: '8px',
-                textTransform: 'uppercase' as const,
-              }}>
-                {riskLabel(worstLevel)}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            {anyLegLosing && (
-              <button
-                onClick={() => setActionPlanOpen(o => !o)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.yellow, fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' as const }}
-              >
-                ⚠ {actionPlanOpen ? 'Hide' : 'Action Plan'}
-              </button>
-            )}
-            {hasNarrative && (
-              <button
-                onClick={() => setNarrativeOpen(o => !o)}
-                style={{
-                  background: narrativeOpen ? '#1a1440' : 'transparent',
-                  border: `1px solid ${C.accent}66`,
-                  borderRadius: '6px',
-                  color: C.accent,
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  whiteSpace: 'nowrap' as const,
-                }}
-              >
-                {narrativeOpen ? '▲' : '▼'} Trade Narrative
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Narrative panels */}
-      {!isUngrouped && narrativeOpen && group.narrative && (
-        <div style={{ paddingLeft: '12px' }}>
-          <NarrativePanel narrative={group.narrative} />
-        </div>
-      )}
-
-      {/* Individual leg cards */}
-      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px', paddingLeft: isUngrouped ? '0' : '12px' }}>
+  if (isUngrouped) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {sortedPositions.map((pos, i) => (
           <PositionCard
             key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
             pos={pos}
             stockPrice={stockPrices[pos.symbol]}
-            isInGroup={!isUngrouped}
+            isInGroup={false}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Named strategy group — wrapped in a perimeter with footer Action Plan
+  return (
+    <div style={{
+      border: `1px solid ${riskColor(worstLevel)}44`,
+      borderRadius: '10px',
+      overflow: 'hidden',
+    }}>
+      {/* Group header */}
+      <div style={{
+        background: C.surface2,
+        borderBottom: `1px solid ${C.border}`,
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        flexWrap: 'wrap' as const,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{group.label}</span>
+            <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>
+              {legCount} leg{legCount !== 1 ? 's' : ''}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
+              {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
+            </span>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: riskColor(worstLevel), background: riskBg(worstLevel), border: `1px solid ${riskColor(worstLevel)}44`, padding: '1px 7px', borderRadius: '8px', textTransform: 'uppercase' as const }}>
+              {riskLabel(worstLevel)}
+            </span>
+          </div>
+        </div>
+        {hasNarrative && (
+          <button
+            onClick={() => setNarrativeOpen(o => !o)}
+            style={{ background: narrativeOpen ? '#1a1440' : 'transparent', border: `1px solid ${C.accent}66`, borderRadius: '6px', color: C.accent, padding: '4px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' as const, flexShrink: 0 }}
+          >
+            {narrativeOpen ? '▲' : '▼'} Trade Narrative
+          </button>
+        )}
+      </div>
+
+      {/* Narrative panel */}
+      {narrativeOpen && group.narrative && (
+        <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
+          <NarrativePanel narrative={group.narrative} />
+        </div>
+      )}
+
+      {/* Leg cards */}
+      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px', padding: '8px' }}>
+        {sortedPositions.map((pos, i) => (
+          <PositionCard
+            key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+            pos={pos}
+            stockPrice={stockPrices[pos.symbol]}
+            isInGroup={true}
           />
         ))}
       </div>
 
-      {/* Action Plan panel */}
-      {!isUngrouped && actionPlanOpen && (
-        <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Action Plan panel — shown when toggled */}
+      {actionPlanOpen && (
+        <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {group.positions.length === 1 || !isGroupLosing
             ? group.positions.filter(p => p.pnl < 0).map((p, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -655,6 +638,23 @@ function StrategyGroupCard({
               ))
             : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
           }
+        </div>
+      )}
+
+      {/* Footer — amber left-border accent, Action Plan trigger bottom-left */}
+      {anyLegLosing && (
+        <div style={{
+          borderTop: `1px solid ${C.border}`,
+          borderLeft: `3px solid ${C.yellow}`,
+          background: '#151720',
+          padding: '8px 12px',
+        }}>
+          <button
+            onClick={() => setActionPlanOpen(o => !o)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.yellow, fontSize: '11px', fontWeight: 700 }}
+          >
+            ⚠ {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
+          </button>
         </div>
       )}
     </div>
