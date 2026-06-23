@@ -87,7 +87,11 @@ def _yfinance_chain(symbol: str, expiry: Optional[str] = None) -> Optional[dict]
             if expiry and expiry in expirations:
                 target = expiry
             else:
-                target = min(expirations, key=lambda e: abs((date.fromisoformat(e) - _goal).days))
+                # Prefer the closest expiry at or above the target DTE; only fall back to
+                # below-target if nothing qualifies — keeps chain fetch consistent with engine.
+                _exp_dates = sorted(expirations, key=lambda e: date.fromisoformat(e))
+                _at_or_above = [e for e in _exp_dates if date.fromisoformat(e) >= _goal]
+                target = _at_or_above[0] if _at_or_above else _exp_dates[-1]
 
             chain = ticker.option_chain(target)
 

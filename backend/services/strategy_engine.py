@@ -1024,22 +1024,25 @@ def _find_earnings_adjusted_expiry(expirations: list, dte_target: int, earnings_
 
 
 def _find_nearest_expiry(expirations: list, dte_target: int = 45) -> str | None:
-    """Find the expiration date closest to today + dte_target days."""
+    """Pick the closest expiry at or above today + dte_target; fall back to the
+    highest available below-target expiry.  Matches market_data.py chain-fetch
+    logic so both always resolve to the same date."""
     if not expirations:
         return None
     target = date.today() + timedelta(days=dte_target)
-    best = None
-    best_diff = None
+    valid = []
     for exp_str in expirations:
         try:
-            exp_date = date.fromisoformat(exp_str)
-            diff = abs((exp_date - target).days)
-            if best_diff is None or diff < best_diff:
-                best_diff = diff
-                best = exp_str
+            valid.append((date.fromisoformat(exp_str), exp_str))
         except ValueError:
             continue
-    return best
+    if not valid:
+        return None
+    valid.sort()
+    at_or_above = [(d, s) for d, s in valid if d >= target]
+    if at_or_above:
+        return at_or_above[0][1]   # closest at or above
+    return valid[-1][1]            # highest below target
 
 
 def _find_by_delta(contracts: list, target_delta: float, exclude_strikes: set | None = None) -> dict | None:
