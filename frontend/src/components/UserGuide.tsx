@@ -276,18 +276,21 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           Options Compass includes a paper trading system — trades are simulated with real market prices but no
           real money is at risk. Use it to practice strategy execution and track your P&amp;L.
         </P>
+        <P>There are three ways to record a trade:</P>
         <Sub>
           <P><strong>From the Options Chain:</strong> click any row to pre-fill the Order Entry panel (right sidebar on desktop, bottom drawer on mobile).</P>
-          <P><strong>From the Scanner:</strong> click <strong>Analyze</strong> on a symbol, then use the contract details from the narrative to fill in the Order Entry panel manually.</P>
+          <P><strong>From the Scanner:</strong> click <strong>Analyze</strong> on a symbol, review the AI narrative, then click <strong>Record Trade</strong> to log the recommended strategy legs in one step — strategy name, profit target, and narrative are saved automatically.</P>
+          <P><strong>Manual entry (Positions tab):</strong> click <strong>+ Record Trade</strong> at the top of the Positions tab to open a quick-entry form. Fill in Symbol, Expiry, Strike, Type, Action, Qty, and Price, then click <strong>Record</strong>. Use this for trades you've already placed in your real broker and want to track here, or for any single-leg position not covered by the scanner flow.</P>
         </Sub>
-        <P>In the Order Entry panel:</P>
+        <P>Fields in the manual entry form:</P>
         <Sub>
-          <Term term="Symbol">The ticker (e.g. SPY, AAPL).</Term>
-          <Term term="Expiry">The expiration date. Use the date recommended in the narrative.</Term>
+          <Term term="Symbol">The ticker (e.g. SPY, AAPL, QQQ). Automatically uppercased.</Term>
+          <Term term="Expiry">The expiration date in YYYY-MM-DD format.</Term>
           <Term term="Strike">The option strike price.</Term>
           <Term term="Type">Call or Put.</Term>
           <Term term="Action">Buy (you pay premium) or Sell (you collect premium).</Term>
-          <Term term="Quantity">Number of contracts. Each contract controls 100 shares.</Term>
+          <Term term="Qty">Number of contracts. Each contract controls 100 shares. Defaults to 1.</Term>
+          <Term term="Price">The fill price per share (e.g. 7.30 for a $730 total cost on 1 contract).</Term>
         </Sub>
         <Note color={C.green}>
           <strong>Always use limit orders in real trading</strong> — never market orders. The bid/ask spread on options
