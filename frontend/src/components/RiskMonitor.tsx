@@ -449,39 +449,24 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
       </div>
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
 
-      {/* Action Plan button — above close instructions so it stays visible on mobile */}
+      {/* Action Plan — plain text trigger, no pill border */}
       {!isInGroup && isLosing && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={() => setActionPlanOpen(o => !o)}
-            style={{
-              background: actionPlanOpen ? '#1c1800' : 'transparent',
-              border: `1px solid ${C.yellow}66`,
-              borderRadius: '6px',
-              color: C.yellow,
-              fontSize: '12px',
-              fontWeight: 700,
-              padding: '5px 12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            <span>⚠</span>
-            {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
-          </button>
-        </div>
+        <button
+          onClick={() => setActionPlanOpen(o => !o)}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: C.yellow, fontSize: '12px', fontWeight: 700 }}
+        >
+          <span>⚠</span>
+          {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
+        </button>
       )}
 
-      {/* Action Plan panel */}
+      {/* Action Plan panel — includes close instructions */}
       {!isInGroup && actionPlanOpen && (
-        <div style={{ borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px' }}>
+        <div style={{ borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
+          <CloseInstructions pos={pos} />
         </div>
       )}
-
-      {pos.risk_level === 'red' && <CloseInstructions pos={pos} />}
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -609,17 +594,7 @@ function StrategyGroupCard({
             {anyLegLosing && (
               <button
                 onClick={() => setActionPlanOpen(o => !o)}
-                style={{
-                  background: actionPlanOpen ? '#1c1800' : 'transparent',
-                  border: `1px solid ${C.yellow}66`,
-                  borderRadius: '5px',
-                  color: C.yellow,
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '3px 10px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap' as const,
-                }}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.yellow, fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' as const }}
               >
                 ⚠ {actionPlanOpen ? 'Hide' : 'Action Plan'}
               </button>
@@ -673,7 +648,10 @@ function StrategyGroupCard({
         <div style={{ paddingLeft: '12px', borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {group.positions.length === 1 || !isGroupLosing
             ? group.positions.filter(p => p.pnl < 0).map((p, i) => (
-                <DefensiveNarrativeSingle key={i} pos={p} stockPrice={stockPrices[p.symbol]} />
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <DefensiveNarrativeSingle pos={p} stockPrice={stockPrices[p.symbol]} />
+                  <CloseInstructions pos={p} />
+                </div>
               ))
             : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
           }
