@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getRollAdvisor, RollAdvisorResponse } from '../api/client'
+import React, { useEffect, useState, useCallback } from 'react'
+import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getRollAdvisor, RollAdvisorResponse, getQuote } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
 
 const C = {
@@ -167,8 +167,292 @@ function RollAdvisorPanel({ suggestions, summary }: RollAdvisorResponse) {
   )
 }
 
-function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }: {
+// ── Defensive Narrative ────────────────────────────────────────────────────────
+
+function SectionHeader({ label, color }: { label: string; color: string }) {
+  return (
+    <div style={{ fontSize: '10px', fontWeight: 700, color, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: '6px' }}>
+      {label}
+    </div>
+  )
+}
+
+function NarrativeBox({ bg, border, color, title, children }: { bg: string; border: string; color: string; title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: '6px', padding: '10px 12px' }}>
+      <SectionHeader label={title} color={color} />
+      <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.7 }}>{children}</div>
+    </div>
+  )
+}
+
+function SummaryBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ borderLeft: `3px solid ${C.yellow}`, background: '#1c1800', borderRadius: '0 6px 6px 0', padding: '10px 12px', fontSize: '12px', color: C.text, lineHeight: 1.7 }}>
+      {children}
+    </div>
+  )
+}
+
+function PathCard({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '8px 10px', marginBottom: '6px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: C.accent, marginBottom: '4px' }}>{label} — {title}</div>
+      <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>{children}</div>
+    </div>
+  )
+}
+
+function DefensiveNarrativeSingle({ pos, stockPrice }: { pos: PositionRisk; stockPrice?: number }) {
+  if (pos.pnl >= 0) return null
+
+  const entryAction = (pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
+  const isShort = entryAction === 'sell'
+  const qty = Math.abs(pos.quantity)
+  const isPut = pos.option_type.toLowerCase() === 'put'
+
+  if (isShort) {
+    const collected = pos.avg_cost * qty * 100
+    const costToClose = pos.current_price * qty * 100
+    const netLoss = costToClose - collected
+    const breakeven = isPut ? pos.strike - pos.avg_cost : pos.strike + pos.avg_cost
+    const stockAboveBreakeven = stockPrice != null ? (isPut ? stockPrice > breakeven : stockPrice < breakeven) : null
+    const assignCapital = pos.strike * qty * 100
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+        <NarrativeBox bg='#1a0a0a' border='#ef444433' color={C.red} title='Financial Reality'>
+          <p style={{ margin: '0 0 6px' }}>
+            You sold {qty} {pos.option_type} contract{qty !== 1 ? 's' : ''} at ${fmt(pos.avg_cost)} premium × 100 multiplier = <strong>${fmt(collected, 0)}</strong> collected upfront.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            The option is now worth ${fmt(pos.current_price)} per contract — buying it back today costs <strong>${fmt(costToClose, 0)}</strong>.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            Net result if you close right now: ${fmt(collected, 0)} collected − ${fmt(costToClose, 0)} to close = <strong style={{ color: C.red }}>−${fmt(netLoss, 0)} loss</strong>.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            Breakeven at expiry: ${fmt(pos.strike, 0)} strike {isPut ? '−' : '+'} ${fmt(pos.avg_cost)} premium = <strong>${fmt(breakeven)}</strong>.
+            The stock must stay <strong>{isPut ? 'above' : 'below'} ${fmt(breakeven)}</strong> for the option to expire worthless.
+          </p>
+          {stockPrice != null && (
+            <p style={{ margin: '0', color: stockAboveBreakeven ? C.green : C.yellow }}>
+              {pos.symbol} is currently at ${fmt(stockPrice)} — {stockAboveBreakeven
+                ? `above your ${isPut ? '' : 'ceiling '}breakeven of $${fmt(breakeven)}. The position is not yet in maximum-loss territory.`
+                : `${isPut ? 'below' : 'above'} your breakeven of $${fmt(breakeven)}. If it stays here until expiry, the full loss is realised.`}
+            </p>
+          )}
+        </NarrativeBox>
+
+        <div>
+          <SectionHeader label='Three Paths Forward' color={C.muted} />
+          {isPut ? (
+            <>
+              <PathCard label='A' title='Hold — accept assignment'>
+                If {pos.symbol} stays below ${fmt(pos.strike, 0)} at expiry, you buy {qty * 100} shares at ${fmt(pos.strike, 0)} — capital required: <strong>${fmt(assignCapital, 0)}</strong>. Your effective cost basis is ${fmt(breakeven)} (strike minus premium kept), not the strike. Only choose this if you are comfortable owning {pos.symbol} at that price.
+              </PathCard>
+              <PathCard label='B' title='Roll out in time'>
+                Close the put now (costs ${fmt(costToClose, 0)}) and sell a new put at the same or lower strike on a later expiry. If the new premium exceeds ${fmt(costToClose, 0)}, you roll for a net credit — lowering your breakeven without adding capital. Repeat as long as you can roll for a credit.
+              </PathCard>
+              <PathCard label='C' title='Buy to close — lock in the loss'>
+                Pay ${fmt(costToClose, 0)} to exit. Realised net loss = ${fmt(netLoss, 0)}. Choose this if you have lost conviction that {pos.symbol} recovers above ${fmt(breakeven)} before expiry.
+              </PathCard>
+            </>
+          ) : (
+            <>
+              <PathCard label='A' title='Hold — risk assignment'>
+                If {pos.symbol} stays above ${fmt(pos.strike, 0)}, shares get called away at ${fmt(pos.strike, 0)}. Your effective exit price is ${fmt(breakeven)} (strike + premium collected).
+              </PathCard>
+              <PathCard label='B' title='Roll up and out'>
+                Close the call now (costs ${fmt(costToClose, 0)}) and sell a new call at a higher strike on a later expiry for a net credit — raising your ceiling and buying more time.
+              </PathCard>
+              <PathCard label='C' title='Buy to close — lock in the loss'>
+                Pay ${fmt(costToClose, 0)} to exit. Realised net loss = ${fmt(netLoss, 0)}. Choose this if you no longer believe {pos.symbol} will stay below ${fmt(breakeven)}.
+              </PathCard>
+            </>
+          )}
+        </div>
+
+        <SummaryBox>
+          <strong>To recover:</strong> {pos.symbol} must stay {isPut ? 'above' : 'below'} ${fmt(breakeven)} through expiry ({pos.dte} day{pos.dte !== 1 ? 's' : ''} remaining).
+          Rolling is the primary lever while time remains — each roll for credit lowers the breakeven.
+          A clean close caps the loss at <strong>${fmt(netLoss, 0)}</strong> and frees capital immediately.
+        </SummaryBox>
+      </div>
+    )
+  }
+
+  // Long losing
+  const amountPaid = pos.avg_cost * qty * 100
+  const currentValue = pos.current_price * qty * 100
+  const netLoss = amountPaid - currentValue
+  const lostPct = amountPaid > 0 ? (netLoss / amountPaid) * 100 : 0
+  const stopLevel = amountPaid * 0.5
+  const atOrPastStop = lostPct >= 50
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+      <NarrativeBox bg='#1a0a0a' border='#ef444433' color={C.red} title='Financial Reality'>
+        <p style={{ margin: '0 0 6px' }}>
+          You bought {qty} {pos.option_type} contract{qty !== 1 ? 's' : ''} at ${fmt(pos.avg_cost)} × 100 multiplier = <strong>${fmt(amountPaid, 0)}</strong> paid upfront.
+        </p>
+        <p style={{ margin: '0 0 6px' }}>
+          They are now worth ${fmt(pos.current_price)} each — total current value <strong>${fmt(currentValue, 0)}</strong>.
+        </p>
+        <p style={{ margin: '0 0 6px' }}>
+          You are down <strong style={{ color: C.red }}>−${fmt(netLoss, 0)}</strong> ({fmt(lostPct, 0)}% of what you paid).
+        </p>
+        <p style={{ margin: '0' }}>
+          Standard 50% stop rule: your exit trigger is <strong>${fmt(stopLevel, 0)}</strong> in losses.
+          You are <strong style={{ color: atOrPastStop ? C.red : C.yellow }}>{atOrPastStop ? 'at or past' : 'approaching'}</strong> that level.
+          {pos.dte} day{pos.dte !== 1 ? 's' : ''} remain before expiry.
+        </p>
+      </NarrativeBox>
+
+      <div>
+        <SectionHeader label='Two Paths Forward' color={C.muted} />
+        <PathCard label='A' title='Hold — wait for recovery'>
+          {pos.dte} day{pos.dte !== 1 ? 's' : ''} remain. Valid only while the original thesis and catalyst are still intact.
+          Risk: the position continues decaying toward zero and theta bleed accelerates near expiry.
+        </PathCard>
+        <PathCard label='B' title='Sell to close — lock in the loss'>
+          You recover ${fmt(currentValue, 0)} of the ${fmt(amountPaid, 0)} paid, locking in −${fmt(netLoss, 0)}.
+          Options that lose 50% of cost rarely recover fast enough to justify continued theta bleed. Closing frees capital for the next trade.
+        </PathCard>
+      </div>
+
+      <SummaryBox>
+        Long options lose value every day — the pace accelerates near expiry.
+        {pos.dte < 14
+          ? ` With only ${pos.dte} days remaining, time is very short.`
+          : ` With ${pos.dte} days remaining, time is becoming limited.`}
+        {atOrPastStop
+          ? ` You are past the 50% stop level ($${fmt(stopLevel, 0)}). The disciplined move is to exit and preserve capital.`
+          : ` You are approaching the 50% stop level ($${fmt(stopLevel, 0)}). Take the small loss before it becomes a large one.`}
+      </SummaryBox>
+    </div>
+  )
+}
+
+function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: PositionRisk[]; stockPrices: Record<string, number> }) {
+  const combinedPnl = positions.reduce((s, p) => s + p.pnl, 0)
+  if (combinedPnl >= 0) return null
+
+  const netPremium = positions.reduce((s, p) => s + p.avg_cost * p.quantity * 100, 0)
+  const isCredit = netPremium > 0
+  const netLoss = Math.abs(combinedPnl)
+  const maxDte = Math.max(...positions.map(p => p.dte))
+  const symbol = positions[0]?.symbol ?? ''
+  const stockPrice = stockPrices[symbol]
+
+  if (isCredit) {
+    const netCredit = netPremium
+    const costToCloseAll = netCredit + netLoss
+    const challenged = [...positions].sort((a, b) => a.pnl - b.pnl)[0]
+    const cIsPut = challenged.option_type.toLowerCase() === 'put'
+    const cEntryAction = (challenged.entry_action || (challenged.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
+    const cIsShort = cEntryAction === 'sell'
+    const cBreakeven = cIsShort
+      ? (cIsPut ? challenged.strike - challenged.avg_cost : challenged.strike + challenged.avg_cost)
+      : null
+    const stockVsBreakeven = stockPrice != null && cBreakeven != null
+      ? (cIsPut ? stockPrice > cBreakeven : stockPrice < cBreakeven)
+      : null
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+        <NarrativeBox bg='#1a0a0a' border='#ef444433' color={C.red} title='Financial Reality — Strategy'>
+          <p style={{ margin: '0 0 6px' }}>
+            This is a credit strategy — you collected <strong>${fmt(netCredit, 0)}</strong> in net premium across {positions.length} leg{positions.length !== 1 ? 's' : ''} when you opened the trade.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            The strategy is currently showing a net loss of <strong style={{ color: C.red }}>−${fmt(netLoss, 0)}</strong>, meaning the combined mark-to-market of all legs has moved against you.
+          </p>
+          <p style={{ margin: '0 0 6px' }}>
+            Most challenged leg: <strong>${fmt(challenged.strike, 0)} {challenged.option_type.toUpperCase()}</strong> (P&L: −${fmt(Math.abs(challenged.pnl), 0)}).
+            {cBreakeven != null && <> Its individual breakeven is <strong>${fmt(cBreakeven)}</strong>.</>}
+          </p>
+          {stockPrice != null && cBreakeven != null && (
+            <p style={{ margin: '0', color: stockVsBreakeven ? C.green : C.yellow }}>
+              {symbol} is at ${fmt(stockPrice)} — {stockVsBreakeven
+                ? `on the right side of the ${challenged.option_type} breakeven at $${fmt(cBreakeven)}.`
+                : `past the ${challenged.option_type} breakeven at $${fmt(cBreakeven)}, adding pressure to that leg.`}
+            </p>
+          )}
+        </NarrativeBox>
+
+        <div>
+          <SectionHeader label='Three Paths Forward' color={C.muted} />
+          <PathCard label='A' title='Hold'>
+            With {maxDte} day{maxDte !== 1 ? 's' : ''} remaining, the strategy can recover if the underlying moves back into the profitable zone. Only valid if the original thesis is still intact.
+          </PathCard>
+          <PathCard label='B' title={`Roll the challenged leg ($${fmt(challenged.strike, 0)} ${challenged.option_type.toUpperCase()})`}>
+            Close only that leg and reopen at a more favourable strike or later expiry for a net credit.
+            This preserves the healthy legs and lowers overall breakeven without closing the whole trade.
+            Only worthwhile if you can roll for a net credit.
+          </PathCard>
+          <PathCard label='C' title={`Close all ${positions.length} legs`}>
+            You collected ${fmt(netCredit, 0)} to open. Closing all legs today costs approximately ${fmt(costToCloseAll, 0)}, realising a net loss of <strong>${fmt(netLoss, 0)}</strong>.
+            Choose this if the setup has broken down and the thesis no longer holds.
+          </PathCard>
+        </div>
+
+        <SummaryBox>
+          You collected <strong>${fmt(netCredit, 0)}</strong> in net credit when this strategy was opened.
+          Rolling the challenged leg (${fmt(challenged.strike, 0)} {challenged.option_type.toUpperCase()}) for a credit is the primary adjustment — it lowers breakeven without closing the whole trade.
+          A full close at <strong>−${fmt(netLoss, 0)}</strong> is the clean exit if the setup has broken down.
+        </SummaryBox>
+      </div>
+    )
+  }
+
+  // Debit strategy
+  const amountPaid = Math.abs(netPremium)
+  const lostPct = amountPaid > 0 ? (netLoss / amountPaid) * 100 : 0
+  const stopLevel = amountPaid * 0.5
+  const atOrPastStop = lostPct >= 50
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+      <NarrativeBox bg='#1a0a0a' border='#ef444433' color={C.red} title='Financial Reality — Strategy'>
+        <p style={{ margin: '0 0 6px' }}>
+          This is a debit strategy — you paid <strong>${fmt(amountPaid, 0)}</strong> net premium across {positions.length} leg{positions.length !== 1 ? 's' : ''} to open the trade.
+        </p>
+        <p style={{ margin: '0 0 6px' }}>
+          Currently showing a net loss of <strong style={{ color: C.red }}>−${fmt(netLoss, 0)}</strong> ({fmt(lostPct, 0)}% of what you paid).
+          Maximum possible loss is the full debit paid: <strong>${fmt(amountPaid, 0)}</strong>.
+        </p>
+        <p style={{ margin: '0' }}>
+          50% stop triggers at <strong>${fmt(stopLevel, 0)}</strong>.
+          You are <strong style={{ color: atOrPastStop ? C.red : C.yellow }}>{atOrPastStop ? 'at or past' : 'approaching'}</strong> that level with {maxDte} day{maxDte !== 1 ? 's' : ''} to expiry.
+        </p>
+      </NarrativeBox>
+
+      <div>
+        <SectionHeader label='Two Paths Forward' color={C.muted} />
+        <PathCard label='A' title='Hold'>
+          With {maxDte} day{maxDte !== 1 ? 's' : ''} remaining. Only valid if the original thesis and catalyst are still intact. Risk: the spread continues losing value toward zero.
+        </PathCard>
+        <PathCard label='B' title={`Close all ${positions.length} legs — stop rule`}>
+          {atOrPastStop
+            ? `You have hit the 50% stop level. Closing all legs locks in −$${fmt(netLoss, 0)} and stops the bleed. The disciplined move is to exit.`
+            : `Closing all legs now locks in −$${fmt(netLoss, 0)} — before reaching the full $${fmt(stopLevel, 0)} stop. Take the partial loss and preserve capital.`}
+        </PathCard>
+      </div>
+
+      <SummaryBox>
+        Debit paid: <strong>${fmt(amountPaid, 0)}</strong>. Current loss: <strong>{fmt(lostPct, 0)}%</strong> of the debit paid.
+        {atOrPastStop
+          ? ` You are past the 50% stop level ($${fmt(stopLevel, 0)}). The disciplined move is to close all legs and preserve capital.`
+          : ` You are approaching the 50% stop level ($${fmt(stopLevel, 0)}). Take the small loss before it becomes a large one.`}
+      </SummaryBox>
+    </div>
+  )
+}
+
+function PositionCard({ pos, stockPrice, rollAdvisorEnabled, sessionClicks, onSessionClick }: {
   pos: PositionRisk
+  stockPrice?: number
   rollAdvisorEnabled: boolean
   sessionClicks: number
   onSessionClick: () => void
@@ -304,7 +588,8 @@ function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }
             <span>Current price: ${fmt(pos.current_price)}</span>
             {pos.iv_environment && <span>IV environment: {pos.iv_environment}</span>}
           </div>
-          {pos.risk_level === 'yellow' && <CloseInstructions pos={pos} />}
+          <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
+          {(pos.risk_level === 'red' || pos.risk_level === 'yellow') && <CloseInstructions pos={pos} />}
         </div>
       )}
     </div>
@@ -355,11 +640,13 @@ function NarrativePanel({ narrative }: { narrative: Record<string, unknown> }) {
 
 function StrategyGroupCard({
   group,
+  stockPrices,
   rollAdvisorEnabled,
   sessionClicks,
   onSessionClick,
 }: {
   group: StrategyGroup
+  stockPrices: Record<string, number>
   rollAdvisorEnabled: boolean
   sessionClicks: number
   onSessionClick: () => void
@@ -458,12 +745,20 @@ function StrategyGroupCard({
           <PositionCard
             key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
             pos={pos}
+            stockPrice={stockPrices[pos.symbol]}
             rollAdvisorEnabled={rollAdvisorEnabled}
             sessionClicks={sessionClicks}
             onSessionClick={onSessionClick}
           />
         ))}
       </div>
+
+      {/* Multi-leg defensive narrative — below all cards, driven by combined P&L */}
+      {!isUngrouped && group.positions.length > 1 && (
+        <div style={{ paddingLeft: '12px' }}>
+          <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
+        </div>
+      )}
     </div>
   )
 }
@@ -479,6 +774,7 @@ export default function RiskMonitor() {
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [stockPrices, setStockPrices] = useState<Record<string, number>>({})
   // E5: session-level roll advisor click counter (max 5)
   const [rollSessionClicks, setRollSessionClicks] = useState(0)
 
@@ -492,6 +788,13 @@ export default function RiskMonitor() {
       const result = await getPositionsRisk()
       setData(result)
       setLastUpdated(new Date())
+      const symbols = [...new Set(result.map(p => p.symbol))]
+      Promise.all(symbols.map(s => getQuote(s).then(q => ({ s, price: q.price })).catch(() => null)))
+        .then(results => {
+          const map: Record<string, number> = {}
+          results.forEach(r => { if (r) map[r.s] = r.price })
+          setStockPrices(map)
+        })
     } catch (e: any) {
       if (!silent) setError(e?.response?.data?.detail || e?.message || 'Failed to load risk data')
     } finally {
@@ -595,6 +898,7 @@ export default function RiskMonitor() {
           <StrategyGroupCard
             key={group.key}
             group={group}
+            stockPrices={stockPrices}
             rollAdvisorEnabled={rollAdvisorEnabled}
             sessionClicks={rollSessionClicks}
             onSessionClick={() => setRollSessionClicks(n => n + 1)}
