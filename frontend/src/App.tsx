@@ -59,6 +59,7 @@ function Dashboard() {
   const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
   const [positionsRefresh, setPositionsRefresh] = useState(0)
   const [tradePanelOpen, setTradePanelOpen] = useState(false)
+  const [tradeToast, setTradeToast] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
@@ -135,6 +136,9 @@ function Dashboard() {
   const handleTradeRecorded = useCallback(() => {
     setPositionsRefresh(n => n + 1)
     setTradePanelOpen(false)
+    setSelectedTrade(null)
+    setTradeToast('Trade recorded successfully')
+    setTimeout(() => setTradeToast(null), 2500)
   }, [])
 
   const handleTabChange = useCallback((tab: Tab) => {
@@ -459,6 +463,20 @@ function Dashboard() {
             </>
           )}
         </>
+      )}
+
+      {/* Trade recorded toast */}
+      {tradeToast && (
+        <div style={{
+          position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          background: '#0f2d1a', border: '1px solid #22c55e66', borderRadius: '8px',
+          padding: '10px 20px', color: '#22c55e', fontSize: '13px', fontWeight: 700,
+          zIndex: 9999, display: 'flex', alignItems: 'center', gap: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          pointerEvents: 'none',
+        }}>
+          ✓ {tradeToast}
+        </div>
       )}
     </div>
   )

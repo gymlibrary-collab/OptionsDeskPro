@@ -172,6 +172,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
       })
       setFeedback({ ok: true, msg: `Recorded ${result.recorded} leg${result.recorded !== 1 ? 's' : ''} — ${result.strategy}` })
       onRecorded()
+      onClose()
     } catch (e: any) {
       setFeedback({ ok: false, msg: e?.response?.data?.detail || e?.message || 'Record failed' })
     } finally {
