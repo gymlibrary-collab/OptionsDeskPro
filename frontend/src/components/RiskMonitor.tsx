@@ -185,7 +185,10 @@ function PositionCard({ pos, rollAdvisorEnabled, sessionClicks, onSessionClick }
   const qty = Math.abs(pos.quantity)
   const totalCost = pos.avg_cost * qty * 100
   const currentValue = pos.current_price * qty * 100
-  const priceUp = pos.current_price >= pos.avg_cost
+  const isSell = entryAction === 'sell'
+  const priceUp = isSell
+    ? pos.current_price <= pos.avg_cost   // sell: price falling = good
+    : pos.current_price >= pos.avg_cost   // buy:  price rising  = good
   const redSignals = pos.signals.filter(s => s.level === 'red')
   const yellowSignals = pos.signals.filter(s => s.level === 'yellow')
   const greenSignals = pos.signals.filter(s => s.level === 'green')
