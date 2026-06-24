@@ -290,6 +290,20 @@ function PlatformSettingsPanel() {
           onToggle={() => handleToggle('maintenance_mode')}
           disabled={saving}
         />
+        <ToggleSetting
+          label="AI Features panel"
+          description="When disabled, the AI Features tab is hidden from all subscribers on the client portal. Toggles take effect on next page load."
+          enabled={settings.ai_features_enabled}
+          onToggle={() => handleToggle('ai_features_enabled')}
+          disabled={saving}
+        />
+        <ToggleSetting
+          label="Trading Desk"
+          description="When disabled, the Trading Desk workspace is hidden from all subscribers on the client portal. Toggles take effect on next page load."
+          enabled={settings.trading_desk_enabled}
+          onToggle={() => handleToggle('trading_desk_enabled')}
+          disabled={saving}
+        />
       </div>
     </div>
   )

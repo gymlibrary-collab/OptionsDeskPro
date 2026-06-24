@@ -970,6 +970,7 @@ export interface PlatformSettings {
   invite_only_mode: boolean
   maintenance_mode: boolean
   ai_features_enabled: boolean
+  trading_desk_enabled: boolean
 }
 
 export const getStaffMe = (): Promise<StaffMeResponse> =>
