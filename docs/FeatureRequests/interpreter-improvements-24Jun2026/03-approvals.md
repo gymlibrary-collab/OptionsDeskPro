@@ -105,8 +105,9 @@
 | **Document** | `06-release-note.md` |
 | **Deployed to** | Railway |
 | **Deployment date** | |
-| **User Guide updated** | Yes / No / N/A |
-| **Approved by** | |
-| **Date** | |
+| **User Guide updated** | Yes |
+| **Approved by** | Technical Writer |
+| **Date** | 24Jun2026 |
+| **Notes** | Release note covers all 11 FRs in v1 sprint with internal-team audience and detailed deployment/rollback guidance. User Guide updated with brief note on execution checklist approval levels and risk label formatting in Deep Analysis section. |
 
-☐ Released
+☑ Approved — Ready for deployment
