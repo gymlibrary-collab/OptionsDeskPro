@@ -9,6 +9,7 @@ import HealthPanel from './HealthPanel'
 import FaqEditor from './FaqEditor'
 import StaffManager from './StaffManager'
 import LegalVersionManager from './LegalVersionManager'
+import StrategyMethodologyAdmin from './StrategyMethodologyAdmin'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import { getPlatformSettings, patchPlatformSettings, PlatformSettings } from '../../api/client'
 
@@ -24,7 +25,7 @@ const C = {
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
 
-type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff' | 'settings' | 'legal'
+type Section = 'dashboard' | 'subscribers' | 'pricing' | 'revenue' | 'health' | 'faq' | 'staff' | 'settings' | 'legal' | 'methodology'
 
 function AdminShell() {
   const { staffUser, staffProfile, staffRole, loading, signOut } = useStaffAuth()
@@ -57,6 +58,7 @@ function AdminShell() {
     { key: 'legal', label: 'Legal', roles: ['owner', 'support', 'finance'] },
     { key: 'staff', label: 'Staff', roles: ['owner'] },
     { key: 'settings', label: 'Settings', roles: ['owner'] },
+    { key: 'methodology', label: 'Methodology', roles: ['owner'] },
   ]
   const navItems = allNavItems.filter(item => !item.roles || (staffRole && item.roles.includes(staffRole as 'owner' | 'support' | 'finance')))
 
@@ -167,6 +169,7 @@ function AdminShell() {
           {activeSection === 'legal' && <LegalVersionManager staffRole={staffRole} />}
           {activeSection === 'staff' && <StaffManager />}
           {activeSection === 'settings' && <PlatformSettingsPanel />}
+          {activeSection === 'methodology' && <StrategyMethodologyAdmin />}
         </div>
       </div>
     </div>
