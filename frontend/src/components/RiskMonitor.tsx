@@ -20,6 +20,11 @@ function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
+function fmtDate(iso: string): string {
+  const parts = iso.split('-')
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
+}
+
 function riskColor(level: string) {
   if (level === 'red') return C.red
   if (level === 'yellow') return C.yellow
@@ -99,7 +104,7 @@ function CloseInstructions({ pos }: { pos: PositionRisk }) {
       <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
       <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.9 }}>
         <li>Open <strong>Order Entry</strong> (right sidebar on desktop · tap "+ Place Order" on mobile).</li>
-        <li>Enter: Symbol <strong>{pos.symbol}</strong> · Expiry <strong>{pos.expiry}</strong> · Strike <strong>${fmt(pos.strike, 0)}</strong> · Type <strong>{pos.option_type.toUpperCase()}</strong></li>
+        <li>Enter: Symbol <strong>{pos.symbol}</strong> · Expiry <strong>{fmtDate(pos.expiry)}</strong> · Strike <strong>${fmt(pos.strike, 0)}</strong> · Type <strong>{pos.option_type.toUpperCase()}</strong></li>
         <li>Set Action to <strong style={{ color: closeAction === 'SELL' ? C.red : C.green }}>{closeAction}</strong> · Quantity <strong>{qty}</strong></li>
         <li>Confirm the order. This position will disappear once filled.</li>
       </ol>
@@ -459,7 +464,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
             )}
             <ActionBadge action={entryAction} />
             <TypeBadge type={pos.option_type} />
-            <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {pos.expiry}</span>
+            <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {fmtDate(pos.expiry)}</span>
             {pos.strategy_name && <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>{pos.strategy_name}</span>}
           </div>
           <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>

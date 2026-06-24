@@ -199,7 +199,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           a side-by-side comparison of all applicable strategies, specific strike recommendations, a full plain-English narrative, and an execution checklist.
         </P>
         <Note>
-          The scanner uses real-time data from Yahoo Finance. Results refresh each time you load the tab.
+          The scanner uses market data from Yahoo Finance, which is delayed by approximately 15 minutes. Results refresh each time you load the tab.
           Add your own watchlist by typing comma-separated symbols into the search box (e.g. <code>SPY,AAPL,TSLA</code>).
         </Note>
       </Section>

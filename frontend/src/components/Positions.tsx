@@ -7,6 +7,12 @@ function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
+function fmtDate(iso: string): string {
+  // yyyy-mm-dd → dd-mm-yyyy
+  const parts = iso.split('-')
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
+}
+
 function dte(expiry: string): number {
   try {
     const exp = new Date(expiry + 'T00:00:00')
@@ -934,7 +940,7 @@ export default function Positions({ onTradeRecorded, onPositionUpdated }: { onTr
                     <td style={styles.td}>
                       <span style={styles.typeBadge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span>
                     </td>
-                    <td style={styles.td}>{pos.expiry}</td>
+                    <td style={styles.td}>{fmtDate(pos.expiry)}</td>
                     <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
                     <td style={styles.td}>${fmt(pos.strike)}</td>
                     <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
