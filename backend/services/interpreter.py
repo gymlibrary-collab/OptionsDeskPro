@@ -180,11 +180,13 @@ def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
     iv_vs_hv = iv_pct - hv_30
     iv_premium = "premium" if iv_vs_hv > 0 else "discount"
 
+    iv_env_label = "LOW" if ivr < 30 else ("MEDIUM" if ivr <= 50 else "HIGH")
     base = (
         f"IV Rank (IVR) is currently {ivr:.0f} out of 100. "
         f"IVR measures where today's implied volatility sits relative to the past 52 weeks — "
         f"a reading of {ivr:.0f} means options are currently priced higher than {ivr:.0f}% of all days "
-        f"in the past year. The current implied volatility is {iv_pct:.1f}%."
+        f"in the past year. The current implied volatility is {iv_pct:.1f}%. "
+        f"This places {symbol} in a {iv_env_label} implied volatility environment."
     )
 
     hv_line = ""
@@ -301,20 +303,28 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
     )
 
     risk_note = (
-        f"It is a **defined-risk** trade — no matter what {symbol} does, your maximum loss is capped at the spread width minus the credit collected. "
+        f"It is a DEFINED-RISK trade — no matter what {symbol} does, your maximum loss is capped at the spread width minus the credit collected. "
         f"You know exactly what you can lose before you enter."
         if risk_type == "DEFINED"
         else
-        f"It is an **undefined-risk** trade — losses can theoretically grow if {symbol} moves sharply against you. "
+        f"It is an UNDEFINED-RISK trade — losses can theoretically grow if {symbol} moves sharply against you. "
         f"As a good practice, it is recommended to keep this position to 1–3% of your total portfolio and use the 2× credit rule as a stop."
     )
 
-    pop_note = (
-        f"The estimated probability of profit is {pop_range[0]}–{pop_range[1]}%, "
-        f"meaning that statistically, this trade wins more often than it loses. "
-        f"A common approach is to put on many high-probability trades, take losses when they happen, "
-        f"and let the math work over time."
-    )
+    if pop_range[0] >= 50:
+        pop_note = (
+            f"The estimated probability of profit is {pop_range[0]}–{pop_range[1]}%, "
+            f"meaning that statistically, this trade wins more often than it loses. "
+            f"A common approach is to put on many high-probability trades, take losses when they happen, "
+            f"and let the math work over time."
+        )
+    else:
+        pop_note = (
+            f"The estimated probability of profit is {pop_range[0]}–{pop_range[1]}% — "
+            f"this trade wins less often than it loses by design. "
+            f"The strategy is sized so that when it does win, the gain more than offsets the more frequent smaller losses. "
+            f"Correct position sizing and discipline on loss limits are essential for this structure to be positive-expectancy."
+        )
 
     if key in ("short_strangle", "iron_condor", "short_straddle", "iron_fly"):
         core = (
@@ -388,6 +398,43 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
             f"A {bias_clean} bias means the position is constructed so that its profit zone sits in the direction the analysis suggests {symbol} is leaning — without requiring a precise price target. "
             f"Targeting the {dte_target}-day expiration window places the trade in the region where theta decay is meaningful but gamma risk has not yet become the dominant force."
         )
+
+    # FR-N2: append condition_explanation as a "Why these conditions" paragraph
+    cond_exp = strategy.get("condition_explanation", "")
+    conditions_rationale = f"Why these conditions: {cond_exp}" if cond_exp else ""
+
+    # FR-N4: inline IV/direction match check
+    designed_for_iv = strategy.get("designed_for_iv", "any")
+    designed_for_dir = strategy.get("designed_for_direction", "any")
+
+    iv_match = designed_for_iv == "any" or designed_for_iv.upper() == iv_env.upper()
+
+    _DIR_MAP = {
+        "bullish":  {"BULLISH", "NEUTRAL_BULLISH"},
+        "bearish":  {"BEARISH", "NEUTRAL_BEARISH"},
+        "neutral":  {"NEUTRAL", "NEUTRAL_BULLISH", "NEUTRAL_BEARISH"},
+        "any":      {"BULLISH", "BEARISH", "NEUTRAL", "NEUTRAL_BULLISH", "NEUTRAL_BEARISH"},
+    }
+    dir_match = bias in _DIR_MAP.get(designed_for_dir, set())
+
+    if designed_for_iv == "any":
+        iv_cond_note = "IV conditions: designed for any IV environment — conditions met by definition"
+    else:
+        iv_label = iv_env  # "HIGH", "MEDIUM", or "LOW"
+        iv_cond_note = (
+            f"IV conditions: {iv_label} (strategy designed for {designed_for_iv.upper()} IV) — "
+            + ("match" if iv_match else "MISMATCH — strategy recommended despite sub-optimal IV environment")
+        )
+
+    if designed_for_dir == "any":
+        dir_cond_note = "Direction conditions: designed for any directional bias — conditions met by definition"
+    else:
+        dir_cond_note = (
+            f"Direction conditions: {bias_clean} (strategy designed for {designed_for_dir} bias) — "
+            + ("match" if dir_match else "MISMATCH — strategy recommended despite sub-optimal directional conditions")
+        )
+
+    conditions_match_note = f"Conditions check:\n{iv_cond_note}\n{dir_cond_note}"
 
     extra_confirmations = []
     if ctx:
@@ -468,7 +515,11 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
                     f"a pre-earnings expiry avoids the event entirely; a post-earnings expiry captures the IV expansion but takes on event risk."
                 )
 
-    all_parts = [core, risk_note, pop_note, complexity_note] + extra_confirmations
+    all_parts = [core]
+    if conditions_rationale:
+        all_parts.append(conditions_rationale)
+    all_parts.append(conditions_match_note)
+    all_parts += [risk_note, pop_note, complexity_note] + extra_confirmations
     return "\n\n".join(all_parts)
 
 
@@ -487,6 +538,11 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
             "the strategy logic, strikes, and mechanics are correct, but you MUST verify "
             "the actual bid/ask prices in your broker before placing any order."
         )
+
+    # FR-E1: inject earnings_note from the strategy engine if present
+    earnings_note = trade.get("earnings_note")
+    if earnings_note:
+        sections.append(f"EARNINGS-AWARE EXPIRY: {earnings_note}")
 
     sections.append(
         f"Here is exactly what this trade looks like, leg by leg:"
@@ -693,9 +749,9 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
 
     pop_note = (
         f"Based on the delta of the short strikes, this setup has an estimated {pop_range[0]}–{pop_range[1]}% "
-        f"probability of being profitable at expiration. Over a large sample of similar trades, "
-        f"this is a positive-expectancy strategy — you will have losing trades, "
-        f"but the winners should more than offset them."
+        f"theoretical probability of being profitable at expiration — derived from options delta theory, not historical backtesting. "
+        f"This is a positive-expectancy structure — you will have losing trades, "
+        f"but the winners should more than offset them when managed consistently."
     )
 
     return f"{condition}\n\n{profit_detail}\n\n{early_exit}\n\n{pop_note}"
@@ -779,12 +835,22 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
     else:
         trigger = f"The loss grows as {symbol} moves significantly against the position."
 
-    monitor = (
-        f"During the life of the trade, monitor it daily in the final two weeks. "
-        f"A common guideline is to close any trade that has reached 21 DTE (21 days to expiration) "
-        f"regardless of profit or loss — the risk/reward deteriorates sharply inside 21 days "
-        f"due to accelerating gamma, which makes short options much more sensitive to price moves."
-    )
+    dte_loss = _days_to_expiry(trade.get("expiry", ""))
+    if dte_loss <= 21:
+        monitor = (
+            f"NOTE: this trade is already inside 21 DTE ({dte_loss} days remaining) — it is now in its active management phase. "
+            f"Monitor P&L intraday rather than daily. "
+            f"Close the position as soon as your profit target is reached — do not hold for the last few percent of gain. "
+            f"Gamma risk is accelerating: small moves in {symbol} will cause outsized swings in position value. "
+            f"If the trade is at a loss, close it now rather than riding to expiration."
+        )
+    else:
+        monitor = (
+            f"During the life of the trade, monitor it daily in the final two weeks. "
+            f"A common guideline is to close any trade that has reached 21 DTE (21 days to expiration) "
+            f"regardless of profit or loss — the risk/reward deteriorates sharply inside 21 days "
+            f"due to accelerating gamma, which makes short options much more sensitive to price moves."
+        )
 
     return f"{loss_frame}\n\n{trigger}\n\n{monitor}"
 
@@ -978,8 +1044,24 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
     exit_loss_dollars = f"${abs_net * 2:.0f}" if not is_credit else None
     bl = trade.get("breakeven_low")
     bh = trade.get("breakeven_high")
+    # FR-C6: hoist these before step 1 so approval level can be computed
     option_legs = [l for l in legs if l.get("option_type") != "stock"]
     has_stock_leg = any(l.get("option_type") == "stock" for l in legs)
+
+    # FR-C6: determine correct options approval level
+    risk_type = trade.get("risk_type", "DEFINED")
+    _NAKED_OPTION_KEYS = {
+        "short_naked_put", "short_naked_call", "short_straddle", "short_strangle",
+    }
+    strat_key_checklist = trade.get("strategy_key", trade.get("strategy", ""))
+    is_naked = (
+        risk_type == "UNDEFINED" and not has_stock_leg
+    ) or strat_key_checklist in _NAKED_OPTION_KEYS
+    approval_level = (
+        "level 3 or higher (required for naked short options — contact your broker if you are not yet approved for Level 3)"
+        if is_naked
+        else "level 2 or higher"
+    )
 
     try:
         exp_fmt = date.fromisoformat(expiry).strftime("%B %d, %Y")
@@ -993,7 +1075,7 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         f"Platforms that support multi-leg options include: tastytrade, "
         f"thinkorswim by Schwab, Interactive Brokers (IBKR), or E*TRADE Power E*TRADE. "
         f"Log in and make sure you have options trading enabled on your account (a one-time setup "
-        f"if you haven't already — brokers call it 'options approval level 2 or higher')."
+        f"if you haven't already — brokers call it 'options approval {approval_level}')."
     )
 
     steps.append(
@@ -1077,8 +1159,8 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             )
 
         steps.append(
-            f"LEG {i} — {verb} {qty_label + ' ' if qty_label else ''}${strike:.0f} {otype.upper()} (expires {exp_fmt}): "
-            f"{explanation} "
+            f"LEG {i}: {verb} {qty_label + ' ' if qty_label else ''}${strike:.0f} {otype.upper()} (expires {exp_fmt}) "
+            f"— {explanation} "
             f"{how_to} "
             f"Current market: ${bid:.2f} bid × ${ask:.2f} ask  |  Mid-price: ${mid:.2f}  |  "
             f"{'Collect' if action == 'sell' else 'Pay'} ~${cost_per:.0f} per contract at mid."
@@ -1135,14 +1217,14 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
             f"It is common practice to close at 50% of max profit to avoid the riskier final weeks near expiration."
         )
     else:
-        close_credit = abs_net * 0.5
+        close_credit = abs_net * (profit_target_pct / 100)
         steps.append(
             f"SET A GTC PROFIT-TARGET ORDER immediately after your entry fills. "
             f"Create a closing order: 'Sell to Close' all legs at ${close_credit / 100:.2f} credit per share "
             f"(${close_credit:.0f} per contract). "
             f"You paid ${abs_net:.0f} to open. When it sells for ${close_credit:.0f}, "
-            f"you've made back 50% of your cost — a ${close_credit:.0f} profit. "
-            f"That is the standard debit spread exit rule."
+            f"you've made back {profit_target_pct}% of your cost — a ${close_credit:.0f} profit. "
+            f"That is the standard exit rule for this strategy."
         )
 
     if bl is not None and bh is not None:
@@ -1170,15 +1252,29 @@ def _execution_checklist(symbol: str, trade: dict) -> list:
         )
 
     close_date_days = dte - 21
-    steps.append(
-        f"MARK YOUR CALENDAR: set a reminder for {close_date_days} days from today "
-        f"(that will be approximately 21 DTE — 21 days before {exp_fmt}). "
-        f"A well-established rule: close ALL positions at 21 DTE regardless of profit or loss. "
-        f"Inside 21 days, gamma risk accelerates sharply — small stock moves cause outsized option "
-        f"price changes, and the risk/reward of holding further no longer justifies it. "
-        f"To close: go to Positions → select this trade → click 'Close' or 'Buy to Close' (for short positions). "
-        f"Even if the trade is at a loss at that point, close it and move on."
-    )
+    if close_date_days <= 0:
+        if dte == 0:
+            steps.append(
+                "MARK YOUR CALENDAR: this trade expires TODAY — close the position immediately if you have not already done so. "
+                "Go to Positions in your broker and close all legs now."
+            )
+        else:
+            steps.append(
+                f"MARK YOUR CALENDAR: NOTE — this trade is already inside 21 DTE ({dte} days remaining). "
+                f"Apply the 21-DTE close rule immediately: the trade is in its active management phase. "
+                f"Monitor P&L intraday and close as soon as your profit target is reached. "
+                f"Do not hold past expiration — go to Positions in your broker and close all legs once the target is met."
+            )
+    else:
+        steps.append(
+            f"MARK YOUR CALENDAR: set a reminder for {close_date_days} days from today "
+            f"(that will be approximately 21 DTE — 21 days before {exp_fmt}). "
+            f"A well-established rule: close ALL positions at 21 DTE regardless of profit or loss. "
+            f"Inside 21 days, gamma risk accelerates sharply — small stock moves cause outsized option "
+            f"price changes, and the risk/reward of holding further no longer justifies it. "
+            f"To close: go to Positions → select this trade → click 'Close' or 'Buy to Close' (for short positions). "
+            f"Even if the trade is at a loss at that point, close it and move on."
+        )
 
     return steps
 
@@ -1303,9 +1399,14 @@ def generate_narrative(
                 f"Collect ${net_dollars:.0f} with IVR {ivr:.0f} and a {bias_clean} market lean."
             )
     else:
+        _BEARISH_DEBIT_KEYS = {
+            "long_put_vertical", "put_zebra", "put_butterfly",
+            "put_broken_wing_butterfly", "put_calendar", "reverse_big_lizard",
+        }
+        exposure_word = "downside" if strat_key in _BEARISH_DEBIT_KEYS else "upside"
         headline = (
             f"{symbol} — Buy a {strat_name} expiring {expiry} ({dte}d). "
-            f"Pay ${net_dollars:.0f} for defined upside exposure "
+            f"Pay ${net_dollars:.0f} for defined {exposure_word} exposure "
             f"with IVR {ivr:.0f} ({iv_word}) and a {bias_clean} market."
         )
 
