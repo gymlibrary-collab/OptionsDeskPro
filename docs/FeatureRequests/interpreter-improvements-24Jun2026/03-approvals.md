@@ -72,13 +72,13 @@
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated tests added** | 24 (narrative-improvements.spec.ts) |
+| **All AC covered** | Yes — 24/24 ACs across 8 user stories |
+| **Approved by** | QA Engineer |
+| **Date** | 24Jun2026 |
+| **Notes** | 24/24 tests pass on Chromium. Full suite regression: 315 passed, 0 regressions. Branch: claude/modest-davinci-sxz7lv. All API calls mocked; no real network or OAuth credentials used. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved
 
 ---
 
@@ -87,14 +87,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Overall decision** | PASS |
+| **Critical findings** | None |
+| **High findings** | None |
+| **Approved by** | Security Reviewer Agent |
+| **Date** | 24Jun2026 |
+| **Notes** | 2 Low findings (L-1 earnings_note truncation advisory, L-2 symbol sanitisation advisory), 7 Informational. No Critical or High. All CLAUDE.md invariants confirmed intact. XSS path does not exist — narrative renders as React text nodes only. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved
 
 ---
 
@@ -105,8 +105,9 @@
 | **Document** | `06-release-note.md` |
 | **Deployed to** | Railway |
 | **Deployment date** | |
-| **User Guide updated** | Yes / No / N/A |
-| **Approved by** | |
-| **Date** | |
+| **User Guide updated** | Yes |
+| **Approved by** | Technical Writer |
+| **Date** | 24Jun2026 |
+| **Notes** | Release note covers all 11 FRs in v1 sprint with internal-team audience and detailed deployment/rollback guidance. User Guide updated with brief note on execution checklist approval levels and risk label formatting in Deep Analysis section. |
 
-☐ Released
+☑ Approved — Ready for deployment

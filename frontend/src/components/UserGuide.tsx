@@ -265,7 +265,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.muted, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Execution Checklist</div>
-            <P>Step-by-step instructions for placing the trade in your broker, including limit price, GTC closing order, price alerts, and the 21-DTE close reminder. Click <strong>Copy Checklist</strong> to paste it into your notes.</P>
+            <P>Step-by-step instructions for placing the trade in your broker, including limit price, GTC closing order, price alerts, and the 21-DTE close reminder. Click <strong>Copy Checklist</strong> to paste it into your notes. The checklist shows the correct broker approval level required: Level 2 for defined-risk strategies (spreads, covered calls) and Level 3 or higher for undefined-risk strategies (naked options). Risk labels appear as plain text (DEFINED-RISK / UNDEFINED-RISK) for clarity.</P>
           </div>
         </div>
 
