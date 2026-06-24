@@ -58,6 +58,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('chain')
   const [selectedTrade, setSelectedTrade] = useState<{ symbol: string; trade: TradeStructure } | null>(null)
   const [positionsRefresh, setPositionsRefresh] = useState(0)
+  const [riskMonitorRefresh, setRiskMonitorRefresh] = useState(0)
   const [tradePanelOpen, setTradePanelOpen] = useState(false)
   const [tradeToast, setTradeToast] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -394,9 +395,9 @@ function Dashboard() {
                   <LockedTabPlaceholder requiredTier="starter" onUpgradeClick={handleUpgradeClick} />
                 ) : (
                   <>
-                    <Positions key={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} />
+                    <Positions key={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} onPositionUpdated={() => setRiskMonitorRefresh(n => n + 1)} />
                     <PnLChart />
-                    <RiskMonitor key={positionsRefresh} />
+                    <RiskMonitor key={riskMonitorRefresh} />
                   </>
                 )}
               </div>

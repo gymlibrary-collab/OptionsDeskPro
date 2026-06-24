@@ -594,7 +594,7 @@ function RecordTradeForm({ onSuccess }: RecordTradeFormProps) {
   )
 }
 
-export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () => void }) {
+export default function Positions({ onTradeRecorded, onPositionUpdated }: { onTradeRecorded?: () => void; onPositionUpdated?: () => void }) {
   const { entitlements } = useEntitlements()
   const [positions, setPositions] = useState<Position[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
@@ -700,6 +700,7 @@ export default function Positions({ onTradeRecorded }: { onTradeRecorded?: () =>
         return { ...p, avg_cost: parsed, pnl: newPnl }
       }))
       setEditingKey(null)
+      onPositionUpdated?.()
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string }
       alert(err?.response?.data?.detail || err?.message || 'Failed to update price.')
