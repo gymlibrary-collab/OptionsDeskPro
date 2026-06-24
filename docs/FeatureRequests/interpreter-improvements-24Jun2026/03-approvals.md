@@ -87,14 +87,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Overall decision** | PASS |
+| **Critical findings** | None |
+| **High findings** | None |
+| **Approved by** | Security Reviewer Agent |
+| **Date** | 24Jun2026 |
+| **Notes** | 2 Low findings (L-1 earnings_note truncation advisory, L-2 symbol sanitisation advisory), 7 Informational. No Critical or High. All CLAUDE.md invariants confirmed intact. XSS path does not exist — narrative renders as React text nodes only. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved
 
 ---
 
