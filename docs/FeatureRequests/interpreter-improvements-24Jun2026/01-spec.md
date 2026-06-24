@@ -311,25 +311,221 @@ No tier-specific changes required. The narrative engine is invoked identically f
 
 ## 11. Product Owner Annotations
 
-_Filled in by the product-owner agent._
+_Filled in by the product-owner agent. Date: 24Jun2026._
 
-**Priority scores:**
+---
 
-| Story | Priority (1=must/2=should/3=nice) | Notes |
-|-------|-----------------------------------|-------|
-| Story 1 — Negative-Day Reminder | 1 | Produces visibly wrong output today |
-| Story 2 — Plain Text Risk Labels | 1 | Markdown symbols visible to all users |
-| Story 3 — Options Approval Level | 1 | Factually incorrect advice for naked-option strategies |
-| Story 4 — POP Framing | 2 | Misleading but not dangerous |
-| Story 5 — Bearish Debit Headline | 2 | Incorrect directional label |
-| Story 6 — Checklist Label Rendering | 1 | Visual defect visible on every multi-leg trade |
-| Story 7 — Earnings Note in Trade | 2 | Useful context currently suppressed |
-| Story 8 — Debit GTC Percentage | 2 | Wrong exit guidance for 25%-target strategies |
+### 11.1 Data Availability Verification (New Gaps N1–N10)
 
-**MVP boundary:** Stories 1, 2, 3, 6 (four Priority-1 items). All eight FRs in these stories can be completed in a single backend + one-line frontend change pass.
+Before assigning priorities to the ten new gaps, each was checked against the actual call chain: route layer → `generate_narrative()` signature → `strategy` and `trade` dicts.
 
-**Deferred to backlog:** Stories 4, 5, 7, 8 and all Priority-3 FRs (FR-G1 through FR-E4 in the nice-to-have set).
+| Gap | Field | Available to interpreter.py? | Verdict |
+|-----|-------|------------------------------|---------|
+| N1 | `strategy["greek_profile"]` | YES — full catalog spread passed as `strategy`; also in `trade["greek_profile"]` | Implementable |
+| N2 | `strategy["condition_explanation"]` | YES — full catalog spread includes it | Implementable |
+| N3 | `strategy["delta_targets"]` | YES — full catalog spread includes it | Implementable |
+| N4 | IV/direction match booleans | YES — `strategy["designed_for_iv"]` and `strategy["designed_for_direction"]` present; interpreter can compute match inline against `iv_env` and `bias` which are already local variables | Implementable |
+| N5 | `flow["put_call_ratio_oi"]` | YES — present in `market_context["flow"]`; interpreter already reads this dict at line 419 | Implementable |
+| N6 | `news_sentiment` | NO — computed in the route after `market_ctx` is populated, never merged into `market_ctx` before `generate_narrative` is called (verified: route line 164 sets `market_ctx`, line 169–183 computes `news_sentiment`, line 229 calls `generate_narrative(... market_context=market_ctx)` without `news_sentiment` injected). Fixing this requires a route-layer change to `strategies.py`, which is outside the stated constraint of "pure interpreter.py + one minor tsx change." | BLOCKED — route fix required first |
+| N7 | Strike selection philosophy | NO new data needed — this is a narrative writing task using `strategy["delta_targets"]` already confirmed available under N3. N7 is a subset of N3. | Merge into N3 |
+| N8 | Strategy family context | NO family field in catalog. A hardcoded lookup dict in `interpreter.py` is acceptable under the constraint (no changes to `strategy_engine.py`). | Implementable with internal lookup |
+| N9 | `iv_analysis["iv_percentile"]` | YES — confirmed in `iv_analysis.py` output dict at line 121; passed directly as `iv_analysis` parameter. Currently unused in interpreter. | Implementable |
+| N10 | Condition checklist (pass/fail) | YES — subset of N4; same data. Separate from N4 only in presentation format. | Merge into N4 |
 
-**PO gate decision:** ☐ Approved ☐ Changes Requested
+**Ruling on N6:** This gap cannot be implemented in the current sprint because it requires a change to `backend/routes/strategies.py` to inject `news_sentiment` into `market_ctx` (or add it as an additional parameter to `generate_narrative`). The route change is trivial — one line: `market_ctx["news_sentiment"] = news_sentiment` before the `_build_and_narrate` fan-out — but it is outside the stated scope boundary. This gap is deferred to a separate micro-task that must be approved and scheduled independently. It must not block the interpreter sprint.
 
-_Approved by:_ &nbsp;&nbsp; _Date:_
+**Ruling on N7 and N10:** N7 is not a separate gap from N3. N10 is not a separate gap from N4. Both are presentation variants of data already captured. They are folded into N3 and N4 respectively below and do not receive independent FR numbers.
+
+---
+
+### 11.2 Priority Review — Existing 39 FRs
+
+The BA spec's priority assignments are accepted with the following adjustments:
+
+**Upgrades:**
+
+- **FR-B2 (bearish debit headline): Priority 1 — upgraded from Priority 2.** A user running a bearish strategy and reading "Pay $X for defined upside exposure" receives factually wrong directional framing. This is not a polish item; it contradicts the core educational purpose of the narrative. The fix is a three-line branch and carries zero risk. There is no reason to defer it.
+
+- **FR-B3 (POP framing, "wins more often"): Priority 1 — upgraded from Priority 2.** Telling a user a call butterfly "wins more often than it loses" when its pop_range is 20–40% is a factual inversion. Users calibrate position sizing and expectation management from this statement. The fix is a single conditional and is not deferrable alongside the other accuracy fixes.
+
+- **FR-B6 (debit GTC percentage): Priority 1 — upgraded from Priority 2.** Telling a call butterfly trader to target 50% when the strategy logic targets 25% produces an exit instruction that is directly at odds with the strategy's design. This is not a "nice to have" correction — it is a wrong number in a trading instruction. The profit_target_pct is already read earlier in the function; the fix is a one-line substitution.
+
+**Confirmed at Priority 1 (no change):**
+
+- FR-B1 (negative-day calendar reminder): confirmed P1. Produces a negative integer in the output today.
+- FR-B4/R2 (markdown syntax visible): confirmed P1. Affects every narrative for every user.
+- FR-C6 (options approval level): confirmed P1. Factually incorrect regulatory guidance for naked-option strategies.
+- FR-R1 (checklist label rendering): confirmed P1. Visual defect on every multi-leg trade.
+
+**Confirmed at Priority 2 (no change):**
+
+- FR-G3 (defensive tactic missing branches): confirmed P2. Nine strategy keys fall to generic; high-frequency strategies (call_butterfly, short_naked_call) are among the missing.
+- FR-G5 (IV environment category not stated): confirmed P2. Users learn the IVR number but not the classification.
+- FR-C1 (monitor paragraph branches on DTE): confirmed P2. Identical to B1's problem domain — both produce nonsensical advice for short-dated trades.
+- FR-E1 (earnings_note suppressed): confirmed P2.
+- FR-C5 (backtesting implication): confirmed P2.
+
+**Downgraded to Priority 3 (from Priority 2):**
+
+- No existing Priority-2 items are downgraded. The set is appropriate.
+
+**Confirmed at Priority 3 (no change):**
+
+All remaining Priority-3 FRs (FR-G1, FR-G4, FR-G8, FR-G9, FR-G10, FR-G11, FR-D4, FR-D5, FR-D7, FR-E3, FR-B5, FR-D6, FR-C7, FR-R3, FR-M1, FR-C2, FR-C3, FR-E2, FR-G2, FR-G6, FR-G7, FR-G12, FR-D8, FR-M2, FR-M3, FR-D1, FR-E4) remain Priority 3. These are all genuine improvements but none produce factually wrong output in the way that P1 items do.
+
+---
+
+### 11.3 New Gap Prioritisation (N1–N10, post data-availability check)
+
+**N1 — greek_profile theta/vega narrative: Priority 3.**
+
+The data is available and the educational value is real: users who understand that a short strangle is long-theta/short-vega will manage it more confidently. However, this is additive colour, not a correction of wrong output. The greek_profile values are qualitative strings ("long", "short", "flat", "dynamic") that require careful narrative translation to avoid jargon overload for beginners. The risk is that a poorly written greek explanation does more harm than no explanation. Defer to a later pass once the P1/P2 accuracy fixes are shipped and can be evaluated independently. Include in Priority-3 set as FR-N1.
+
+**N2 — condition_explanation (catalog rationale strings): Priority 2.**
+
+This is the highest-value of the new gaps. The catalog contains 37 pre-written, strategy-specific rationale strings that explain precisely why a strategy is suited to its designed conditions. The interpreter generates its own generic logic instead. Using the catalog text directly — or incorporating it as a foundation — would immediately improve narrative specificity for all 31 strategies without requiring new writing. The data is already in the `strategy` dict. The implementation risk is low: read `strategy.get("condition_explanation")` and surface it (or blend it) in `_why_this_strategy`. Include in Priority-2 set as FR-N2.
+
+**N3 — delta_targets / strike selection philosophy: Priority 3.**
+
+The data is available. Explaining delta-targeting to beginners ("we chose the $145 call because it has a delta of 0.30, meaning the market assigns roughly a 30% probability it expires in the money") is genuinely educational. However, this requires care: the `delta_targets` values are targets used by the engine, not the actual deltas of the selected strikes. Presenting the target delta as the actual strike's delta could mislead if the chain does not have a contract at exactly that delta. The safer implementation reads `delta` from the actual selected leg (available in `trade["legs"]`) rather than `delta_targets` from the catalog. This is feasible but requires attention to data integrity. N7 (strike selection philosophy as a concept) is subsumed here. Include in Priority-3 set as FR-N3, with an implementation note that the leg's actual delta must be used, not the catalog target.
+
+**N4 — IV/direction match booleans as a checklist: Priority 2.**
+
+The data is computable inline. Surfacing a brief "conditions check" in the narrative — e.g. "IV environment: HIGH (this strategy is designed for HIGH IV — conditions match)" — gives users a direct, parseable signal about whether the strategy is being applied in its optimal context. This is a meaningful educational addition and directly supports the core value proposition of explaining why a strategy was chosen. It does not require new data; `designed_for_iv` and `designed_for_direction` are in the `strategy` dict. N10 is subsumed here. Include in Priority-2 set as FR-N4.
+
+**N5 — put_call_ratio_oi (OI-based PCR): Priority 3.**
+
+The data is available. OI-based PCR adds signal quality context (OI reflects accumulated positioning, volume reflects single-day activity). However, this is a nuance for experienced users; beginners will be confused by two PCR numbers without a clear explanation of the difference. The current volume PCR narration is already borderline complex. This is a Priority-3 polish item. Include as FR-N5.
+
+**N6 — news_sentiment (dropped before interpreter): BLOCKED — not in sprint scope.**
+
+This gap is real and meaningful: AI-classified sentiment being dropped before the narrative is generated is a genuine data pathway failure. However, the fix requires a route-level change to `strategies.py` (injecting `news_sentiment` into `market_ctx` or adding it as a fourth keyword argument to `generate_narrative`). This is outside the stated constraint of the current sprint. This gap must be logged as a separate backlog item and addressed in a subsequent micro-task with its own approval. It is not deferred indefinitely — it should be the first item in the next round. Do not implement a partial workaround in `interpreter.py` that pretends the data is available.
+
+**N8 — strategy family context: Priority 3.**
+
+A lookup dict mapping each strategy key to its family (butterfly family, lizard family, calendar family, etc.) can live entirely in `interpreter.py`. The educational value is moderate — users researching "iron condors" will benefit from knowing they belong to the neutral-spread family. The implementation risk is low. However, the narrative already runs long and adding family context risks information overload in a section that beginners already struggle to absorb. Defer to Priority 3. Include as FR-N8.
+
+**N9 — iv_percentile alongside IVR: Priority 3.**
+
+The data is in `iv_analysis`. The spec already includes FR-G5 (emit the IV environment category in the base paragraph), which is Priority 2. Adding the percentile figure alongside IVR and the category label is a one-line addition to the same paragraph. Low risk, low effort, but low urgency given FR-G5 already addresses the classification gap. Include as FR-N9, to be implemented in the same code block as FR-G5 if the developer chooses.
+
+---
+
+### 11.4 New Functional Requirements (N-series)
+
+The following FRs are added to the spec backlog from the N-gap analysis:
+
+| FR ID | Source | Priority | Description |
+|-------|--------|----------|-------------|
+| FR-N2 | N2 | 2 | `_why_this_strategy` must read `strategy["condition_explanation"]` and incorporate or surface the catalog's pre-written rationale string as part of the strategy justification, rather than relying solely on the interpreter's generic logic. |
+| FR-N4 | N4, N10 | 2 | `_why_this_strategy` must compute an IV/direction conditions match inline from `strategy["designed_for_iv"]` and `strategy["designed_for_direction"]` against the current `iv_env` and `bias`, and emit a brief conditions-match note (e.g. "IV conditions: match / Direction conditions: match") so users can see whether this strategy is being applied in its designed-for environment. |
+| FR-N1 | N1 | 3 | `_why_this_strategy` must narrate the strategy's greek profile (theta and vega orientation) in plain English, using `strategy["greek_profile"]` (or `trade["greek_profile"]`). Must not use the raw field values ("long", "short") verbatim — translate to prose. Example: "This trade earns time decay daily (positive theta) and benefits if implied volatility contracts (short vega)." |
+| FR-N3 | N3, N7 | 3 | `_trade_plain_english` must explain why each strike was selected by referencing the actual delta of the leg from `trade["legs"]` (not the catalog's `delta_targets`). Example: "The $145 call has a delta of 0.30 — the market is pricing roughly a 30% probability this option expires in the money." Use actual leg delta only; do not present catalog delta_targets as the strike's real delta. |
+| FR-N5 | N5 | 3 | The flow section in `_why_this_strategy` must include the OI-based put/call ratio alongside the volume-based ratio when both are non-zero: "Volume PCR: {vol_pcr:.2f} / OI PCR: {oi_pcr:.2f}." Add a one-line explanation distinguishing volume (today's activity) from open interest (accumulated positioning). |
+| FR-N8 | N8 | 3 | `_why_this_strategy` must state the strategy's family in the opening sentence, using a hardcoded lookup dict in `interpreter.py`. Example: "The iron condor belongs to the neutral-spread family." The lookup must cover all 31 catalog strategies; unknown keys fall back to "standalone strategy." |
+| FR-N9 | N9 | 3 | The `_iv_context` base paragraph must include `iv_percentile` from `iv_analysis` alongside IVR when non-None: "IV Rank: {ivr:.0f} / IV Percentile: {pct:.0f}." Add a one-line note explaining the distinction (rank is relative to the 52-week range; percentile counts the proportion of days with lower IV). Implement in the same code block as FR-G5. |
+
+**FR-N6 is NOT added to this spec.** It requires a route-layer change and must be tracked as a separate backlog item in its own mini-spec or ticket. The interpreter sprint must not depend on it.
+
+---
+
+### 11.5 Final Priority Table (All FRs)
+
+| FR | Description | Priority | Sprint |
+|----|-------------|----------|--------|
+| FR-B1 | Negative-day calendar reminder | 1 | v1 |
+| FR-B4/R2 | Remove markdown syntax from narrative | 1 | v1 |
+| FR-B2 | Bearish debit headline direction label | 1 | v1 (upgraded) |
+| FR-B3 | POP "wins more often" conditional | 1 | v1 (upgraded) |
+| FR-B6 | Debit GTC uses strategy profit_target_pct | 1 | v1 (upgraded) |
+| FR-C6 | Correct options approval level per risk_type | 1 | v1 |
+| FR-R1 | Checklist label bold boundary fix | 1 | v1 |
+| FR-G3 | Defensive tactic named branches | 2 | v1 |
+| FR-G5 | IV environment category stated explicitly | 2 | v1 |
+| FR-C1 | Monitor paragraph branches on DTE | 2 | v1 |
+| FR-E1 | earnings_note surfaced in trade_plain_english | 2 | v1 |
+| FR-C5 | POP note removes backtesting implication | 2 | v1 |
+| FR-N2 | condition_explanation incorporated in why_this_strategy | 2 | v1 |
+| FR-N4 | IV/direction conditions match note | 2 | v1 |
+| FR-G1 | Named why_this_strategy branches (5 missing keys) | 3 | v2 |
+| FR-G4 | Normal-skew note | 3 | v2 |
+| FR-G8 | Undefined-risk loss: call vs put distinction | 3 | v2 |
+| FR-G9 | Flat term structure note | 3 | v2 |
+| FR-G10 | Covered-call below-average premium label | 3 | v2 |
+| FR-G11 | Earnings urgency branching | 3 | v2 |
+| FR-D4 | Breakeven as percentage move | 3 | v2 |
+| FR-D5 | Daily theta dollar value per sold leg | 3 | v2 |
+| FR-D7 | DTE target referenced in named branches | 3 | v2 |
+| FR-E3 | pop_estimate preferred over pop_range | 3 | v2 |
+| FR-B5 | SMA zero-data guard | 3 | v2 |
+| FR-D6 | HV zero-data guard | 3 | v2 |
+| FR-C7 | HV zero headline guard | 3 | v2 |
+| FR-R3 | Box-drawing character separator replaced | 3 | v2 |
+| FR-M1 | Post-earnings IV-crush note | 3 | v2 |
+| FR-C2 | Margin notice for undefined-risk trades | 3 | v2 |
+| FR-C3 | Long-leg "defines and caps" qualification | 3 | v2 |
+| FR-E2 | earnings_adjusted fallback note | 3 | v2 |
+| FR-G2 | MODERATE vs WEAK strength_line distinction | 3 | v2 |
+| FR-G6 | Neutral strategy headline "range-bound" | 3 | v2 |
+| FR-G7 | IVR > 80 vol-spike sub-branch | 3 | v2 |
+| FR-G12 | Confirmation summary uses short strikes | 3 | v2 |
+| FR-D8 | Golden/death cross note | 3 | v2 |
+| FR-M2 | Earnings actual date alongside day count | 3 | v2 |
+| FR-M3 | Total options volume printed in flow section | 3 | v2 |
+| FR-D1 | Volume trend in strength_line | 3 | v2 |
+| FR-E4 | net_greeks summary in trade_plain_english | 3 | v2 |
+| FR-N1 | greek_profile narrated in why_this_strategy | 3 | v2 |
+| FR-N3 | Strike delta explanation using actual leg delta | 3 | v2 |
+| FR-N5 | OI-based PCR alongside volume PCR | 3 | v2 |
+| FR-N8 | Strategy family context | 3 | v2 |
+| FR-N9 | iv_percentile alongside IVR | 3 | v2 |
+| FR-N6 | news_sentiment in narrative | BLOCKED | Separate backlog item — route fix required |
+
+---
+
+### 11.6 MVP Boundary Statement
+
+**v1 sprint scope (7 Priority-1 + 6 Priority-2 = 13 FRs):**
+
+The v1 sprint corrects all seven factually wrong or misleading outputs (P1) and delivers six meaningful completeness improvements (P2). All 13 items are implementable within `interpreter.py` alone, with a single minor change to `StrategyNarrative.tsx` for FR-R1. No route changes, no schema changes, no new environment variables.
+
+P1 items (must ship before any P2 work begins, in this order of implementation risk — lowest first):
+1. FR-B4/R2 — remove markdown asterisks (global search-and-replace, zero logic risk)
+2. FR-B3 — POP conditional (single if/else on pop_range[0])
+3. FR-B6 — debit GTC uses profit_target_pct (one variable substitution)
+4. FR-B1 — negative-day guard (one branch around close_date_days)
+5. FR-B2 — bearish debit headline (branch on strat_key set membership)
+6. FR-C6 — options approval level (branch on risk_type)
+7. FR-R1 — checklist label format in interpreter + one-line tsx label boundary fix
+
+P2 items (can proceed in parallel after P1 is reviewed, but must ship in same v1 branch):
+8. FR-G5 — emit IV environment category label
+9. FR-C5 — remove backtesting implication from POP note
+10. FR-C1 — monitor paragraph DTE branch (companion fix to FR-B1)
+11. FR-E1 — surface earnings_note in trade_plain_english
+12. FR-N2 — incorporate condition_explanation in why_this_strategy
+13. FR-N4 — IV/direction conditions match note
+
+**Deferred to v2:** All 32 Priority-3 FRs. These are genuine improvements but none produce wrong output today. They should be batched into a second sprint after v1 is in production and user feedback confirms the narrative is being read.
+
+**Out of sprint entirely:** FR-N6 (news_sentiment drop). This requires a one-line fix in `strategies.py` that must go through its own approval gate — it changes the data contract of `generate_narrative`. Log as "interpreter-news-sentiment-route-fix" backlog item.
+
+---
+
+### 11.7 Risk Notes for Implementation
+
+1. **FR-N2 (condition_explanation):** The catalog strings were written as internal documentation, not as user-facing prose. The implementation agent must review the strings for tone and jargon before surfacing them verbatim. If any string contains technical shorthand, it must be paraphrased. Do not blindly inject the raw string into the narrative.
+
+2. **FR-N3 (leg delta explanation):** Must use `leg["delta"]` from `trade["legs"]`, not `strategy["delta_targets"]`. The catalog target is the engine's aim, not the actual executed delta. Presenting the target as the actual value would be misleading if the chain does not have a contract at exactly that delta. Implementation agent must read the leg dict structure before writing this section.
+
+3. **FR-N4 (conditions match):** The match logic must handle the "any" value in `designed_for_iv` and `designed_for_direction` correctly. A strategy designed for "any" IV environment always matches — this must be reflected in the note ("designed for any IV environment — conditions met by definition").
+
+4. **FR-R1 (checklist label format):** The fix is in interpreter.py (change em-dash to colon immediately after the step number in LEG steps). The tsx change is read-only from the interpreter's perspective — the frontend's `colonIdx` logic already works correctly once the interpreter emits the right format. Test with a single-leg and multi-leg strategy to confirm.
+
+5. **Ordering of N-series FRs within why_this_strategy:** FR-N2, FR-N4, and the existing named-branch logic must coexist without duplication. The conditions match note (FR-N4) and the condition_explanation text (FR-N2) cover related ground. The implementation agent should place the conditions match note (FR-N4) as a brief header bullet, and the condition_explanation (FR-N2) as the body paragraph, rather than allowing both to say the same thing at length.
+
+---
+
+**PO gate decision:** Approved — proceed to Gate 2 (Architecture / Solution Design)
+
+_Approved by:_ Product Owner &nbsp;&nbsp; _Date:_ 24Jun2026
