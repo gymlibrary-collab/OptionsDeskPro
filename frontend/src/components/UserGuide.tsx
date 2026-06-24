@@ -180,7 +180,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           to check each symbol manually.
         </P>
         <Sub>
-          <Term term="IVR (IV Rank)">Where today's implied volatility sits relative to the past 52 weeks, on a 0–100 scale. IVR 80 means options are more expensive than 80% of all days in the past year. Higher = better for sellers. The coloured dot next to the IVR bar shows data reliability — <strong style={{color:'#38bdf8'}}>blue</strong> or <strong style={{color:'#34d399'}}>teal</strong> means primary real-time feed (most reliable); <strong style={{color:'#facc15'}}>yellow</strong> means approximated from the live options chain (secondary); <strong style={{color:'#9ca3af'}}>grey</strong> means estimated from historical volatility only (weakest). <strong>If the dot is not blue or teal, trade with caution — the IV rank may not reflect true market conditions.</strong></Term>
+          <Term term="IVR (IV Rank)">Where today's implied volatility sits relative to the past 52 weeks, on a 0–100 scale. IVR 80 means options are more expensive than 80% of all days in the past year. Higher = better for sellers. The coloured dot next to the IVR bar shows data reliability — hover over it to see the source. <strong style={{color:'#38bdf8'}}>Blue/teal</strong> = primary real-time volatility feed (most accurate); <strong style={{color:'#facc15'}}>yellow</strong> = approximated from live options chain ATM implied volatility (indicative); <strong style={{color:'#9ca3af'}}>grey</strong> = estimated from historical volatility only (least accurate, use with caution).</Term>
           <Term term="Current IV">The annualised implied volatility of the at-the-money option, expressed as a percentage.</Term>
           <Term term="IV Environment">HIGH (IVR &gt; 50), MEDIUM, or LOW — determines whether to favour selling or buying strategies.</Term>
           <Term term="Bias">The directional signal based on RSI and moving averages: BULLISH, BEARISH, NEUTRAL, NEUTRAL_BULLISH, or NEUTRAL_BEARISH.</Term>
@@ -312,7 +312,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           unrealised P&amp;L, and Greeks. The P&amp;L chart below shows your equity curve over time.
         </P>
         <Sub>
-          <Term term="Avg Cost">The price you paid (or collected) when entering the trade.</Term>
+          <Term term="Avg Cost">The price you paid (or collected) when entering the trade. Click the edit pencil icon to update this value — the Risk Monitor will automatically refresh with new P&amp;L, Greeks, and risk signals.</Term>
           <Term term="Current Price">The current mid-price of the option.</Term>
           <Term term="P&L">Unrealised profit or loss: (current price − avg cost) × quantity × 100.</Term>
           <Term term="Delta">The position's net directional exposure. A delta of +50 means you gain ~$50 if the stock rises $1.</Term>
@@ -320,9 +320,15 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         <P>
           The <strong>Orders</strong> tab shows your full trade history with entry prices, quantities, and status.
         </P>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Risk Monitor Card</div>
+          <P>Each position displays key data as dark pill-shaped boxes in this order: <strong>Days Left · Qty · Entry · Current · Cost · Value · P&amp;L · IV Rank · Bias</strong>. Days Left shows a "d" suffix (e.g. "37d") and turns amber when 21 days or fewer remain, then red when 7 days or fewer. P&amp;L boxes have a subtle green or red border to indicate profit or loss. A progress bar below the pills shows how close you are to expiry.</P>
+        </div>
+
         <Note color={C.amber}>
           Positions are marked to market using the current mid-price each time you open the Positions tab.
-          Click the tab to trigger a fresh snapshot.
+          Click the tab to trigger a fresh snapshot. Expiry dates are displayed in dd-mm-yyyy format (e.g. 31-07-2026).
         </Note>
       </Section>
 
