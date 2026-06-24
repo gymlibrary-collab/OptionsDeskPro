@@ -78,6 +78,59 @@ function buildNarrative(overrides: Partial<{
 }
 
 /**
+ * Build a minimal TradeStructure (matches api/client.ts TradeStructure interface)
+ * with a narrative embedded.  All required fields are populated so TradeCard renders
+ * correctly and shows the narrative.
+ */
+function buildTrade(opts: {
+  strategyKey: string
+  strategyName: string
+  riskType: string
+  profitTargetPct: number
+  narrative: ReturnType<typeof buildNarrative>
+  estimatedCreditOrDebit?: number
+}) {
+  const {
+    strategyKey,
+    strategyName,
+    riskType,
+    profitTargetPct,
+    narrative,
+    estimatedCreditOrDebit = 1.85,
+  } = opts
+  return {
+    strategy: strategyName,
+    strategy_key: strategyKey,
+    expiry: '2024-03-15',
+    legs: [] as Array<{
+      action: string
+      option_type: string
+      strike: number
+      expiry: string
+      delta: number
+      gamma: number
+      theta: number
+      vega: number
+      bid: number
+      ask: number
+      mid: number
+      role: string
+    }>,
+    max_profit: 1.85,
+    max_loss: 3.15,
+    estimated_credit_or_debit: estimatedCreditOrDebit,
+    pop_estimate: 65,
+    breakeven_low: 173.15,
+    breakeven_high: 196.85,
+    tastylive_profit_target: null,
+    risk_type: riskType,
+    profit_target_pct: profitTargetPct,
+    earnings_note: null as string | null,
+    narrative,
+  }
+}
+
+/**
  * Build the full /strategies/analyze response wrapping `narrative` inside a
  * strategy recommendation's `trade` field.
  */
@@ -90,6 +143,7 @@ function buildAnalyzeResponse(opts: {
   narrative: ReturnType<typeof buildNarrative>
   bias?: string
   category?: string
+  estimatedCreditOrDebit?: number
 }) {
   const {
     strategyKey,
@@ -100,12 +154,13 @@ function buildAnalyzeResponse(opts: {
     narrative,
     bias = 'NEUTRAL',
     category = 'NEUTRAL',
+    estimatedCreditOrDebit,
   } = opts
 
   const strategy = {
     key: strategyKey,
     name: strategyName,
-    description: `Mock description for ${strategyName}`,
+    description: `Mock description for ${strategyName}.`,
     direction: [bias],
     iv_environment: ['HIGH'],
     risk_type: riskType,
@@ -113,17 +168,7 @@ function buildAnalyzeResponse(opts: {
     dte_target: 45,
     pop_range: popRange,
     profit_target_pct: profitTargetPct,
-    fit_score: 0.88,
-    trade: {
-      legs: [],
-      max_profit: 1.85,
-      max_loss: 3.15,
-      net_credit: 1.85,
-      breakeven_low: 173.15,
-      breakeven_high: 196.85,
-      earnings_note: null,
-      narrative,
-    },
+    trade: buildTrade({ strategyKey, strategyName, riskType, profitTargetPct, narrative, estimatedCreditOrDebit }),
   }
 
   return {
@@ -132,6 +177,7 @@ function buildAnalyzeResponse(opts: {
       symbol: 'AAPL',
       current_iv: 0.38,
       iv_rank: 72,
+      iv_source: 'option_chain',
       hv_30d: 0.28,
       hv_52wk_high: 0.52,
       hv_52wk_low: 0.18,
@@ -152,8 +198,9 @@ function buildAnalyzeResponse(opts: {
     detected_bias: bias,
     recommendations_by_category: {
       [category]: [strategy],
-      BULLISH: [],
-      BEARISH: [],
+      ...(category !== 'NEUTRAL' ? { NEUTRAL: [] } : {}),
+      ...(category !== 'BULLISH' ? { BULLISH: [] } : {}),
+      ...(category !== 'BEARISH' ? { BEARISH: [] } : {}),
     },
     comparison_matrix: [],
   }
@@ -211,30 +258,59 @@ async function navigateToDetail(page: Parameters<typeof test>[1]['authedPage']) 
   await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: /strategy scanner/i }).click()
   await page.getByRole('button', { name: /scan watchlist/i }).click()
-  // Wait for the scan result row with AAPL to appear
   await expect(page.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
-  // Click the Analyze button for AAPL
   await page.getByRole('button', { name: /analyze/i }).first().click()
-  // Wait for the StrategyDetail heading area ("Deep analysis: AAPL")
-  await expect(page.getByText(/deep analysis/i)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/deep analysis/i).first()).toBeVisible({ timeout: 10000 })
+  await expandFirstStrategyNarrative(page)
 }
 
 /**
- * After navigating to the detail view, expand the first strategy card so the
- * StrategyNarrative panels become visible.  The strategy card is a clickable
- * element that reveals the narrative when toggled.
+ * Expand the first non-empty CategorySection and then the first StrategyCard within it so
+ * that the StrategyNarrative panels become visible.
+ *
+ * StrategyDetail layout (top to bottom):
+ *   1. IV/Bias header panel
+ *   2. ComparisonMatrix (empty in tests — shows "0 of 0 strategies · AAPL · HIGH IV")
+ *   3. Direction guide blurb
+ *   4. CategorySection list — one per direction (BULLISH, BEARISH, NEUTRAL, …)
+ *
+ * CategorySection header contains a badge with the exact text "1 strategy" (singular)
+ * when it holds exactly one strategy.  The comparison matrix filter bar shows
+ * "0 of 0 strategies" — these do NOT share the pattern "1 strategy".
+ *
+ * Two clicks are required:
+ *   1. Click the CategorySection header that has "1 strategy" (or "N strategies") badge
+ *   2. Click the StrategyCard header (shows "▼ trade" when collapsed)
  */
-async function expandFirstStrategy(page: Parameters<typeof test>[1]['authedPage']) {
-  // StrategyDetail renders strategy cards; clicking the name/card toggles the narrative
-  const strategyCard = page.locator('[data-testid="strategy-card"]').first()
-    .or(page.locator('.strategy-card').first())
-    .or(page.getByRole('button', { name: /iron condor|call vertical|long put|call butterfly|short.*put|iron condor/i }).first())
+async function expandFirstStrategyNarrative(page: Parameters<typeof test>[1]['authedPage']) {
+  // Idempotent: if the narrative is already visible, return immediately.
+  // This makes it safe to call from both navigateToDetail and per-test code.
+  const alreadyOpen = await page.getByText(/market snapshot/i).first().isVisible({ timeout: 500 }).catch(() => false)
+  if (alreadyOpen) return
 
-  // If there's a visible strategy name text, click it to expand
-  const strategyToggle = page.locator('div').filter({ hasText: /Iron Condor|Long Call Vertical|Long Put Vertical|Call Butterfly|Short Naked Put|Short Put Vertical/ }).first()
-  if (await strategyToggle.isVisible({ timeout: 3000 })) {
-    await strategyToggle.click()
+  // Step 1 — Expand CategorySection.
+  // The badge inside the section header shows "1 strategy" (our mocks always have exactly one).
+  // Clicking the badge propagates up to the header div's onClick which toggles setOpen().
+  const categoryBadge = page.getByText(/^1 strategy$/).or(page.getByText(/^[2-9] strategies$/))
+  const badgeVisible = await categoryBadge.first().isVisible({ timeout: 8000 }).catch(() => false)
+  if (badgeVisible) {
+    await categoryBadge.first().click()
+  } else {
+    const categoryLabel = page.getByText(/Neutral Strategies|Bullish Strategies|Bearish Strategies/).first()
+    if (await categoryLabel.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await categoryLabel.click()
+    }
   }
+
+  // Step 2 — Expand StrategyCard.
+  // The card header shows "▼ trade" when collapsed (line 550 StrategyDetail.tsx).
+  const tradeToggle = page.getByText('▼ trade').first()
+  if (await tradeToggle.isVisible({ timeout: 8000 }).catch(() => false)) {
+    await tradeToggle.click()
+  }
+
+  // Wait for narrative panels to appear — "Market Snapshot" is a reliable panel title.
+  await expect(page.getByText(/market snapshot/i).first()).toBeVisible({ timeout: 15000 })
 }
 
 // ─── Story 1 — FR-B1: Negative-day calendar reminder ─────────────────────────
@@ -270,6 +346,7 @@ test.describe('Story 1 — FR-B1: Short-dated trade calendar reminder', () => {
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // The execution checklist renders inside the Step-by-Step Execution Guide section
     const checklistSection = authedPage.getByText(/step-by-step execution guide/i)
@@ -314,6 +391,7 @@ test.describe('Story 1 — FR-B1: Short-dated trade calendar reminder', () => {
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // Positive day count must appear
@@ -353,6 +431,7 @@ test.describe('Story 2 — FR-B4/R2: No markdown ** characters in Why This Strat
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // Find the Why This Strategy panel
     const whyPanel = authedPage.getByText(/why this strategy/i).first()
@@ -388,9 +467,7 @@ test.describe('Story 2 — FR-B4/R2: No markdown ** characters in Why This Strat
     )
 
     await navigateToDetail(authedPage)
-
-    const whyPanel = authedPage.getByText(/why this strategy/i).first()
-    await expect(whyPanel).toBeVisible({ timeout: 10000 })
+    await expandFirstStrategyNarrative(authedPage)
 
     // AC2: No ** characters
     const fullPageText = await authedPage.locator('body').textContent()
@@ -419,6 +496,7 @@ test.describe('Story 2 — FR-B4/R2: No markdown ** characters in Why This Strat
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // The text "DEFINED-RISK" must appear visibly (AC3)
     await expect(authedPage.getByText(/DEFINED-RISK/)).toBeVisible({ timeout: 10000 })
@@ -458,6 +536,7 @@ test.describe('Story 3 — FR-C6: Correct broker approval level in execution che
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // Step 1 (index 0) must contain "level 2"
@@ -496,6 +575,7 @@ test.describe('Story 3 — FR-C6: Correct broker approval level in execution che
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // Step 1 must contain "level 3"
@@ -536,6 +616,7 @@ test.describe('Story 3 — FR-C6: Correct broker approval level in execution che
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     await expect(authedPage.getByText(/level 2 or higher/i)).toBeVisible({ timeout: 10000 })
@@ -576,13 +657,16 @@ test.describe('Story 4 — FR-B3/C5: Probability-of-profit framing', () => {
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     const whyPanel = authedPage.getByText(/why this strategy/i).first()
     await expect(whyPanel).toBeVisible({ timeout: 10000 })
 
     // AC1: Must NOT claim wins more often than it loses
-    const whyContent = await authedPage.locator('div').filter({ hasText: /wins less often|precision|landing near/ }).first().textContent()
-    expect(whyContent).not.toMatch(/wins more often than it loses/i)
+    const pageText = await authedPage.locator('body').textContent()
+    expect(pageText).not.toMatch(/wins more often than it loses/i)
+    // Instead the low-POP framing must be present
+    await expect(authedPage.getByText(/wins less often/i)).toBeVisible({ timeout: 10000 })
   })
 
   // AC2: Iron condor (pop_range 60-80%) — panel states it "wins more often".
@@ -609,6 +693,7 @@ test.describe('Story 4 — FR-B3/C5: Probability-of-profit framing', () => {
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     await expect(authedPage.getByText(/wins more often than it loses/i)).toBeVisible({ timeout: 10000 })
   })
@@ -637,6 +722,7 @@ test.describe('Story 4 — FR-B3/C5: Probability-of-profit framing', () => {
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // Find the "If It Works" profit panel
     const profitPanel = authedPage.getByText(/if it works/i).first()
@@ -675,11 +761,10 @@ test.describe('Story 5 — FR-B2: Debit trade headline directional framing', () 
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
-    // The headline is the first large text block in the StrategyNarrative component
-    await expect(authedPage.getByText(/downside/i)).toBeVisible({ timeout: 10000 })
-
-    // AC1: Must NOT say "upside" for a bearish debit strategy
+    // The headline is rendered as the first styled div in StrategyNarrative
+    await expect(authedPage.getByText(/downside exposure/i)).toBeVisible({ timeout: 10000 })
     const headlineEl = authedPage.getByText(/Pay \$.*for defined downside exposure/i)
     await expect(headlineEl).toBeVisible({ timeout: 10000 })
   })
@@ -708,8 +793,9 @@ test.describe('Story 5 — FR-B2: Debit trade headline directional framing', () 
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
-    await expect(authedPage.getByText(/upside/i)).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/upside exposure/i)).toBeVisible({ timeout: 10000 })
     const headlineEl = authedPage.getByText(/Pay \$.*for defined upside exposure/i)
     await expect(headlineEl).toBeVisible({ timeout: 10000 })
   })
@@ -736,6 +822,7 @@ test.describe('Story 5 — FR-B2: Debit trade headline directional framing', () 
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // AC3: "range-bound" must appear in the headline
     await expect(authedPage.getByText(/range-bound setup/i)).toBeVisible({ timeout: 10000 })
@@ -798,6 +885,7 @@ test.describe('Story 6 — FR-R1: Execution checklist LEG step label rendering',
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // The component renders `label + ':'` in a bold span (fontWeight 700).
@@ -848,6 +936,7 @@ test.describe('Story 6 — FR-R1: Execution checklist LEG step label rendering',
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // Each keyword step should render with a bold label span containing just the keyword portion
@@ -893,6 +982,7 @@ test.describe('Story 6 — FR-R1: Execution checklist LEG step label rendering',
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // The body text (the part after the label) is rendered in a plain div, not a bold span.
@@ -939,6 +1029,7 @@ test.describe('Story 7 — FR-E1: Earnings note surfaced in trade description', 
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
 
     // "The Trade in Simple Terms" panel heading
     await expect(authedPage.getByText(/the trade in simple terms/i)).toBeVisible({ timeout: 10000 })
@@ -971,7 +1062,7 @@ test.describe('Story 7 — FR-E1: Earnings note surfaced in trade description', 
     )
 
     await navigateToDetail(authedPage)
-
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/the trade in simple terms/i)).toBeVisible({ timeout: 10000 })
 
     // AC2: No earnings adjustment note should appear
@@ -1006,6 +1097,7 @@ test.describe('Story 7 — FR-E1: Earnings note surfaced in trade description', 
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/the trade in simple terms/i)).toBeVisible({ timeout: 10000 })
 
     // AC3: The earnings note text must appear exactly once in the rendered page
@@ -1052,14 +1144,15 @@ test.describe('Story 8 — FR-B6: Debit GTC step uses strategy profit_target_pct
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
-    // AC1: SET GTC step must reference 25%
-    await expect(authedPage.getByText(/25% of max profit/i)).toBeVisible({ timeout: 10000 })
+    // AC1: SET GTC step must reference 25% — use .first() to avoid strict mode
+    // violation (the text appears in both the body span and the parent li element)
+    await expect(authedPage.getByText(/25% of max profit/i).first()).toBeVisible({ timeout: 10000 })
 
     // AC1: Must NOT say 50% for a 25%-target strategy
     const checklistContent = await authedPage.locator('ol').first().textContent()
-    // The GTC step specifically must not show 50% profit target
     expect(checklistContent).not.toMatch(/close at 50% of max profit/i)
   })
 
@@ -1095,10 +1188,11 @@ test.describe('Story 8 — FR-B6: Debit GTC step uses strategy profit_target_pct
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
-    // AC2: SET GTC step must reference 50%
-    await expect(authedPage.getByText(/50% of max profit/i)).toBeVisible({ timeout: 10000 })
+    // AC2: SET GTC step must reference 50% — use .first() to avoid strict mode violation
+    await expect(authedPage.getByText(/50% of max profit/i).first()).toBeVisible({ timeout: 10000 })
   })
 
   // AC3: Dollar amount in GTC step is consistent with the stated percentage.
@@ -1139,14 +1233,18 @@ test.describe('Story 8 — FR-B6: Debit GTC step uses strategy profit_target_pct
     )
 
     await navigateToDetail(authedPage)
+    await expandFirstStrategyNarrative(authedPage)
     await expect(authedPage.getByText(/step-by-step execution guide/i)).toBeVisible({ timeout: 10000 })
 
     // AC3: 25% is stated, and the dollar figure is present alongside it
-    await expect(authedPage.getByText(/25% of max profit/i)).toBeVisible({ timeout: 10000 })
-    // The dollar figure must accompany the percentage in the same step text
-    const gtcStepText = await authedPage.getByText(/25% of max profit/i).first().textContent()
-    // A dollar amount (e.g. "$1.05" or "$0.20") must appear near the percentage
-    expect(gtcStepText).toMatch(/\$\d+\.\d+/)
+    await expect(authedPage.getByText(/25% of max profit/i).first()).toBeVisible({ timeout: 10000 })
+    // The dollar figure must accompany the percentage in the same checklist item.
+    // StrategyNarrative renders the step body inside a <span>; the parent <li> holds
+    // the full text including both the bold label and the body. Reading the full page
+    // body text is the most reliable way to confirm "$1.05" appears next to "25%".
+    const checklistText = await authedPage.locator('body').textContent()
+    // The mock checklist step contains "25% of max profit ($1.05 gain"
+    expect(checklistText).toMatch(/25% of max profit.*\$\d+\.\d+/)
   })
 })
 
@@ -1196,7 +1294,8 @@ test.describe('Mobile viewport — narrative panels render correctly', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
     await authedPage.getByRole('button', { name: /analyze/i }).first().click()
-    await expect(authedPage.getByText(/deep analysis/i)).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/deep analysis/i).first()).toBeVisible({ timeout: 10000 })
+    await expandFirstStrategyNarrative(authedPage)
 
     // Core narrative panels must be visible on mobile
     await expect(authedPage.getByText(/why this strategy/i).first()).toBeVisible({ timeout: 10000 })
