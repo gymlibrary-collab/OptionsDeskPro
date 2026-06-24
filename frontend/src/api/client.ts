@@ -849,6 +849,7 @@ export interface SubscriberRow {
   email: string
   full_name: string | null
   tier_key: string
+  admin_override_tier_key?: string | null
   subscription_status: string
   stripe_customer_id: string | null
   created_at: string
@@ -901,6 +902,7 @@ export interface SubscriberDetailResponse {
   }
   subscription: {
     tier_key: string
+    admin_override_tier_key: string | null
     status: string
     current_period_end: string | null
     cancel_at_period_end: boolean

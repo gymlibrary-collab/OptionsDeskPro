@@ -72,7 +72,7 @@ async def list_subscribers(
     # cannot discover the FK for an !inner join. Use two separate queries and merge.
 
     # 1. Query subscriptions with optional tier/status filters.
-    sub_query = sb.table("subscriptions").select("user_id, tier_key, status, stripe_customer_id")
+    sub_query = sb.table("subscriptions").select("user_id, tier_key, admin_override_tier_key, status, stripe_customer_id")
     if tier_key:
         sub_query = sub_query.eq("tier_key", tier_key)
     if status:
@@ -119,9 +119,10 @@ async def list_subscribers(
             "id":                  uid,
             "email":               prof.get("email"),
             "full_name":           prof.get("full_name"),
-            "tier_key":            sub.get("tier_key", "free"),
-            "subscription_status": sub.get("status", "active"),
-            "stripe_customer_id":  sub.get("stripe_customer_id"),
+            "tier_key":                sub.get("tier_key", "free"),
+            "admin_override_tier_key": sub.get("admin_override_tier_key"),
+            "subscription_status":     sub.get("status", "active"),
+            "stripe_customer_id":      sub.get("stripe_customer_id"),
             "created_at":          prof.get("created_at"),
             "last_seen_at":        prof.get("last_seen_at"),
             "is_active":           prof.get("deactivated_at") is None,

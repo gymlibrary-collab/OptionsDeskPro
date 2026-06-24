@@ -137,7 +137,15 @@ export default function SubscriberList({ onSelectSubscriber }: Props) {
                     <td style={{ padding: '10px 12px', color: C.text }}>{sub.email}</td>
                     <td style={{ padding: '10px 12px', color: C.muted }}>{sub.full_name || '—'}</td>
                     <td style={{ padding: '10px 12px' }}>
-                      <span style={{ background: C.input, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', color: C.accent, fontWeight: 600 }}>{sub.tier_key}</span>
+                      {sub.admin_override_tier_key ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ background: C.input, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', color: C.muted, fontWeight: 600, textDecoration: 'line-through' }}>{sub.tier_key}</span>
+                          <span style={{ fontSize: '10px', color: C.muted }}>→</span>
+                          <span style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', padding: '2px 8px', fontSize: '12px', color: C.warning, fontWeight: 600 }}>{sub.admin_override_tier_key}</span>
+                        </span>
+                      ) : (
+                        <span style={{ background: C.input, borderRadius: '4px', padding: '2px 8px', fontSize: '12px', color: C.accent, fontWeight: 600 }}>{sub.tier_key}</span>
+                      )}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
                       <span style={{ color: statusColor(sub.subscription_status), fontWeight: 600 }}>{sub.subscription_status}</span>

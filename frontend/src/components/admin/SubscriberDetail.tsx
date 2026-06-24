@@ -203,6 +203,11 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
         {!profile.is_active && (
           <span style={{ background: 'rgba(239,68,68,0.2)', color: C.error, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>SUSPENDED</span>
         )}
+        {subscription.admin_override_tier_key && (
+          <span style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: C.warning, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>
+            OVERRIDE: {subscription.admin_override_tier_key.toUpperCase()}
+          </span>
+        )}
       </div>
 
       {actionError && <ErrorMsg msg={actionError} />}
@@ -252,7 +257,17 @@ export default function SubscriberDetail({ userId, onBack }: Props) {
 
         {/* Subscription */}
         <Section title="Subscription">
+          {subscription.admin_override_tier_key ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '6px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: C.warning, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Override active</span>
+              <span style={{ fontSize: '12px', color: C.muted }}>Billing tier:</span>
+              <span style={{ fontSize: '12px', color: C.muted, textDecoration: 'line-through' }}>{subscription.tier_key}</span>
+              <span style={{ fontSize: '12px', color: C.muted }}>→</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: C.warning }}>{subscription.admin_override_tier_key}</span>
+            </div>
+          ) : null}
           <Field label="Tier" value={subscription.tier_key} />
+          <Field label="Override tier" value={subscription.admin_override_tier_key || '—'} highlight={subscription.admin_override_tier_key ? 'warning' : undefined} />
           <Field label="Status" value={subscription.status} highlight={subscription.status === 'past_due' ? 'warning' : undefined} />
           <Field label="Period end" value={fmtDate(subscription.current_period_end)} />
           <Field label="Cancel at period end" value={subscription.cancel_at_period_end ? 'Yes' : 'No'} />
