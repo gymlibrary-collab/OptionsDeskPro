@@ -66,17 +66,41 @@ function BiasBadge({ bias }: { bias: string }) {
 
 
 type IVSource = 'volradar' | 'cboe_vol_index' | 'option_chain' | 'hv_proxy'
-const IV_SOURCE_META: Record<IVSource, { dot: string; title: string }> = {
-  volradar:        { dot: '#38bdf8', title: 'Primary source IVR' },
-  cboe_vol_index:  { dot: '#34d399', title: 'Primary source IVR (CBOE vol index)' },
-  option_chain:    { dot: '#facc15', title: 'Secondary source IVR (ATM IV approx)' },
-  hv_proxy:        { dot: '#9ca3af', title: 'Secondary source IVR (HV approx)' },
+const IV_SOURCE_META: Record<IVSource, { dot: string; tooltip: string }> = {
+  volradar:        { dot: '#38bdf8', tooltip: 'Primary real-time volatility feed — most accurate' },
+  cboe_vol_index:  { dot: '#34d399', tooltip: 'Primary real-time volatility feed (CBOE index) — most accurate' },
+  option_chain:    { dot: '#facc15', tooltip: 'Approximated from live options chain (ATM implied volatility) — treat as indicative' },
+  hv_proxy:        { dot: '#9ca3af', tooltip: 'Estimated from historical volatility only — least accurate, use with caution' },
+}
+
+function IVRDot({ source }: { source?: IVSource }) {
+  const [hovered, setHovered] = useState(false)
+  const src = source && IV_SOURCE_META[source] ? IV_SOURCE_META[source] : IV_SOURCE_META.hv_proxy
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span style={{ color: src.dot, fontSize: '8px', cursor: 'help' }}>⬤</span>
+      {hovered && (
+        <span style={{
+          position: 'absolute', bottom: '14px', left: '50%', transform: 'translateX(-50%)',
+          background: '#1a1d27', border: '1px solid #2d3148', borderRadius: '6px',
+          padding: '5px 9px', fontSize: '11px', color: '#e2e8f0', whiteSpace: 'nowrap',
+          pointerEvents: 'none', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        }}>
+          <span style={{ color: src.dot, fontSize: '7px', marginRight: '5px' }}>⬤</span>
+          {src.tooltip}
+        </span>
+      )}
+    </span>
+  )
 }
 
 function IVRBar({ rank, source }: { rank: number; source?: IVSource }) {
   const pct = Math.max(0, Math.min(100, rank))
   const color = pct > 50 ? C.red : pct < 30 ? C.green : C.yellow
-  const src = source && IV_SOURCE_META[source] ? IV_SOURCE_META[source] : IV_SOURCE_META.hv_proxy
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
       <div style={{ background: C.surface2, borderRadius: '3px', height: '6px', width: '48px', overflow: 'hidden', flexShrink: 0 }}>
@@ -85,7 +109,7 @@ function IVRBar({ rank, source }: { rank: number; source?: IVSource }) {
       <span style={{ color, fontWeight: 700, fontSize: '12px', fontVariantNumeric: 'tabular-nums', minWidth: '28px' }}>
         {pct.toFixed(0)}
       </span>
-      <span title={src.title} style={{ color: src.dot, fontSize: '8px', cursor: 'help' }}>⬤</span>
+      <IVRDot source={source} />
     </div>
   )
 }

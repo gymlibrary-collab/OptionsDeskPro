@@ -94,25 +94,40 @@ function IVRGauge({ rank }: { rank: number }) {
 type IVSource = 'volradar' | 'cboe_vol_index' | 'option_chain' | 'hv_proxy'
 
 function IVSourcePill({ source }: { source?: IVSource }) {
-  const meta: Record<IVSource, { label: string; bg: string; color: string; title: string }> = {
-    volradar:        { label: 'primary source', bg: '#0a1f2e', color: '#38bdf8', title: 'IVR from primary data source' },
-    cboe_vol_index:  { label: 'primary source', bg: '#0a2620', color: '#34d399', title: 'IVR from CBOE volatility index' },
-    option_chain:    { label: 'secondary source', bg: '#1a1a0a', color: '#facc15', title: 'IVR approximated using ATM implied volatility' },
-    hv_proxy:        { label: 'secondary source', bg: '#1a1a1a', color: '#9ca3af', title: 'IVR approximated using 30-day historical volatility — least accurate' },
+  const [hovered, setHovered] = useState(false)
+  const meta: Record<IVSource, { label: string; bg: string; color: string; tooltip: string }> = {
+    volradar:        { label: 'primary source', bg: '#0a1f2e', color: '#38bdf8', tooltip: 'Primary real-time volatility feed — most accurate' },
+    cboe_vol_index:  { label: 'primary source', bg: '#0a2620', color: '#34d399', tooltip: 'Primary real-time volatility feed (CBOE index) — most accurate' },
+    option_chain:    { label: 'secondary source', bg: '#1a1a0a', color: '#facc15', tooltip: 'Approximated from live options chain (ATM implied volatility) — treat as indicative' },
+    hv_proxy:        { label: 'secondary source', bg: '#1a1a1a', color: '#9ca3af', tooltip: 'Estimated from historical volatility only — least accurate, use with caution' },
   }
   const s = source && meta[source] ? meta[source] : meta.hv_proxy
   return (
     <span
-      title={s.title}
-      style={{
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span style={{
         display: 'inline-flex', alignItems: 'center', gap: '4px',
         background: s.bg, color: s.color,
         border: `1px solid ${s.color}44`, borderRadius: '4px',
         padding: '2px 7px', fontSize: '10px', fontWeight: 600,
         letterSpacing: '0.04em', cursor: 'help', whiteSpace: 'nowrap',
-      }}
-    >
-      <span style={{ fontSize: '8px' }}>⬤</span> {s.label}
+      }}>
+        <span style={{ fontSize: '8px' }}>⬤</span> {s.label}
+      </span>
+      {hovered && (
+        <span style={{
+          position: 'absolute', bottom: '22px', left: '50%', transform: 'translateX(-50%)',
+          background: '#1a1d27', border: '1px solid #2d3148', borderRadius: '6px',
+          padding: '5px 9px', fontSize: '11px', color: '#e2e8f0', whiteSpace: 'nowrap',
+          pointerEvents: 'none', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        }}>
+          <span style={{ color: s.color, fontSize: '7px', marginRight: '5px' }}>⬤</span>
+          {s.tooltip}
+        </span>
+      )}
     </span>
   )
 }
