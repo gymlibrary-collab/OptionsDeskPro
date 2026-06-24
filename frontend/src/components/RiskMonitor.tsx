@@ -475,7 +475,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
         {/* Days Left — first, matching current order */}
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
           <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Days Left</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}<span style={{ fontSize: '12px', fontWeight: 400, marginLeft: '1px' }}>d</span></div>
         </div>
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
           <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Qty</div>
