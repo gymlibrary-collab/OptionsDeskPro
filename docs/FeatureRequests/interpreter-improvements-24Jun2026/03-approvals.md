@@ -72,13 +72,13 @@
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated tests added** | 24 (narrative-improvements.spec.ts) |
+| **All AC covered** | Yes — 24/24 ACs across 8 user stories |
+| **Approved by** | QA Engineer |
+| **Date** | 24Jun2026 |
+| **Notes** | 24/24 tests pass on Chromium. Full suite regression: 315 passed, 0 regressions. Branch: claude/modest-davinci-sxz7lv. All API calls mocked; no real network or OAuth credentials used. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved
 
 ---
 
