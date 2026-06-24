@@ -136,3 +136,25 @@ Items deferred from BA's P1 to revised P2: FR-G4, FR-G6, FR-G9, FR-G10, FR-G2.
 The v2 scope is approved with the P1 revision above. The Solution Architect should design against the 10-item revised P1 list. P2 items (14 items including the 5 demoted from P1 and the scoped FR-G3 extension) may be included in the same sprint if developer capacity allows, but they must not delay P1 delivery.
 
 The architect should note that FR-G3 and FR-G1 together require writing approximately 10 distinct 3–5 sentence strategy-specific paragraphs. This is the largest single content-writing task in the sprint and should be called out explicitly in the implementation estimate.
+
+---
+
+## Gate 3 — Architecture Design
+
+- **Status:** APPROVED
+- **Date:** 24Jun2026
+- **Author:** Solution Architect
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/02-design.md`
+
+**Summary of design decisions:**
+
+All 10 P1 items are implemented entirely within `backend/services/interpreter.py`. No schema migrations, no new API endpoints, no new Python packages, no frontend changes. One backward-compatible function signature change: `_why_this_strategy()` gains `trade: dict | None = None` as an optional keyword argument to support FR-E3 (pop_estimate preference). Both call sites in `generate_narrative()` are updated.
+
+Key risks identified and mitigated:
+1. FR-G3/FR-G1 strategy key strings must be verified against the 31-key catalog in `strategy_engine.py` before implementation — a mismatch silently falls to the generic fallback.
+2. FR-G3 new tactic entries must use "the stock" noun (not `{symbol}`) because `_defensive_tactic()` receives no symbol parameter.
+3. FR-G8 leg inspection uses a conservative default (unlimited-risk framing) for any ambiguous leg structure.
+
+Testing strategy: Playwright route-interception mocking `GET /api/strategies/analyze/{symbol}` with 19 controlled fixtures covering all P1 scenarios and their negative cases (verified existing behaviour is unchanged).
+
+Deployment: Railway backend redeploy of the single modified file. Rollback is a single-file revert.
