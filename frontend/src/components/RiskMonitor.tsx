@@ -471,17 +471,50 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
           <button onClick={() => setExpanded(e => !e)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}>{expanded ? '▲' : '▼'}</button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Days Left</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>P&L</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.pnl >= 0 ? C.green : C.red }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Entry Price</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>${fmt(pos.avg_cost)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Entry Value</span><span style={{ fontSize: '14px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Current Price</span><span style={{ fontSize: '14px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(pos.current_price)}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Current Value</span><span style={{ fontSize: '14px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(currentValue, 0)}</span></div>
-        {pos.iv_rank !== undefined && pos.iv_rank !== null && <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>IV Rank</span><span style={{ fontSize: '18px', fontWeight: 700, color: pos.iv_rank > 50 ? C.yellow : C.text }}>{fmt(pos.iv_rank, 0)}</span></div>}
-        {pos.bias && <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}><span style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mkt Bias</span><span style={{ fontSize: '13px', fontWeight: 700, color: pos.bias === 'BULLISH' ? C.green : pos.bias === 'BEARISH' ? C.red : C.muted }}>{pos.bias}</span></div>}
-        <div style={{ flex: 1, minWidth: '140px' }}><ProgressBar pct={pos.pnl_pct} target={pos.profit_target_pct} level={pos.risk_level} /></div>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+        {/* Days Left — first, matching current order */}
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Days Left</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Qty</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>{pos.quantity > 0 ? '+' : ''}{pos.quantity}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Entry</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>${fmt(pos.avg_cost)}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Current</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(pos.current_price)}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Cost</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Value</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(currentValue, 0)}</div>
+        </div>
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px', border: `1px solid ${pos.pnl >= 0 ? C.green : C.red}33` }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>P&amp;L</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.pnl >= 0 ? C.green : C.red }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</div>
+        </div>
+        {pos.iv_rank !== undefined && pos.iv_rank !== null && (
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+            <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>IV Rank</div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: pos.iv_rank > 50 ? C.yellow : C.text }}>{fmt(pos.iv_rank, 0)}</div>
+          </div>
+        )}
+        {pos.bias && (
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
+            <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Bias</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: pos.bias === 'BULLISH' ? C.green : pos.bias === 'BEARISH' ? C.red : C.muted }}>{pos.bias}</div>
+          </div>
+        )}
       </div>
+      <ProgressBar pct={pos.pnl_pct} target={pos.profit_target_pct} level={pos.risk_level} />
       {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
 
       {/* Action Plan — plain text trigger, no pill border */}
