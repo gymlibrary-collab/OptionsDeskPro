@@ -181,9 +181,14 @@ All acceptance criteria from the approved P1 list (Gate 2 PO-revised scope) have
 
 ## Gate 5 — Security Review
 
-- **Status:** PENDING
-- **Date:** 25Jun2026 (scheduled for review)
-- **Notes:** Awaiting security-reviewer approval. No Critical or High findings anticipated (narrative is plain-text output, no auth changes, no SQL, no secrets in narrative output).
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** Security Reviewer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/05-security-review.md`
+
+**Summary:** No Critical or High findings. Three informational (Low) findings documented: L01 (optional type guard on `example_strike`), L02 (optional type guard on `pop_estimate`), L03 (XSS surface analysis — confirmed no vector). All CLAUDE.md invariants confirmed: JWT via `auth.get_user`, no python-jose, no new env vars, no raw SQL, no shell invocation, no IDOR risks. The `generate_narrative()` signature is backward-compatible (optional `trade` kwarg added with default None).
+
+**Gate 5 decision: PASS — proceed to Gate 6 (Release Documentation).**
 
 ---
 
@@ -196,11 +201,15 @@ All acceptance criteria from the approved P1 list (Gate 2 PO-revised scope) have
 
 **Summary:**
 
-Release note covers all 10 P1 FRs, test results (28/28 new tests pass, 24/24 v1 regression tests pass), deployment steps (Railway backend redeploy), rollback procedure (single-commit revert), and post-deployment monitoring. Known limitation noted: `collar` key is dormant (does not exist in current strategy catalog). 19 deferred P2/P3 items listed for v3 planning.
+Release note covers all 10 P1 narrative engine improvements, smoke test procedures (verify "EARNINGS IMMINENT" header on earnings-within-3-days, verify short naked call shows unlimited-loss framing, verify margin notice appears, verify no "$0.00 SMA" malformed sentences). Deployment: Railway backend redeploy of single modified file (interpreter.py). Rollback: single-commit revert. No database migrations, no new env vars required. Post-deployment monitoring: error rate tracking, no API quota concerns.
 
-UserGuide.tsx updated:
-- "Why Options Are Priced This Way" section now mentions margin notice for undefined-risk positions.
-- "Why This Strategy" section now mentions earnings urgency branching (IMMINENT vs ALERT).
+Known limitation: `collar` strategy key is dormant (does not exist in current 31-strategy catalog; branch will not execute against current engine).
+
+19 P2/P3 items deferred to v3 (5 PO-moved items + 14 additional backlog items from BA spec).
+
+UserGuide.tsx updated with two sentences:
+1. "Why Options Are Priced This Way" section now notes: margin notice for undefined-risk trades (20–25% buying power reserve).
+2. "Why This Strategy" section now notes: earnings urgency branching — "EARNINGS IMMINENT" if ≤3 days, "EARNINGS ALERT" if 4–30 days.
 
 **Gate 6 decision: APPROVED — ready for production deployment.**
 
