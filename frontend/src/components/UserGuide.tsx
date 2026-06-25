@@ -550,11 +550,12 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {isAdmin && (
         <Section title="Admin Tools" badge="Admin">
           <P>
-            As a platform administrator, you have access to two additional tabs in the Admin panel:
+            As a platform administrator, you have access to the following admin tabs and tools:
           </P>
           <Sub>
+            <P><strong>Users</strong> — View all subscriber accounts. The <strong>T&C Status</strong> column shows whether each subscriber has accepted the current legal terms (Acknowledged with date, Pending, or No version published). Click the status badge to jump directly to their acknowledgment record in the User Actions tab, or click <strong>View Activity</strong> to see their complete activity log without typing their email.</P>
             <P><strong>Health Monitor</strong> — Real-time status of all platform components (Backend API, Supabase Database, yfinance Market Data, Gemini AI, StockTwits). Shows component status, response time, and any errors. Includes a 60-second auto-refresh and a manual Refresh button. Use this to diagnose which subsystem is degraded when users report failures.</P>
-            <P><strong>User Actions</strong> — Granular audit log of all user events (login, logout, ticker search, strategy scan, options chain view, paper trade, watchlist update, AI query). Filter by user email, action type, or date range. Paginated display of 50 rows per page. Use this to understand user behaviour, investigate support requests, and verify feature adoption.</P>
+            <P><strong>User Actions</strong> — Granular audit log of all user events (login, logout, ticker search, strategy scan, options chain view, paper trade, watchlist update, AI query, legal acknowledgment). Filter by user email, action type, or date range. Paginated display of 50 rows per page. Use this to understand user behaviour, investigate support requests, verify feature adoption, and audit legal compliance.</P>
           </Sub>
           <Note>
             The existing <strong>Activity Log (Logins)</strong> tab continues to show daily login aggregates and is unchanged.
