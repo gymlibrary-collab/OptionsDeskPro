@@ -12,7 +12,7 @@ This spec covers two related features that together give the platform operator v
 
 **Feature A — Legal T&C Acknowledgment Tracking (admin visibility layer).** The database schema and backend service for tracking legal acknowledgments already exist (`legal_document_versions`, `legal_acknowledgments`, `legal_service.py`, migration 012). The login response already includes a `pending_legal_acknowledgment` flag, and the `legal_gate_dep` FastAPI dependency already blocks business-logic routes with HTTP 451 when a user has not acknowledged. What does not yet exist is an admin-facing view of which subscribers have and have not acknowledged the currently active version, and a T&C acknowledgment event in the activity log so admins can see exactly when each subscriber agreed.
 
-**Feature B — Subscriber Activity Log (scope clarification and admin UX).** The `user_action_log` table (migration 015) and `activity_logger.py` service already exist. The `GET /admin/activity-log` endpoint and the `UserActionsTab` in `AdminPanel.tsx` already provide a paginated, filtered activity log. The gaps are: (1) the `ai_features_enabled` per-session event type does not exist in the `ACTION_TYPES` set; (2) the `tc_acknowledged` event type does not exist; (3) there is no one-click shortcut in the Users tab to jump to the activity log pre-filtered for a specific subscriber; (4) the retention window is currently 30 days (GitHub Actions workflow) but the requirement is 14 days.
+**Feature B — Subscriber Activity Log (scope clarification and admin UX).** The `user_action_log` table (migration 015) and `activity_logger.py` service already exist. The `GET /admin/activity-log` endpoint and the `UserActionsTab` in `AdminPanel.tsx` already provide a paginated, filtered activity log. The gaps are: (1) the `ai_features_enabled` per-session event type does not exist in the `ACTION_TYPES` set; (2) the `tc_acknowledged` event type does not exist; (3) there is no one-click shortcut in the Users tab to jump to the activity log pre-filtered for a specific subscriber; (4) the retention window is currently 30 days (GitHub Actions workflow) and the confirmed requirement is also 30 days — no change required (OQ-5 resolved).
 
 Both features serve the admin persona exclusively. No subscriber-facing UI changes are required beyond the existing T&C modal and gate that are already in scope for the pre-existing legal gate implementation.
 
@@ -61,7 +61,7 @@ Both features serve the admin persona exclusively. No subscriber-facing UI chang
 
 13. The Users tab in AdminPanel must show a "View Activity" button (or a clickable activity icon) next to each subscriber row. Clicking it must switch the admin panel to the `user_actions` tab and pre-populate the email filter with that subscriber's email, then auto-execute the search. The navigation must be achievable without page reload.
 
-14. The GitHub Actions cron workflow `purge-user-action-log.yml` must be updated to delete rows older than 14 days instead of 30 days. The SQL statement must change the interval from `'30 days'` to `'14 days'`. The workflow schedule (daily at 3:00 AM UTC) must remain unchanged.
+14. The GitHub Actions cron workflow `purge-user-action-log.yml` retains its current 30-day deletion interval — confirmed as the correct retention window (OQ-5 resolved). No change to the SQL or schedule is required.
 
 15. The `UserActionsTab` action-type filter dropdown must include `tc_acknowledged` and `ai_features_enabled` as selectable options once those types are added in requirements 4 and 8.
 
@@ -84,16 +84,9 @@ Both features serve the admin persona exclusively. No subscriber-facing UI chang
 
 ---
 
-### Story 2 — Subscriber is prompted to acknowledge T&C on first login and on version update
+### ~~Story 2 — Subscriber is prompted to acknowledge T&C on first login and on version update~~ *(ALREADY IMPLEMENTED — out of scope)*
 
-**As a** subscriber, **I want** to be shown the T&C modal when I first log in or when a new T&C version has been published **so that** I can give my informed consent before accessing any trading or analysis features.
-
-**Acceptance Criteria:**
-- [ ] AC1: A newly invited subscriber who logs in for the first time sees the T&C modal before they can access the Options Chain, Scanner, Positions, or AI tabs. They cannot dismiss the modal without clicking "I Agree."
-- [ ] AC2: After clicking "I Agree," the subscriber can immediately access all features without being shown the modal again in the same session.
-- [ ] AC3: After the admin publishes a new T&C version (incrementing version_number), an existing subscriber who had previously acknowledged the old version is shown the new version modal on their next login.
-- [ ] AC4: The admin account (leonard.simgt@gmail.com) is never shown the T&C modal regardless of whether an active version is published.
-- [ ] AC5: If the legal acknowledgment DB check fails (Supabase unavailable), the user is not blocked — the gate fails open and the subscriber can access the platform normally. This fail-open behaviour is already implemented in `legal_service.py` and must remain intact.
+> This story is fully delivered by the existing `OnboardingFlow.tsx` modal and `POST /api/legal/acknowledge` endpoint (shipped with migration 012). No further work required. Removed from the delivery scope of this feature.
 
 ---
 
@@ -146,14 +139,16 @@ Both features serve the admin persona exclusively. No subscriber-facing UI chang
 
 ---
 
-### Story 7 — Activity log entries older than 14 days are automatically pruned
+### Story 7 — Activity log retention is confirmed at 30 days *(no code change required)*
 
-**As a** platform admin, **I want** the activity log to automatically delete entries older than 14 days **so that** the `user_action_log` table does not grow indefinitely and query performance degrades over time.
+**As a** platform admin, **I want** the activity log to automatically delete entries older than 30 days **so that** the `user_action_log` table does not grow indefinitely.
+
+> OQ-5 resolved: the 30-day retention already in production is the confirmed requirement. The workflow and SQL require no modification. This story is retained as a testable baseline.
 
 **Acceptance Criteria:**
-- [ ] AC1: The GitHub Actions workflow `purge-user-action-log.yml` runs on its scheduled cron (daily at 3:00 AM UTC) and deletes rows from `user_action_log` where `created_at < now() - interval '14 days'`.
-- [ ] AC2: After the workflow runs, no rows with `created_at` older than 14 days remain in the table. Verifiable by running `SELECT COUNT(*) FROM public.user_action_log WHERE created_at < now() - interval '14 days'` immediately after a purge — result must be 0.
-- [ ] AC3: Rows created within the past 14 days are not deleted by the purge run.
+- [ ] AC1: The GitHub Actions workflow `purge-user-action-log.yml` runs on its scheduled cron (daily at 3:00 AM UTC) and deletes rows from `user_action_log` where `created_at < now() - interval '30 days'`.
+- [ ] AC2: After the workflow runs, no rows with `created_at` older than 30 days remain in the table. Verifiable by running `SELECT COUNT(*) FROM public.user_action_log WHERE created_at < now() - interval '30 days'` immediately after a purge — result must be 0.
+- [ ] AC3: Rows created within the past 30 days are not deleted by the purge run.
 - [ ] AC4: The workflow can be manually triggered via `workflow_dispatch` for on-demand purge. Manual trigger produces the same deletion result as the scheduled run.
 - [ ] AC5: The purge is idempotent — running it twice in succession (manual + scheduled overlap) produces no error and no additional deletions.
 
@@ -226,7 +221,7 @@ The architect determines whether this is achieved by extending `GET /admin/users
 | `backend/migrations/024_extend_action_types.sql` | Drop and recreate (or alter) the `action_type` CHECK constraint on `user_action_log` to add `tc_acknowledged` and `ai_features_enabled` |
 | `frontend/src/components/AdminPanel.tsx` | (1) Add `tc_ack_status` and `tc_ack_at` columns to the Users table; (2) Add "View Activity" button per subscriber row; (3) Thread a controlled-filter prop or shared state into `UserActionsTab` so the Users tab can pre-populate and trigger the filter |
 | `frontend/src/api/client.ts` | Update `UserRow` interface to include `tc_ack_status` and `tc_ack_at`; update `ACTION_TYPES` array constant used by `UserActionsTab` dropdown |
-| `.github/workflows/purge-user-action-log.yml` | Change interval from `'30 days'` to `'14 days'` |
+| `.github/workflows/purge-user-action-log.yml` | No change — 30-day interval confirmed correct (OQ-5 resolved) |
 
 **Files that do not change:**
 - `legal_service.py` — no changes required; existing logic is correct
@@ -244,7 +239,7 @@ The architect determines whether this is achieved by extending `GET /admin/users
 - Per-subscriber T&C acknowledgment history (showing all versions a subscriber has ever acknowledged, not just the current one). The admin view shows current-version status only.
 - Subscriber-visible activity log. Subscribers do not see their own event history. The `user_action_log` is admin-only; RLS already enforces this.
 - Changing the T&C modal layout or copy. The modal is already implemented and gate-tested. Only the logging of the acknowledgment event is in scope.
-- Modifying the 30-day retention of the daily login `activity_log` table (separate from `user_action_log`). Only the `user_action_log` retention changes from 30 to 14 days.
+- Modifying the retention window of `user_action_log`. The 30-day purge schedule is confirmed correct (OQ-5) and stays unchanged.
 - Real-time push or webhook notification when a subscriber acknowledges the T&C. The admin sees the status on next Users tab load.
 - Any real-money broker connection or real trading activity. This is a paper-trading platform.
 - Email notifications to subscribers when a new T&C version is published. Out of scope for this feature.
@@ -301,10 +296,10 @@ No tier-gating applies to either feature. The T&C gate and activity log are plat
 | # | Question | Who Answers | Impact |
 |---|----------|-------------|--------|
 | OQ-1 | Is the activity log (User Actions tab) admin-only, or should subscribers be able to see their own event history? The current RLS on `user_action_log` is service-role-only, meaning subscribers cannot access it. The feature request assumes admin-only. If a subscriber-visible history is wanted, a separate RLS policy and a subscriber-facing API endpoint must be scoped. | Product Owner | Scope, security review |
-| OQ-2 | The T&C modal and `POST /api/legal/acknowledge` endpoint: do they already exist in a shipped branch, or is that route still unimplemented? `legal_service.py` and migration 012 exist, but the frontend T&C modal and the acknowledgment POST route were not visible in the files reviewed. The architect must confirm whether these are already live or still to be built. | Architect | Implementation scope |
-| OQ-3 | The `ai_features_enabled` event is defined as firing once per session when the AI tab is first opened. "Session" is not formally defined in the app (there is no server-side session object; auth is stateless JWT). The recommended approach is a React `useRef` flag within `App.tsx` or the AI tab component that is set on first tab visit and cleared on logout. The architect must confirm the session-boundary definition and whether a sessionStorage flag is acceptable (survives tab refresh but not new login). | Architect | FR-8 / AC2 |
+| OQ-2 | ~~Do the T&C modal and `POST /api/legal/acknowledge` already exist?~~ **RESOLVED:** Both are confirmed present — `OnboardingFlow.tsx` (frontend modal) and `legal_routes.py` (POST endpoint). Story 2 has been removed from scope. | Resolved | — |
+| OQ-3 | ~~How frequently should AI feature use be logged — per session or per invocation?~~ **RESOLVED:** Log every invocation, no deduplication. Each time the user triggers an AI feature, a new `ai_query` or `ai_features_enabled` row is written regardless of whether they triggered the same feature earlier in the session. | Resolved | FR-8, FR-12 |
 | OQ-4 | The `ticker_search` action type exists in the enum and database but is not fired from any route currently. Should it be wired up as part of this feature (e.g. when the options chain symbol is searched)? It is marked out of scope in Section 7, but the Product Owner should confirm whether this is deferred or permanently out of scope. | Product Owner | Out-of-scope boundary |
-| OQ-5 | Retention change from 30 to 14 days: is there any compliance, debugging, or contractual reason to keep events longer than 14 days? The original migration 015 comment says "30-day rolling purge" without citing a specific rationale. Reducing to 14 days is the explicit requirement, but if the platform ever needs to reconstruct a subscriber's activity history for dispute resolution, 14 days may be insufficient. The Product Owner should confirm this is an acceptable retention window. | Product Owner | Risk, legal |
+| OQ-5 | ~~Retention: should the interval change from 30 to 14 days?~~ **RESOLVED:** Keep 30 days. The existing purge workflow and SQL require no modification. | Resolved | Story 7 |
 | OQ-6 | The "View Activity" shortcut from the Users tab to the User Actions tab requires shared state or a URL-based navigation approach (e.g. a query param or React context). Since the admin panel is a single-page component with tab state managed by `useState`, the current architecture does not support URL-encoded tab state. Should the architect introduce a URL-based approach (adding `?tab=user_actions&email=X` routing) or keep it as internal React state? URL-based would allow the admin to bookmark a filtered view; internal state would be simpler. | Architect | Implementation complexity |
 
 ---
@@ -318,12 +313,12 @@ _Filled in by the product-owner agent._
 | Story | Priority (1=must/2=should/3=nice) | Notes |
 |-------|-----------------------------------|-------|
 | Story 1 — Admin sees T&C acknowledgment status per subscriber | | |
-| Story 2 — Subscriber prompted to acknowledge on first login and version update | | |
+| ~~Story 2~~ — Already implemented (OnboardingFlow + legal_routes) | N/A — shipped | Removed from scope |
 | Story 3 — T&C acknowledgment event recorded in activity log | | |
 | Story 4 — Admin views full activity log paginated newest first | | |
 | Story 5 — Admin filters activity log by action type | | |
 | Story 6 — Admin clicks subscriber row to filter activity log | | |
-| Story 7 — Activity log entries older than 14 days pruned | | |
+| Story 7 — Activity log 30-day retention confirmed (no change) | | |
 | Story 8 — AI Features tab open event logged | | |
 
 **MVP boundary:** [Stories in v1]
