@@ -176,3 +176,30 @@ Deployment: Railway backend redeploy of the single modified file. Rollback is a 
 All acceptance criteria from the approved P1 list (Gate 2 PO-revised scope) have at least one automated test. The one structural correction made during authoring: narrative section text (market_snapshot, iv_context, defensive_tactic, etc.) is rendered inside the strategy card accordion, not in always-visible panels — tests for FR-B5, FR-D6/FR-C7, and FR-G11 correctly call `expandFirstStrategyNarrative` before asserting on narrative text. The test design note in the task brief ("do NOT call expandFirstStrategyNarrative for these") was incorrect; the live UI behaviour requires expansion. This has no impact on coverage — all ACs are still tested.
 
 **Gate 4 decision: GO — proceed to Gate 5 (Security Review).**
+
+---
+
+## Gate 5 — Security Review
+
+- **Status:** PENDING
+- **Date:** 25Jun2026 (scheduled for review)
+- **Notes:** Awaiting security-reviewer approval. No Critical or High findings anticipated (narrative is plain-text output, no auth changes, no SQL, no secrets in narrative output).
+
+---
+
+## Gate 6 — Release Documentation
+
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** Technical Writer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/06-release-note.md`
+
+**Summary:**
+
+Release note covers all 10 P1 FRs, test results (28/28 new tests pass, 24/24 v1 regression tests pass), deployment steps (Railway backend redeploy), rollback procedure (single-commit revert), and post-deployment monitoring. Known limitation noted: `collar` key is dormant (does not exist in current strategy catalog). 19 deferred P2/P3 items listed for v3 planning.
+
+UserGuide.tsx updated:
+- "Why Options Are Priced This Way" section now mentions margin notice for undefined-risk positions.
+- "Why This Strategy" section now mentions earnings urgency branching (IMMINENT vs ALERT).
+
+**Gate 6 decision: APPROVED — ready for production deployment.**
