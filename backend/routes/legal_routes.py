@@ -4,6 +4,7 @@ Legal routes — /api/legal/*
 Subscriber-facing endpoints for the legal acknowledgment gate.
 All DB writes use the service role (via get_supabase()).
 """
+import asyncio
 import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -130,6 +131,22 @@ async def acknowledge_legal(
         raise HTTPException(status_code=500, detail="Failed to record acknowledgment. Please try again.")
 
     ack_row = result.data[0] if result.data else {}
+
+    # Fire-and-forget: write a tc_acknowledged event to the activity log.
+    # This is non-blocking; the acknowledgment insert above is not rolled back if this fails.
+    from services.activity_logger import log_action
+    user_email = payload.get("email", "")
+    asyncio.create_task(log_action(
+        user_id=user_id,
+        user_email=user_email,
+        action_type="tc_acknowledged",
+        detail={
+            "version_id":     str(version_id),
+            "version_number": active["version_number"],
+            "content_hash":   active["content_hash"],
+        },
+        ip_address=ip_address,
+    ))
 
     return {
         "acknowledged":    True,
