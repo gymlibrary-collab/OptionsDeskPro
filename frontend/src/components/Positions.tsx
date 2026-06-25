@@ -600,7 +600,7 @@ function RecordTradeForm({ onSuccess }: RecordTradeFormProps) {
   )
 }
 
-export default function Positions({ onTradeRecorded, onPositionUpdated }: { onTradeRecorded?: () => void; onPositionUpdated?: () => void }) {
+export default function Positions({ onTradeRecorded, onPositionUpdated, refreshSignal }: { onTradeRecorded?: () => void; onPositionUpdated?: () => void; refreshSignal?: number }) {
   const { entitlements } = useEntitlements()
   const [positions, setPositions] = useState<Position[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
@@ -637,7 +637,10 @@ export default function Positions({ onTradeRecorded, onPositionUpdated }: { onTr
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  // refreshSignal is an incrementing counter from the parent. Using a prop instead of
+  // remounting via key= avoids the bfcache flicker where two Positions sections briefly
+  // co-exist in the DOM during React 18 concurrent reconciliation.
+  useEffect(() => { load() }, [load, refreshSignal])
 
   useEffect(() => {
     const id = setInterval(load, 120_000)

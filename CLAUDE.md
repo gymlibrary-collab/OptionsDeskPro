@@ -146,6 +146,7 @@ and zero greeks) in favour of the nearest future expiry.
 - `user_whitelist` must have a `role` column (see migration 002); the initial schema omits it
 - After pushing files via GitHub MCP API, always sync local: `git fetch origin main && git reset --hard origin/main`
 - Do not cast yfinance volume/openInterest directly to `int()` — yfinance returns NaN for some contracts; use `_safe_int()` from `market_data.py`
+- Do not use `key=` to force-remount long-lived components like `<Positions>` — React 18 concurrent reconciliation briefly co-mounts old and new instances, which the browser bfcache can snapshot and show as a duplicate section. Use a `refreshSignal` prop + `useEffect` dependency instead (see `App.tsx` and `Positions.tsx`).
 
 ---
 
