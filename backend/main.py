@@ -38,6 +38,7 @@ from routes.platform_routes import router as platform_router
 from routes.public_routes import router as public_router
 from routes.legal_routes import router as legal_router
 from routes.platform_legal_routes import router as platform_legal_router
+from routes.activity_routes import router as activity_router
 
 app = FastAPI(title="Options Trading Dashboard", version="1.0.0", default_response_class=SafeJSONResponse)
 
@@ -90,6 +91,7 @@ app.include_router(platform_router, prefix="/api")
 app.include_router(public_router, prefix="/api")
 app.include_router(legal_router, prefix="/api")
 app.include_router(platform_legal_router, prefix="/api")
+app.include_router(activity_router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -24,7 +24,7 @@ import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
-import { TradeStructure, getPublicConfig, getOptionsChain, getQuote, getWatchlist } from './api/client'
+import { TradeStructure, getPublicConfig, getOptionsChain, getQuote, getWatchlist, logAction } from './api/client'
 import api from './api/client'
 import { createBillingPortalSession } from './api/client'
 
@@ -106,6 +106,15 @@ function Dashboard() {
   useEffect(() => {
     if (!aiEnabled && activeTab === 'ai') setActiveTab('chain')
   }, [aiEnabled, activeTab])
+
+  // Fire ai_features_enabled once per session on first AI tab open
+  const aiTabLoggedRef = useRef<boolean>(false)
+  useEffect(() => {
+    if (activeTab === 'ai' && !aiTabLoggedRef.current) {
+      aiTabLoggedRef.current = true
+      logAction('ai_features_enabled', { tab: 'ai' }).catch(() => {})
+    }
+  }, [activeTab])
 
   // Prefetch the chain while the user is still typing so data is ready by Go.
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

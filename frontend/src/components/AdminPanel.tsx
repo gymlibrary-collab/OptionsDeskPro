@@ -28,6 +28,8 @@ interface UserRow {
   cash: number | null
   last_login_at: string | null
   login_count_today: number
+  tc_ack_status?: 'acknowledged' | 'pending' | 'exempt' | 'no_version'
+  tc_ack_at?: string | null
 }
 
 interface WhitelistRow {
@@ -57,6 +59,25 @@ interface Stats {
     portfolio_value: number
     total_pnl: number
   }[]
+}
+
+function TcAckBadge({ status, ackedAt }: { status: string | undefined; ackedAt: string | null | undefined }) {
+  if (!status || status === 'exempt') {
+    return <span style={{ fontSize: '11px', color: '#64748b' }}>Exempt</span>
+  }
+  if (status === 'no_version') {
+    return <span style={{ fontSize: '11px', color: '#64748b' }}>No version published</span>
+  }
+  if (status === 'acknowledged') {
+    const dateStr = ackedAt ? new Date(ackedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+    return (
+      <span style={{ fontSize: '11px', color: '#22c55e' }}>
+        Acknowledged{dateStr ? ` ${dateStr}` : ''}
+      </span>
+    )
+  }
+  // pending
+  return <span style={{ fontSize: '11px', color: '#f97316' }}>Pending</span>
 }
 
 const fmt = (v: number | null | undefined) =>
@@ -89,6 +110,16 @@ export default function AdminPanel() {
 
   // Role change in-flight tracker
   const [changingRole, setChangingRole] = useState<string | null>(null)
+
+  // Cross-tab navigation state for "View Activity" shortcut
+  const [userActionsInitialEmail, setUserActionsInitialEmail] = useState<string>('')
+  const [userActionsInitialActionType, setUserActionsInitialActionType] = useState<string>('')
+
+  const handleViewActivity = useCallback((email: string, actionType?: string) => {
+    setUserActionsInitialEmail(email)
+    setUserActionsInitialActionType(actionType ?? '')
+    setActiveTab('user_actions')
+  }, [])
 
   // Platform settings
   const [aiEnabled, setAiEnabled] = useState(true)
@@ -321,7 +352,7 @@ export default function AdminPanel() {
               <table style={s.table}>
                 <thead>
                   <tr>
-                    {['Name', 'Email', 'Role', 'Cash', 'Last Login', "Today's Logins", 'Status', ''].map(h => (
+                    {['Name', 'Email', 'Role', 'Cash', 'Last Login', "Today's Logins", 'Status', 'T&C Status', ''].map(h => (
                       <th key={h} style={s.th}>{h}</th>
                     ))}
                   </tr>
@@ -351,19 +382,42 @@ export default function AdminPanel() {
                         </span>
                       </td>
                       <td style={s.td}>
-                        {u.is_active && (
-                          <button
-                            style={s.deactivateBtn}
-                            onClick={() => handleDeactivate(u.id, u.email)}
+                        {u.tc_ack_status === 'acknowledged' || u.tc_ack_status === 'pending' ? (
+                          <span
+                            style={{ cursor: 'pointer' }}
+                            title="Click to view T&C acknowledgment events for this subscriber"
+                            onClick={() => handleViewActivity(u.email, 'tc_acknowledged')}
                           >
-                            Deactivate
-                          </button>
+                            <TcAckBadge status={u.tc_ack_status} ackedAt={u.tc_ack_at} />
+                          </span>
+                        ) : (
+                          <TcAckBadge status={u.tc_ack_status} ackedAt={u.tc_ack_at} />
                         )}
+                      </td>
+                      <td style={s.td}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {u.is_active && (
+                            <button
+                              style={s.deactivateBtn}
+                              onClick={() => handleDeactivate(u.id, u.email)}
+                            >
+                              Deactivate
+                            </button>
+                          )}
+                          {u.role !== 'admin' && (
+                            <button
+                              style={s.viewActivityBtn}
+                              onClick={() => handleViewActivity(u.email)}
+                            >
+                              View Activity
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {users.length === 0 && (
-                    <tr><td colSpan={8} style={s.empty}>No users yet.</td></tr>
+                    <tr><td colSpan={9} style={s.empty}>No users yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -562,7 +616,13 @@ export default function AdminPanel() {
         {activeTab === 'health' && <HealthTab />}
 
         {/* USER ACTIONS TAB */}
-        {activeTab === 'user_actions' && <UserActionsTab />}
+        {activeTab === 'user_actions' && (
+          <UserActionsTab
+            initialEmail={userActionsInitialEmail}
+            initialActionType={userActionsInitialActionType}
+            onEmailConsumed={() => { setUserActionsInitialEmail(''); setUserActionsInitialActionType('') }}
+          />
+        )}
       </div>
     </div>
   )
@@ -900,6 +960,8 @@ const ACTION_TYPES = [
   'paper_trade_placed',
   'watchlist_update',
   'ai_query',
+  'tc_acknowledged',
+  'ai_features_enabled',
 ]
 
 interface ActivityFilters {
@@ -918,7 +980,13 @@ function renderDetail(detail: Record<string, unknown> | null): string {
   return str.length > 120 ? str.slice(0, 117) + '...' : str
 }
 
-function UserActionsTab() {
+interface UserActionsTabProps {
+  initialEmail?: string
+  initialActionType?: string
+  onEmailConsumed?: () => void
+}
+
+function UserActionsTab({ initialEmail = '', initialActionType = '', onEmailConsumed }: UserActionsTabProps) {
   const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', monospace"
 
   const [filters, setFilters] = useState<ActivityFilters>({
@@ -930,6 +998,16 @@ function UserActionsTab() {
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [dateError, setDateError] = useState<string | null>(null)
+
+  // Consume external navigation request (e.g. "View Activity" from Users tab)
+  useEffect(() => {
+    if (initialEmail) {
+      setFilters(f => ({ ...f, user_email: initialEmail, action_type: initialActionType }))
+      setAppliedFilters(f => ({ ...f, user_email: initialEmail, action_type: initialActionType }))
+      setPage(1)
+      onEmailConsumed?.()
+    }
+  }, [initialEmail, initialActionType, onEmailConsumed])
 
   const fetchData = useCallback(async (f: ActivityFilters, p: number) => {
     setLoading(true)
@@ -1355,6 +1433,16 @@ const s: Record<string, any> = {
     border: '1px solid #f97316aa',
     borderRadius: '6px',
     color: '#f97316',
+    padding: '3px 10px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    fontFamily: font,
+  },
+  viewActivityBtn: {
+    background: 'transparent',
+    border: '1px solid #7c6af744',
+    borderRadius: '6px',
+    color: '#7c6af7',
     padding: '3px 10px',
     fontSize: '12px',
     cursor: 'pointer',

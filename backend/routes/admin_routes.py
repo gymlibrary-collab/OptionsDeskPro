@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 import os
 import math
@@ -12,6 +13,8 @@ from pydantic import BaseModel
 from services.auth_utils import verify_token, require_admin, get_user_id
 from services.db import get_supabase
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -22,7 +25,7 @@ def admin_required(payload: dict = Depends(verify_token)):
 
 @router.get("/admin/users")
 async def list_users(payload: dict = Depends(admin_required)):
-    """List all user profiles with their portfolio value and last login."""
+    """List all user profiles with their portfolio value, last login, and T&C ack status."""
     sb = get_supabase()
     profiles = sb.table("user_profiles").select("*").order("created_at").execute().data
     try:
@@ -33,14 +36,61 @@ async def list_users(payload: dict = Depends(admin_required)):
         activity = {a["user_id"]: a for a in sb.table("activity_log").select("*").execute().data}
     except Exception:
         activity = {}
+
+    # Step 1: find the active legal version (safety: LIMIT 1 ORDER BY published_at DESC)
+    active_version = None
+    try:
+        ver_rows = (
+            sb.table("legal_document_versions")
+            .select("id")
+            .eq("is_active", True)
+            .order("published_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if ver_rows.data:
+            active_version = ver_rows.data[0]["id"]
+    except Exception as e:
+        logger.warning("list_users: failed to fetch active legal version: %s", e)
+
+    # Step 2: fetch all acknowledgments for the active version (single query)
+    ack_map: dict[str, str] = {}  # user_id -> acknowledged_at
+    if active_version:
+        try:
+            ack_rows = (
+                sb.table("legal_acknowledgments")
+                .select("user_id, acknowledged_at")
+                .eq("version_id", active_version)
+                .execute()
+            )
+            ack_map = {row["user_id"]: row["acknowledged_at"] for row in (ack_rows.data or [])}
+        except Exception as e:
+            logger.warning("list_users: failed to fetch legal_acknowledgments: %s", e)
+
+    # Step 3: assemble result rows
     result = []
     for p in profiles:
         uid = p["id"]
+        is_admin = p.get("role") == "admin"
+        if is_admin:
+            tc_ack_status = "exempt"
+            tc_ack_at = None
+        elif active_version is None:
+            tc_ack_status = "no_version"
+            tc_ack_at = None
+        elif uid in ack_map:
+            tc_ack_status = "acknowledged"
+            tc_ack_at = ack_map[uid]
+        else:
+            tc_ack_status = "pending"
+            tc_ack_at = None
         result.append({
             **p,
             "cash": portfolios.get(uid, {}).get("cash"),
             "last_login_at": activity.get(uid, {}).get("last_login_at"),
             "login_count_today": activity.get(uid, {}).get("login_count", 0),
+            "tc_ack_status": tc_ack_status,
+            "tc_ack_at": tc_ack_at,
         })
     return result
 
@@ -473,6 +523,7 @@ async def get_user_activity_log(
     VALID_ACTION_TYPES = {
         "login", "logout", "ticker_search", "strategy_scan",
         "options_chain_view", "paper_trade_placed", "watchlist_update", "ai_query",
+        "tc_acknowledged", "ai_features_enabled",
     }
     if action_type and action_type not in VALID_ACTION_TYPES:
         raise HTTPException(status_code=422, detail=f"Invalid action_type: {action_type!r}")

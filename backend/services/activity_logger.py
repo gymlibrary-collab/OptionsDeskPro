@@ -18,6 +18,8 @@ ACTION_TYPES = frozenset({
     "paper_trade_placed",
     "watchlist_update",
     "ai_query",
+    "tc_acknowledged",
+    "ai_features_enabled",
 })
 
 
