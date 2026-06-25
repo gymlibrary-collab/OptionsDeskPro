@@ -281,7 +281,12 @@ function DefensiveNarrativeSingle({ pos, stockPrice }: { pos: PositionRisk; stoc
 
 function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: PositionRisk[]; stockPrices: Record<string, number> }) {
   const combinedPnl = positions.reduce((s, p) => s + p.pnl, 0)
-  const netPremium = positions.reduce((s, p) => s + p.avg_cost * p.quantity * 100, 0)
+  // SELL legs collect premium (positive); BUY legs pay premium (negative)
+  const netPremium = positions.reduce((s, p) => {
+    const action = (p.entry_action || (p.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
+    const sign = action === 'sell' ? 1 : -1
+    return s + sign * p.avg_cost * Math.abs(p.quantity) * 100
+  }, 0)
   const isCredit = netPremium > 0
   const maxDte = Math.max(...positions.map(p => p.dte))
   const symbol = positions[0]?.symbol ?? ''

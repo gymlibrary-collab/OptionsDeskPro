@@ -395,7 +395,7 @@ function Dashboard() {
                   <LockedTabPlaceholder requiredTier="starter" onUpgradeClick={handleUpgradeClick} />
                 ) : (
                   <>
-                    <Positions key={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} onPositionUpdated={() => setRiskMonitorRefresh(n => n + 1)} />
+                    <Positions refreshSignal={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} onPositionUpdated={() => setRiskMonitorRefresh(n => n + 1)} />
                     <PnLChart />
                     <RiskMonitor key={riskMonitorRefresh} />
                   </>
