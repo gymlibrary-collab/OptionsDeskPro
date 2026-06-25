@@ -306,25 +306,81 @@ No tier-gating applies to either feature. The T&C gate and activity log are plat
 
 ## 12. Product Owner Annotations
 
-_Filled in by the product-owner agent._
+_Filled in by the product-owner agent — 25Jun2026._
 
-**Priority scores:**
+### Priority Scores
 
-| Story | Priority (1=must/2=should/3=nice) | Notes |
-|-------|-----------------------------------|-------|
-| Story 1 — Admin sees T&C acknowledgment status per subscriber | | |
-| ~~Story 2~~ — Already implemented (OnboardingFlow + legal_routes) | N/A — shipped | Removed from scope |
-| Story 3 — T&C acknowledgment event recorded in activity log | | |
-| Story 4 — Admin views full activity log paginated newest first | | |
-| Story 5 — Admin filters activity log by action type | | |
-| Story 6 — Admin clicks subscriber row to filter activity log | | |
-| Story 7 — Activity log 30-day retention confirmed (no change) | | |
-| Story 8 — AI Features tab open event logged | | |
+| Story | Priority (1=must/2=should/3=nice) | Rationale |
+|-------|-----------------------------------|-----------|
+| Story 1 — Admin sees T&C acknowledgment status per subscriber | **1 — Must Have** | Core compliance visibility. Without this, the admin has no way to identify subscribers who are blocked by the legal gate without inspecting the DB directly. Directly serves the solo-operator workflow. Ships in v1. |
+| ~~Story 2~~ — Already implemented (OnboardingFlow + legal_routes) | **N/A — shipped** | Removed from scope. No further action. |
+| Story 3 — T&C acknowledgment event recorded in activity log | **1 — Must Have** | Auditability of legal consent is a non-negotiable compliance requirement. The `legal_acknowledgments` table is the authoritative record, but the timestamped event in `user_action_log` provides the admin with a searchable, filterable trail without DB access. Must ship in the same PR as Story 1 — the two are inseparable from a compliance standpoint. |
+| Story 4 — Admin views full activity log paginated newest first | **1 — Must Have (baseline)** | The paginated `UserActionsTab` is already built and already ships. This story is retained as a testable baseline to confirm the existing behaviour is not regressed by the new action types. No new development required beyond what Stories 3 and 8 deliver. |
+| Story 5 — Admin filters activity log by action type | **1 — Must Have (partial new work)** | The filter dropdown is already built. However, `tc_acknowledged` and `ai_features_enabled` are not yet in the `ACTION_TYPES` array in `AdminPanel.tsx` (confirmed by reading the source — the array currently lists 8 types, neither new type is present). Adding them is a one-line change per type but is required for the filter to function correctly for the new event types. Treat as part of the Stories 3 and 8 delivery, not a standalone work item. |
+| Story 6 — Admin clicks subscriber row to filter activity log | **1 — Must Have** | Admin visibility shortcut with high UX leverage. The solo operator's workflow is: open Users tab, spot a subscriber, investigate their activity. Without this button, that workflow requires manually switching tabs and typing the email. Given the small subscriber base, the implementation is low-risk and the payoff is immediate. Ships in v1. |
+| Story 7 — Activity log 30-day retention confirmed (no change) | **1 — Must Have (baseline)** | No code change required. Retained as a testable baseline and as documentation that the retention decision was explicitly reviewed. The purge workflow and SQL are correct as-is. |
+| Story 8 — AI Features tab open event logged | **2 — Should Have** | Useful for tracking AI adoption by tier, but not operationally critical for compliance or immediate admin workflows. The `ai_features_enabled` event is nice-to-have telemetry. It defers gracefully: if the frontend hook point is awkward to implement cleanly (e.g. requires threading session state through multiple components), defer to a follow-up. However, given that the backend change (adding the action type to `ACTION_TYPES` and the CHECK constraint) must happen anyway for Story 3, and the frontend hook is a small addition, there is no strong reason to defer the backend half. Ship the backend type registration in v1 alongside Story 3; defer the frontend event-firing hook only if implementation risk materialises. |
 
-**MVP boundary:** [Stories in v1]
+---
 
-**Deferred to backlog:** [Stories deferred]
+### OQ-4 Resolution (PO Answer)
 
-**PO gate decision:** ☐ Approved ☐ Changes Requested
+OQ-4 asked whether `ticker_search` wiring should be included in this feature. **Decision: permanently deferred, not in scope for this feature or the near-term backlog.** The action type already exists in the enum and the CHECK constraint. Wiring it requires identifying the correct route (the options chain symbol search, or the strategy analysis entry point) and deciding whether every symbol lookup counts as a "ticker search" or only the initial chain request. That scope question belongs in a dedicated analytics feature. Adding it here would bloat the feature without adding compliance or admin-visibility value. The out-of-scope declaration in Section 7 is confirmed.
 
-_Approved by:_ &nbsp;&nbsp; _Date:_
+---
+
+### MVP Boundary
+
+**Ships in v1 (this feature):**
+
+- Story 1: T&C acknowledgment status column in the Users tab (new `tc_ack_status` and `tc_ack_at` fields from the admin users endpoint, rendered as Acknowledged/date, Pending, Exempt, or No version published).
+- Story 3: `tc_acknowledged` event type wired from `POST /api/legal/acknowledge`, added to `ACTION_TYPES` frozenset and CHECK constraint (migration 024), and added to the `ACTION_TYPES` array in `AdminPanel.tsx`.
+- Story 4 (baseline): Confirm existing paginated log is not regressed. No new dev.
+- Story 5 (partial): Add `tc_acknowledged` and `ai_features_enabled` to the frontend `ACTION_TYPES` array and confirm the dropdown renders them. The backend registration is delivered by Stories 3 and 8.
+- Story 6: "View Activity" button per subscriber row in the Users tab, switching to the `user_actions` tab and pre-populating the email filter.
+- Story 7 (baseline): Confirm purge workflow is unchanged. No new dev.
+- Story 8 (backend half only): Add `ai_features_enabled` to `ACTION_TYPES` frozenset and migration 024. The frontend event-firing hook (detecting first AI tab open in a session) is in v1 if the architect judges the implementation clean; otherwise deferred.
+
+**Deferred to backlog:**
+
+- Story 8 (frontend firing hook): If threading per-session dedup state into the AI tab open event proves invasive, defer the frontend hook to a follow-up. The backend type registration still ships in v1 so the constraint is ready.
+- OQ-6 (URL vs internal state for "View Activity" navigation): Left to the architect. The spec correctly defers this. My preference is internal React state (simpler, no routing changes), but I will not block the architect from choosing URL-based if they judge it more maintainable. This is not a PO decision.
+- Per-subscriber T&C history (all versions acknowledged, not just current): Out of scope as stated in Section 7. Confirmed deferred indefinitely.
+- Subscriber-visible activity log (OQ-1): Confirmed admin-only. Subscriber-facing history is a separate feature requiring new RLS policy and a subscriber API endpoint. Not in this feature.
+- `ticker_search` wiring (OQ-4): Permanently deferred as decided above.
+
+---
+
+### Scope Clarifications Required Before Architecture Begins
+
+The following items must be addressed in the architecture document (02-design.md); none require spec changes before the architect proceeds:
+
+1. **Story 3 hook point**: Confirm whether `POST /api/legal/acknowledge` already calls `log_action` or whether it needs to be added. The spec states "if not yet created" which suggests uncertainty. The architect must read `auth_routes.py` (or whichever file handles the legal acknowledge route) and confirm the exact line where `log_action("tc_acknowledged", ...)` is inserted.
+
+2. **Story 1 endpoint strategy**: The spec leaves open whether `tc_ack_status` is added to the existing `GET /admin/users` response or exposed via a new endpoint. I require a single-call solution — the Users tab must not fire a second request on load. The architect must choose one approach and document it. My preference is extending `GET /admin/users` in-place, as this avoids a parallel fetch and keeps the `UserRow` interface coherent.
+
+3. **Story 8 per-session dedup**: OQ-3 resolved `ai_query` as "log every invocation." But Story 8 AC2 explicitly says `ai_features_enabled` fires once per session. These are two different event types with different dedup rules. The architect must confirm how "per session" is implemented on the frontend (e.g. `useRef` flag reset on login, sessionStorage key). Do not introduce server-side dedup — keep the log append-only.
+
+4. **Migration 024 constraint approach**: The spec correctly notes the architect must decide between dropping/recreating vs. altering the CHECK constraint. This is a pure architectural decision; the spec is clear on what the outcome must be.
+
+---
+
+### Tier Gate Validation
+
+No tier gate changes are required. T&C acknowledgment and activity logging are platform-level infrastructure that apply uniformly across all subscriber tiers. No feature that was previously free-tier-only is being promoted behind a paywall, and no pro-tier value is being exposed to free-tier users. The admin visibility features are admin-only by definition. The existing `legal_gate_dep` dependency already enforces the subscriber-facing gate regardless of tier.
+
+---
+
+### Core Value Loop Check
+
+This feature does not touch the subscriber-facing value loop (ticker entry → IV environment → strategy recommendations → narrative → paper trade). It is pure admin infrastructure. There is no risk of cannibalising the narrative experience or bypassing tier gates. The feature strengthens platform trustworthiness (compliance auditability) without adding subscriber-facing complexity. No narrative UX changes. Approved on this dimension.
+
+---
+
+### PO Gate Decision
+
+**X Approved** — architect may proceed to `02-design.md`.
+
+The spec is well-scoped. Story 2 correctly removed. The four true deliverables (Stories 1, 3, 6, 8) are well-defined. Stories 4, 5, and 7 are correctly characterised as baseline documentation with minimal incremental work. The open questions (OQ-4, OQ-6) are correctly deferred to the architect. No changes to the spec are required before architecture begins.
+
+_Approved by:_ Product Owner &nbsp;&nbsp; _Date:_ 25Jun2026
