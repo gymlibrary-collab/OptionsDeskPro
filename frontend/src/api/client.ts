@@ -791,6 +791,9 @@ export const getActivityLog = (
 export const postLogout = (): Promise<{ ok: boolean }> =>
   api.post('/auth/logout', {}).then(r => r.data)
 
+export const logAction = (actionType: string, detail: Record<string, unknown>): Promise<void> =>
+  api.post('/activity/log-action', { action_type: actionType, detail }).then(() => {})
+
 // ─── Backend-auth-proxy session endpoints ─────────────────────────────────────
 
 export interface SessionResponse {
