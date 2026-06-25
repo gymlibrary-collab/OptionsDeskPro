@@ -26,7 +26,13 @@ def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) 
     gap_20 = ((price - sma20) / sma20 * 100) if sma20 else 0
     gap_50 = ((price - sma50) / sma50 * 100) if sma50 else 0
 
-    if above_20 and above_50:
+    if sma20 == 0 and sma50 == 0:
+        ma_line = (
+            f"Moving average data unavailable for {symbol} — 20-day and 50-day SMA values "
+            f"could not be retrieved (common for illiquid tickers or new listings). "
+            f"The directional bias below is derived from RSI only."
+        )
+    elif above_20 and above_50:
         ma_line = (
             f"{symbol} is trading at ${price:.2f}, sitting {abs(gap_20):.1f}% above its 20-day moving average "
             f"(${sma20:.2f}) and {abs(gap_50):.1f}% above its 50-day moving average (${sma50:.2f}). "
@@ -145,13 +151,26 @@ def _market_snapshot(symbol: str, bias_analysis: dict, ctx: dict | None = None) 
         earnings = ctx.get("earnings") or {}
         days_earn = earnings.get("days_until_earnings")
         if days_earn is not None and 0 <= days_earn <= 30:
-            extra_paras.append(
-                f"EARNINGS ALERT: {symbol} reports earnings in approximately {days_earn} day{'s' if days_earn != 1 else ''}. "
-                f"Earnings events typically cause implied volatility to spike in the days leading up to the announcement "
-                f"and then sharply collapse immediately afterward (known as the 'IV crush'). "
-                f"Any strategy you put on now will be heavily influenced by this event — "
-                f"factor in whether your expiry straddles the earnings date before entering."
-            )
+            if days_earn <= 3:
+                day_phrase = (
+                    "today or tomorrow"
+                    if days_earn == 0
+                    else f"within the next {days_earn} day{'s' if days_earn != 1 else ''}"
+                )
+                extra_paras.append(
+                    f"EARNINGS IMMINENT: {symbol} reports earnings {day_phrase}. "
+                    f"IV crush risk is immediate — implied volatility will collapse the moment the "
+                    f"announcement is made. Strongly consider whether to close or avoid any new position "
+                    f"before the event. If already in a position, review your exposure now."
+                )
+            else:
+                extra_paras.append(
+                    f"EARNINGS ALERT: {symbol} reports earnings in approximately {days_earn} day{'s' if days_earn != 1 else ''}. "
+                    f"Earnings events typically cause implied volatility to spike in the days leading up to the announcement "
+                    f"and then sharply collapse immediately afterward (known as the 'IV crush'). "
+                    f"Any strategy you put on now will be heavily influenced by this event — "
+                    f"factor in whether your expiry straddles the earnings date before entering."
+                )
 
         news = ctx.get("news") or []
         if news:
@@ -208,6 +227,12 @@ def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
             hv_line += (
                 f" Over the past 52 weeks, realised volatility has ranged from {hv_low:.1f}% to {hv_high:.1f}%."
             )
+    else:
+        hv_line = (
+            "\n\n30-day historical volatility data is unavailable for this symbol — "
+            "the IV vs HV comparison cannot be shown. This is common for new listings, "
+            "short-history ETFs, or symbols where the options chain was generated synthetically."
+        )
 
     if ivr < 30:
         interpretation = (
@@ -283,7 +308,7 @@ def _iv_context(symbol: str, iv_analysis: dict, ctx: dict | None = None) -> str:
     return base + hv_line + interpretation + term_para + skew_para
 
 
-def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, strategy: dict, ctx: dict | None = None) -> str:
+def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, strategy: dict, ctx: dict | None = None, trade: dict | None = None) -> str:
     iv_env = iv_analysis.get("iv_environment", "MEDIUM")
     ivr = iv_analysis.get("iv_rank", 0.0)
     bias = bias_analysis.get("bias", "NEUTRAL")
@@ -311,7 +336,23 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
         f"As a good practice, it is recommended to keep this position to 1–3% of your total portfolio and use the 2× credit rule as a stop."
     )
 
-    if pop_range[0] >= 50:
+    pop_estimate = (trade or {}).get("pop_estimate")
+    if pop_estimate is not None:
+        pop_note = (
+            f"The estimated probability of profit is {pop_estimate:.0f}% — "
+            f"computed from the actual strike deltas selected for this trade. "
+            + (
+                f"Statistically, this trade wins more often than it loses. "
+                f"A common approach is to put on many high-probability trades, take losses when they "
+                f"happen, and let the math work over time."
+                if pop_estimate >= 50
+                else
+                f"This trade wins less often than it loses by design. "
+                f"The strategy is sized so that when it does win, the gain more than offsets the more "
+                f"frequent smaller losses. Position sizing discipline is essential."
+            )
+        )
+    elif pop_range[0] >= 50:
         pop_note = (
             f"The estimated probability of profit is {pop_range[0]}–{pop_range[1]}%, "
             f"meaning that statistically, this trade wins more often than it loses. "
@@ -389,6 +430,53 @@ def _why_this_strategy(symbol: str, iv_analysis: dict, bias_analysis: dict, stra
             f"The two 'wings' of the spread cap your loss to the small net debit paid, "
             f"while the 'body' of the fly at the middle strike is where maximum profit lives. "
             f"With IV at IVR {ivr:.0f}, this structure is {'attractively priced' if iv_env != 'HIGH' else 'a cost-efficient alternative to outright options'}."
+        )
+    elif key in ("call_zebra",):
+        core = (
+            f"The {strat_name} (Zero-Extrinsic-value Back-Ratio Acquisition) is a leveraged "
+            f"directional structure. By buying two calls and selling one deeper-ITM call, you construct "
+            f"a position that behaves like a long call but with roughly 2× the delta response — "
+            f"gaining approximately $2 for every $1 {symbol} rises above the long strikes. "
+            f"The net debit is typically small (sometimes near zero) because the short deep-ITM call "
+            f"offsets much of the cost. The trade is appropriate here because the bias is {bias_clean} "
+            f"and you want leveraged directional exposure without paying full long-call premium. "
+            f"With IVR at {ivr:.0f}, the ZEBRA structure is {'attractively priced — low IV keeps the debit small' if iv_env != 'HIGH' else 'worth the premium given the directional conviction'}."
+        )
+    elif key in ("put_zebra",):
+        core = (
+            f"The put {strat_name} is the bearish mirror of the call ZEBRA: by buying two puts and "
+            f"selling one deeper-ITM put, you build a structure that gains approximately $2 for every $1 "
+            f"{symbol} falls below the long strikes. It behaves like a leveraged long-put position "
+            f"with roughly 2× the directional sensitivity of a standard put. "
+            f"The net debit is typically small because the short deep-ITM put offsets much of the cost. "
+            f"With a {bias_clean} bias and IVR at {ivr:.0f}, the put ZEBRA is appropriate for traders "
+            f"who want amplified downside exposure with a defined and modest upfront cost."
+        )
+    elif key in ("call_calendar", "put_calendar"):
+        option_type_word = "call" if key == "call_calendar" else "put"
+        core = (
+            f"The {strat_name} is a vega and theta trade, not primarily a directional one. "
+            f"By selling a near-term {option_type_word} and buying a longer-dated {option_type_word} "
+            f"at the same strike, you collect the faster time-decay of the front-month leg "
+            f"while holding the slower-decaying back-month leg. The position profits when {symbol} "
+            f"stays near the strike — the front-month option expires worthless (or is bought back cheaply) "
+            f"and the back-month option retains its value. "
+            f"Calendars also benefit from a rise in implied volatility (they are net long vega) — "
+            f"if IV expands after entry, the back-month leg gains more value than the short front-month loses. "
+            f"At IVR {ivr:.0f}, {'a low-IV environment makes calendars particularly attractive: you are buying the back-month option cheaply while selling the front-month.' if iv_env == 'LOW' else 'the IV environment is supportive of this structure.'}"
+        )
+    elif key in ("collar",):
+        core = (
+            f"The {strat_name} is a capital-preservation structure for shareholders. "
+            f"By selling an out-of-the-money call against an existing long stock position "
+            f"and using that premium to purchase a protective put, you create a defined range: "
+            f"the put sets a floor on your downside loss, and the call caps your upside gain "
+            f"in exchange for the income it generates. "
+            f"The net cost of the collar is typically low (sometimes zero or a small credit) "
+            f"because the call premium offsets the put cost. "
+            f"This is appropriate when the primary goal is protecting an existing {symbol} position "
+            f"rather than speculating on direction. With IVR at {ivr:.0f}, "
+            f"{'the call premium collected is above average — an attractive time to sell the covered call component' if iv_env == 'HIGH' else 'the call premium is at fair or below-average levels, but the protective structure may still be worth the cost for risk management purposes'}."
         )
     else:
         core = (
@@ -566,6 +654,34 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
                 f"The trade will experience an IV crush event around earnings — plan for it and consider whether to close before the announcement."
             )
 
+    # FR-C2: margin notice for undefined-risk trades (excluding covered calls)
+    risk_type_tpe = trade.get("risk_type", "DEFINED")
+    strat_key_tpe = trade.get("strategy_key", trade.get("strategy", ""))
+    _COVERED_CALL_KEYS = {"covered_call"}
+    if risk_type_tpe == "UNDEFINED" and strat_key_tpe not in _COVERED_CALL_KEYS:
+        short_option_legs = [
+            l for l in legs
+            if l.get("action") == "sell" and l.get("option_type") != "stock"
+        ]
+        if short_option_legs:
+            example_strike = max(l.get("strike", 0) for l in short_option_legs)
+            margin_example = f"${example_strike * 0.20 * 100:.0f}–${example_strike * 0.25 * 100:.0f}"
+            sections.append(
+                f"MARGIN NOTICE: undefined-risk positions require margin reserved in your broker account. "
+                f"As a rule of thumb, expect 20–25% of the notional value of the short strike(s) to be held "
+                f"as buying power. For this trade (short strike ~${example_strike:.0f}): approximately "
+                f"{margin_example} per contract will be reserved. "
+                f"Verify the exact requirement in your broker's margin calculator before placing the order — "
+                f"actual margin varies by broker and account type."
+            )
+        else:
+            sections.append(
+                "MARGIN NOTICE: undefined-risk positions require margin reserved in your broker account. "
+                "Expect 20–25% of the notional value of the short strike(s) to be held as buying power. "
+                "Verify the exact requirement in your broker's margin calculator before placing the order — "
+                "actual margin varies by broker and account type."
+            )
+
     # Consolidate duplicate option legs (same strike + action + type, e.g. butterfly body)
     seen_keys: dict = {}
     consolidated_legs = []
@@ -580,6 +696,15 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
             entry = {**leg, "_qty": 1}
             seen_keys[key] = entry
             consolidated_legs.append(entry)
+
+    # FR-C3: long-leg risk note varies by risk_type
+    risk_type_leg = trade.get("risk_type", "DEFINED")
+    long_leg_risk_note = (
+        "This leg defines and caps your maximum risk on the trade."
+        if risk_type_leg != "UNDEFINED"
+        else "This long leg partially offsets your short obligation but does not fully cap "
+             "the overall position risk — the trade remains undefined-risk overall."
+    )
 
     for i, leg in enumerate(consolidated_legs, 1):
         action = leg.get("action", "buy")
@@ -615,7 +740,7 @@ def _trade_plain_english(symbol: str, trade: dict, ctx: dict | None = None) -> s
                 f"You pay ~${cost_per:.0f} per contract for {'these options' if qty > 1 else 'this option'} (mid-price ${mid:.2f}; market is ${bid:.2f}×${ask:.2f}). "
                 f"This option has a delta of {abs(delta):.2f}, meaning it moves approximately ${abs(delta):.2f} "
                 f"for every $1 move in {symbol}. "
-                f"This leg defines and caps your maximum risk on the trade."
+                f"{long_leg_risk_note}"
             )
 
     abs_net = abs(net) * 100
@@ -747,12 +872,22 @@ def _profit_scenario(symbol: str, trade: dict, strategy: dict) -> str:
                 f"regardless of P&L, as gamma risk accelerates sharply inside three weeks."
             )
 
-    pop_note = (
-        f"Based on the delta of the short strikes, this setup has an estimated {pop_range[0]}–{pop_range[1]}% "
-        f"theoretical probability of being profitable at expiration — derived from options delta theory, not historical backtesting. "
-        f"This is a positive-expectancy structure — you will have losing trades, "
-        f"but the winners should more than offset them when managed consistently."
-    )
+    pop_estimate = trade.get("pop_estimate")
+    if pop_estimate is not None:
+        pop_note = (
+            f"Based on the delta of the selected strikes, this setup has an estimated "
+            f"{pop_estimate:.0f}% theoretical probability of being profitable at expiration — "
+            f"derived from the actual leg deltas at the chosen strikes, not a catalog range. "
+            f"This is a positive-expectancy structure — you will have losing trades, "
+            f"but the winners should more than offset them when managed consistently."
+        )
+    else:
+        pop_note = (
+            f"Based on the delta of the short strikes, this setup has an estimated {pop_range[0]}–{pop_range[1]}% "
+            f"theoretical probability of being profitable at expiration — derived from options delta theory, not historical backtesting. "
+            f"This is a positive-expectancy structure — you will have losing trades, "
+            f"but the winners should more than offset them when managed consistently."
+        )
 
     return f"{condition}\n\n{profit_detail}\n\n{early_exit}\n\n{pop_note}"
 
@@ -800,9 +935,37 @@ def _loss_scenario(symbol: str, trade: dict, strategy: dict) -> str:
                     f"improves the more the stock moves your way."
                 )
     else:
+        short_calls = [l for l in legs if l.get("action") == "sell" and l.get("option_type") == "call"]
+        short_puts  = [l for l in legs if l.get("action") == "sell" and l.get("option_type") == "put"]
+
+        if short_calls and not short_puts:
+            unlimited_note = (
+                f"In theory, a short call carries unlimited loss potential — if {symbol} rises "
+                f"without limit, so does your loss. There is no ceiling. "
+                f"This is the most important risk to understand about this structure: "
+                f"unlike a short put, where the stock can only fall to zero, a stock can "
+                f"theoretically rise without bound."
+            )
+        elif short_puts and not short_calls:
+            max_put_strike = max(l.get("strike", 0) for l in short_puts)
+            finite_max = max_put_strike * 100
+            unlimited_note = (
+                f"Your worst-case loss is not unlimited: because a stock cannot fall below zero, "
+                f"a short put's maximum possible loss is approximately ${finite_max:.0f} per contract "
+                f"(the ${max_put_strike:.0f} strike × 100 shares, if the stock fell to zero). "
+                f"While ${finite_max:.0f} is a large number, it is a finite and quantifiable risk — "
+                f"very different from the theoretically unlimited loss of a short call."
+            )
+        else:
+            unlimited_note = (
+                f"This position contains a short call, which means the upside loss is theoretically "
+                f"unlimited — the stock can rise without bound. The short put side is bounded (capped "
+                f"at approximately strike × 100 if the stock fell to zero), but the call side is not. "
+                f"Treat this position as unlimited-risk for sizing purposes."
+            )
+
         loss_frame = (
-            f"This is an undefined-risk trade, which means there is no hard ceiling on losses. "
-            f"In theory, if {symbol} moves far enough against you, the loss can be substantial. "
+            f"This is an undefined-risk trade. {unlimited_note} "
             f"A common way to manage this risk follows two rules:\n"
             f"1. Position sizing: never let this trade represent more than 1–3% of your total portfolio value.\n"
             f"2. The 2× rule: if the trade has lost 2× the credit you collected (i.e. you collected "
@@ -961,6 +1124,66 @@ def _defensive_tactic(strategy_key: str) -> str:
             "If the stock moves against you (rallies), the defined-risk structure caps your loss at the net debit paid — "
             "close if the position loses 50% of what you paid rather than riding to max loss. "
             "Apply the 21 DTE rule: close or roll at 21 days to expiration regardless of P&L."
+        ),
+        "call_butterfly": (
+            "A call butterfly profits most when the stock lands near the body strike at expiration. "
+            "If the stock moves significantly away from that body strike — either direction — the position "
+            "loses value. The primary adjustment for a losing butterfly is to close it early: "
+            "if the spread has lost 50% of what you paid, exit and take the defined loss rather than "
+            "riding to maximum loss. Do not roll a butterfly — the structure's value depends entirely "
+            "on the stock staying pinned near the body, and rolling changes that target price. "
+            "If the stock is approaching expiry near the body strike (a winning scenario), be aware of "
+            "pin risk: if the underlying expires exactly at the short strike, you may be assigned on the short "
+            "options while your long options expire worthless. Close the entire position before expiry, "
+            "not at expiry."
+        ),
+        "put_butterfly": (
+            "A put butterfly profits most when the stock lands near the body strike at expiration. "
+            "If the stock moves away from that body strike in either direction, the position decays toward "
+            "zero value. The correct response is early exit: close the spread if it has lost 50% of the "
+            "premium paid — do not hold for maximum loss hoping for a mean-reversion. "
+            "Do not roll a butterfly — rolling changes the target price and defeats the structure. "
+            "Near expiry, if the stock is pinned at the short strikes, close the entire butterfly before "
+            "the final day to avoid pin-risk assignment on the body legs. "
+            "The maximum profit is only achievable at exactly the body strike — do not hold to try to "
+            "capture the last few dollars; close when you have captured 75–80% of the theoretical maximum."
+        ),
+        "short_naked_call": (
+            "The short naked call has theoretically unlimited loss if the stock rises. "
+            "The primary defensive adjustment is to roll up and out: close the current short call and "
+            "reopen at a higher strike in a further expiration, collecting a net credit for the roll. "
+            "Rolling up moves your short strike above the current stock price; rolling out gives the "
+            "stock more time to either stabilise or give back the move. "
+            "Critically: apply the 2× credit rule strictly. If the trade has lost 2× the premium you "
+            "collected, close the entire position without hesitation — do not roll a loss into a larger "
+            "position in the hope of recovery. "
+            "Never add more short calls to average down — this increases unlimited risk. "
+            "If you cannot roll for a net credit, accept the loss and close."
+        ),
+        "call_calendar": (
+            "A call calendar's primary risk is a large move in the underlying in either direction "
+            "before the front-month leg expires. A sharp rally pushes both legs deep ITM (where the "
+            "calendar collapses in value), and a sharp decline makes both legs worthless. "
+            "If the stock moves more than 5–7% away from the short strike before front-month expiry, "
+            "consider closing the entire calendar — the theta advantage is gone once the stock is "
+            "significantly off-target. "
+            "If implied volatility drops sharply (IV crush), the back-month long option loses value "
+            "faster than expected; in that scenario, close the calendar rather than waiting. "
+            "At front-month expiration, if the short call expires worthless (the best case), you can "
+            "either close the remaining long back-month call for a profit or sell a new front-month call "
+            "to roll the calendar forward and collect more premium."
+        ),
+        "put_calendar": (
+            "A put calendar's primary risk is a large move away from the short strike before front-month "
+            "expiry — either a sharp rally or sharp decline collapses the spread's value. "
+            "If the stock moves more than 5–7% from the short strike, close the calendar rather than "
+            "waiting for expiry; the theta advantage evaporates once the stock is off-target. "
+            "A sharp drop in implied volatility (IV crush) is also harmful: the back-month long put "
+            "loses value faster than the short front-month put; close the calendar if IV drops sharply "
+            "after entry. "
+            "At front-month expiration, if the short put expires worthless, you may close the back-month "
+            "long put for a profit, or sell a new front-month put to convert the single long put into a "
+            "new calendar and collect more premium."
         ),
     }
     generic = (
@@ -1361,7 +1584,7 @@ def generate_narrative(
             "headline": f"{symbol} — {strat_name_err}: market data ready, trade structure unavailable.",
             "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
             "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
-            "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
+            "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context, trade=trade),
             "trade_plain_english": f"The specific strike/expiry data needed to build this trade could not be retrieved right now ({trade['error']}). The IV environment and directional bias analysis above still applies to {symbol} — the market snapshot, IV context, and strategy alignment sections reflect current conditions and are not affected by the missing chain data.",
             "profit_scenario": "",
             "loss_scenario": "",
@@ -1388,10 +1611,11 @@ def generate_narrative(
 
     if net >= 0:
         if iv_env == "HIGH":
+            hv_clause = f" vs {hv_30:.1f}% HV" if hv_30 > 0 else ""
             headline = (
                 f"{symbol} — Sell a {strat_name} expiring {expiry} ({dte}d). "
                 f"Collect ${net_dollars:.0f} premium with IV elevated at IVR {ivr:.0f} "
-                f"({iv_pct:.1f}% IV vs {hv_30:.1f}% HV). Market is {bias_clean}."
+                f"({iv_pct:.1f}% IV{hv_clause}). Market is {bias_clean}."
             )
         else:
             headline = (
@@ -1414,7 +1638,7 @@ def generate_narrative(
         "headline": headline,
         "market_snapshot": _market_snapshot(symbol, bias_analysis, ctx=market_context),
         "iv_context": _iv_context(symbol, iv_analysis, ctx=market_context),
-        "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context),
+        "why_this_strategy": _why_this_strategy(symbol, iv_analysis, bias_analysis, strategy, ctx=market_context, trade=trade),
         "trade_plain_english": _trade_plain_english(symbol, trade, ctx=market_context),
         "profit_scenario": _profit_scenario(symbol, trade, strategy),
         "loss_scenario": _loss_scenario(symbol, trade, strategy),

@@ -239,11 +239,11 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.blue, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Why Options Are Priced This Way</div>
-            <P>IV Rank in context, comparison of implied vs historical volatility (IV vs HV), IV term structure (contango / backwardation across expiry dates), and put skew — whether the market is paying a premium to protect against downside.</P>
+            <P>IV Rank in context, comparison of implied vs historical volatility (IV vs HV), IV term structure (contango / backwardation across expiry dates), and put skew — whether the market is paying a premium to protect against downside. For undefined-risk trades (short naked puts, short calls, strangles), a margin notice appears showing how much buying power will be reserved in your broker — typically 20–25% of the short strike notional value.</P>
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.amber, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Why This Strategy</div>
-            <P>Once you expand a strategy card from the matrix, this section explains the logic behind that strategy given the IV environment and directional bias. Also shows: earnings risk warning (if applicable), options flow put/call ratio and any unusual volume activity, and MACD alignment with the bias.</P>
+            <P>Once you expand a strategy card from the matrix, this section explains the logic behind that strategy given the IV environment and directional bias. Also shows: earnings risk flagged as "EARNINGS IMMINENT" if earnings are within 3 days (urgent), or "EARNINGS ALERT" if 4–30 days away (plan around the event). Other context includes options flow put/call ratio, unusual volume activity, and MACD alignment with the bias.</P>
           </div>
           <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>The Trade in Simple Terms</div>

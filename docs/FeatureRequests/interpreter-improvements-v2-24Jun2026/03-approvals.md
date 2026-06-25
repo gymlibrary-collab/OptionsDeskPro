@@ -158,3 +158,77 @@ Key risks identified and mitigated:
 Testing strategy: Playwright route-interception mocking `GET /api/strategies/analyze/{symbol}` with 19 controlled fixtures covering all P1 scenarios and their negative cases (verified existing behaviour is unchanged).
 
 Deployment: Railway backend redeploy of the single modified file. Rollback is a single-file revert.
+
+---
+
+## Gate 4 — QA Test
+
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** QA Engineer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/04-test-report.md`
+- **Test file:** `frontend/e2e/pages/narrative-improvements-v2.spec.ts`
+
+**Summary:**
+
+28 new Playwright E2E tests written covering all 10 P1 FRs across 9 user stories plus a mobile viewport regression test. All 28 pass on `npx playwright test --project=chromium`. The existing v1 suite (24 tests, `narrative-improvements.spec.ts`) also passes with zero regressions.
+
+All acceptance criteria from the approved P1 list (Gate 2 PO-revised scope) have at least one automated test. The one structural correction made during authoring: narrative section text (market_snapshot, iv_context, defensive_tactic, etc.) is rendered inside the strategy card accordion, not in always-visible panels — tests for FR-B5, FR-D6/FR-C7, and FR-G11 correctly call `expandFirstStrategyNarrative` before asserting on narrative text. The test design note in the task brief ("do NOT call expandFirstStrategyNarrative for these") was incorrect; the live UI behaviour requires expansion. This has no impact on coverage — all ACs are still tested.
+
+**Gate 4 decision: GO — proceed to Gate 5 (Security Review).**
+
+---
+
+## Gate 5 — Security Review
+
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** Security Reviewer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/05-security-review.md`
+
+**Summary:** No Critical or High findings. Three informational (Low) findings documented: L01 (optional type guard on `example_strike`), L02 (optional type guard on `pop_estimate`), L03 (XSS surface analysis — confirmed no vector). All CLAUDE.md invariants confirmed: JWT via `auth.get_user`, no python-jose, no new env vars, no raw SQL, no shell invocation, no IDOR risks. The `generate_narrative()` signature is backward-compatible (optional `trade` kwarg added with default None).
+
+**Gate 5 decision: PASS — proceed to Gate 6 (Release Documentation).**
+
+---
+
+## Gate 6 — Release Documentation
+
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** Technical Writer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/06-release-note.md`
+
+**Summary:**
+
+Release note covers all 10 P1 narrative engine improvements, smoke test procedures (verify "EARNINGS IMMINENT" header on earnings-within-3-days, verify short naked call shows unlimited-loss framing, verify margin notice appears, verify no "$0.00 SMA" malformed sentences). Deployment: Railway backend redeploy of single modified file (interpreter.py). Rollback: single-commit revert. No database migrations, no new env vars required. Post-deployment monitoring: error rate tracking, no API quota concerns.
+
+Known limitation: `collar` strategy key is dormant (does not exist in current 31-strategy catalog; branch will not execute against current engine).
+
+19 P2/P3 items deferred to v3 (5 PO-moved items + 14 additional backlog items from BA spec).
+
+UserGuide.tsx updated with two sentences:
+1. "Why Options Are Priced This Way" section now notes: margin notice for undefined-risk trades (20–25% buying power reserve).
+2. "Why This Strategy" section now notes: earnings urgency branching — "EARNINGS IMMINENT" if ≤3 days, "EARNINGS ALERT" if 4–30 days.
+
+**Gate 6 decision: APPROVED — ready for production deployment.**
+
+---
+
+## Gate 5 — Security Review
+
+- **Status:** APPROVED — PASS
+- **Date:** 25Jun2026
+- **Author:** Security Reviewer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/05-security-review.md`
+- **Commit reviewed:** `6043fc7`
+
+**Summary:**
+
+Single-file change to `backend/services/interpreter.py`. No new routes, no migrations, no new dependencies, no frontend changes. All CLAUDE.md invariants hold: `auth.get_user(token)` unchanged in `auth_utils.py`, python-jose absent, `SUPABASE_JWT_SECRET` absent, `MARKETDATA_API_TOKEN` absent, `generate_narrative` public signature unchanged.
+
+Three informational findings only (L01, L02, L03): defensive-coding gaps on server-internal data paths (`example_strike` type guard, `pop_estimate` type guard, `symbol` in f-strings). All three are server-internal, not user-injectable at the interpreter layer. No exploitable attack surface identified.
+
+Zero critical findings. Zero high findings. Zero medium findings.
+
+**Gate 5 decision: GO — proceed to Gate 6 (Release).**
