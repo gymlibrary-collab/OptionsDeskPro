@@ -158,3 +158,21 @@ Key risks identified and mitigated:
 Testing strategy: Playwright route-interception mocking `GET /api/strategies/analyze/{symbol}` with 19 controlled fixtures covering all P1 scenarios and their negative cases (verified existing behaviour is unchanged).
 
 Deployment: Railway backend redeploy of the single modified file. Rollback is a single-file revert.
+
+---
+
+## Gate 4 — QA Test
+
+- **Status:** APPROVED
+- **Date:** 25Jun2026
+- **Author:** QA Engineer
+- **Document:** `docs/FeatureRequests/interpreter-improvements-v2-24Jun2026/04-test-report.md`
+- **Test file:** `frontend/e2e/pages/narrative-improvements-v2.spec.ts`
+
+**Summary:**
+
+28 new Playwright E2E tests written covering all 10 P1 FRs across 9 user stories plus a mobile viewport regression test. All 28 pass on `npx playwright test --project=chromium`. The existing v1 suite (24 tests, `narrative-improvements.spec.ts`) also passes with zero regressions.
+
+All acceptance criteria from the approved P1 list (Gate 2 PO-revised scope) have at least one automated test. The one structural correction made during authoring: narrative section text (market_snapshot, iv_context, defensive_tactic, etc.) is rendered inside the strategy card accordion, not in always-visible panels — tests for FR-B5, FR-D6/FR-C7, and FR-G11 correctly call `expandFirstStrategyNarrative` before asserting on narrative text. The test design note in the task brief ("do NOT call expandFirstStrategyNarrative for these") was incorrect; the live UI behaviour requires expansion. This has no impact on coverage — all ACs are still tested.
+
+**Gate 4 decision: GO — proceed to Gate 5 (Security Review).**
