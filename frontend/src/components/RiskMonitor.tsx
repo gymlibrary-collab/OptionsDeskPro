@@ -648,12 +648,14 @@ function buildGroups(data: PositionRisk[]): StrategyGroup[] {
     narrative: Record<string, unknown> | undefined
   }>()
 
+  let ungroupedIdx = 0
   for (const pos of data) {
-    const key = pos.strategy_key || '_ungrouped'
+    // Named strategy groups share a key; ungrouped positions each get their own row
+    const key = pos.strategy_key || `_ungrouped_${ungroupedIdx++}`
     if (!groupMap.has(key)) {
       groupMap.set(key, {
         key,
-        label: pos.strategy_name || key,
+        label: pos.strategy_name || pos.symbol,
         positions: [],
         narrative: pos.narrative,
       })
@@ -751,9 +753,7 @@ function RiskListRow({ group, isSelected, onClick }: {
           flex: 1,
           minWidth: 0,
         }}>
-          {group.key === '_ungrouped'
-            ? group.positions.map(p => p.symbol).join(', ')
-            : group.label}
+          {group.label}
         </span>
         <span style={{
           fontSize: '10px',
@@ -863,9 +863,7 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
   const legCount = group.positions.length
   const days = group.enteredAt ? daysAgo(group.enteredAt) : null
 
-  const name = group.key === '_ungrouped'
-    ? group.positions.map(p => p.symbol).join(' / ')
-    : group.label
+  const name = group.label
 
   return (
     <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, background: C.surface2 }}>
