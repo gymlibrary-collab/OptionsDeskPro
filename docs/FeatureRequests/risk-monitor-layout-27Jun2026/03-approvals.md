@@ -115,10 +115,11 @@ _Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 26Jun2026
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Deployed to** | Railway |
-| **Deployment date** | |
-| **User Guide updated** | |
-| **Approved by** | |
-| **Date** | |
+| **User Guide updated** | `frontend/src/components/UserGuide.tsx` — Risk Monitor section added |
+| **Approved by** | technical-writer |
+| **Date** | 27Jun2026 |
+| **Notes** | Release note covers: what's new (split layout, left panel, right panel, backend `entered_at`), what does not change (risk signals, defensive narrative, AI overview, other tabs), user impact and action required, known limitations (timezone cosmetic, string-slicing assumption, mobile touch targets), deployment steps (no migration), rollback procedure (code revert only), testing recommendations. User Guide updated with expanded Risk Monitor section covering left panel elements, right panel detail, portfolio summary strip, AI overview location, and mobile accordion behaviour. Both documents follow release note template and UG style guide. |
 
-Pending
+Ready to merge to main
+
+_Approved by:_ technical-writer &nbsp;&nbsp; _Date:_ 27Jun2026
