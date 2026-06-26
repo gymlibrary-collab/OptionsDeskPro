@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
@@ -231,6 +232,41 @@ async def get_positions_risk(payload: dict = Depends(verify_token)):
     if not positions:
         return []
 
+    # ── entered_at: build map from MIN(orders.created_at) per position key ──────────
+    # This query runs once, synchronously, before the market-data fan-out.
+    # It is fast: the orders table is indexed on (user_id, created_at desc) and the
+    # result set is at most 200 rows (the same cap enforced by get_orders).
+    #
+    # NOTE on partial-close / re-entry semantics: MIN(created_at) is intentional.
+    # If a position was fully closed and re-entered, the old order rows still exist
+    # and MIN(created_at) will reflect the original entry date, not the re-entry date.
+    # For a paper-trading education tool this is the correct behaviour — it represents
+    # how long this strategy configuration has ever been held.
+    sb = get_supabase()
+    entered_at_map: dict[tuple, str] = {}
+    try:
+        orders_rows = (
+            sb.table("orders")
+            .select("symbol, expiry, strike, option_type, strategy_key, created_at")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        for row in (orders_rows.data or []):
+            norm_key = row.get("strategy_key") or "manual"
+            map_key = (
+                row["symbol"],
+                str(row["expiry"]),
+                str(row["strike"]),
+                row["option_type"],
+                norm_key,
+            )
+            iso_date = row["created_at"][:10]  # "YYYY-MM-DD" from ISO 8601 timestamp
+            if map_key not in entered_at_map or iso_date < entered_at_map[map_key]:
+                entered_at_map[map_key] = iso_date
+    except Exception as e:
+        logger.warning("entered_at orders fetch failed: %s", e)
+
+    # ── Market data fan-out ──────────────────────────────────────────────────────────
     unique_symbols = list({p.symbol for p in positions})
     loop = asyncio.get_running_loop()
     with ThreadPoolExecutor(max_workers=min(len(unique_symbols), 8)) as pool:
@@ -240,10 +276,79 @@ async def get_positions_risk(payload: dict = Depends(verify_token)):
     market = {sym: (iv, bias) for sym, iv, bias in results}
     risk_items = [_assess_risk(pos, *market.get(pos.symbol, (None, None))) for pos in positions]
 
-    # Fetch the most recent narrative per strategy (requires migration 022)
+    # ── Attach entered_at to each risk item ─────────────────────────────────────────
+    for item in risk_items:
+        norm_key = item.get("strategy_key") or "manual"
+        map_key = (
+            item["symbol"],
+            item["expiry"],
+            str(item["strike"]),
+            item["option_type"],
+            norm_key,
+        )
+        item["entered_at"] = entered_at_map.get(map_key)  # None if no orders match
+
+    # ── Fallback: positions.created_at for any item still missing entered_at ────────
+    missing = [item for item in risk_items if item.get("entered_at") is None]
+    if missing:
+        try:
+            pos_rows = (
+                sb.table("positions")
+                .select("symbol, expiry, strike, option_type, strategy_key, created_at")
+                .eq("user_id", user_id)
+                .execute()
+                .data or []
+            )
+            pos_fallback: dict[tuple, str] = {}
+            for row in pos_rows:
+                norm_key = row.get("strategy_key") or "manual"
+                map_key = (
+                    row["symbol"],
+                    str(row["expiry"]),
+                    str(row["strike"]),
+                    row["option_type"],
+                    norm_key,
+                )
+                pos_fallback[map_key] = row["created_at"][:10]
+
+            for item in missing:
+                norm_key = item.get("strategy_key") or "manual"
+                map_key = (
+                    item["symbol"],
+                    item["expiry"],
+                    str(item["strike"]),
+                    item["option_type"],
+                    norm_key,
+                )
+                # Final fallback to today's date guarantees entered_at is never null
+                item["entered_at"] = pos_fallback.get(map_key, str(date.today()))
+        except Exception as e:
+            logger.warning("entered_at positions fallback fetch failed: %s", e)
+            today_iso = str(date.today())
+            for item in missing:
+                if item.get("entered_at") is None:
+                    item["entered_at"] = today_iso
+
+    # ── Strategy-group entered_at consistency pass ───────────────────────────────────
+    # All legs of a named strategy group must share the same entered_at value:
+    # the minimum (earliest) across all legs. Manual/ungrouped positions retain
+    # their individual entered_at values.
+    group_min: dict[str, str] = defaultdict(lambda: "9999-99-99")
+    for item in risk_items:
+        sk = item.get("strategy_key") or "manual"
+        if sk != "manual":
+            ea = item.get("entered_at") or str(date.today())
+            if ea < group_min[sk]:
+                group_min[sk] = ea
+
+    for item in risk_items:
+        sk = item.get("strategy_key") or "manual"
+        if sk != "manual":
+            item["entered_at"] = group_min[sk]
+
+    # ── Fetch the most recent narrative per strategy (requires migration 022) ────────
     narrative_by_strategy: dict = {}
     try:
-        sb = get_supabase()
         narratives_result = sb.table("orders")\
             .select("strategy_key, narrative_json")\
             .eq("user_id", user_id)\

@@ -64,11 +64,15 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | solution-architect |
+| **Date** | 27Jun2026 |
+| **Notes** | Design covers: (1) `entered_at` derivation via `MIN(orders.created_at)` aggregated in Python, with group-min enforcement pass and two-level fallback chain (orders → positions.created_at → today); (2) all five OQ resolutions from the PO gate are addressed in the design sections; (3) strategy_key join correctness confirmed via migration 023; (4) no migration required; (5) no new packages; (6) existing components (`DefensiveNarrativeSingle`, `DefensiveNarrativeGroup`, `CloseInstructions`, `NarrativePanel`, `PositionCard`, `SignalRow`) reused verbatim or with label-only cosmetic changes; (7) `selectedGroupKey` + `mobileExpandedKey` state pattern for desktop/mobile; (8) `useWindowSize` hook reused for 768px breakpoint; (9) ADR-0014 written for the derive-at-query-time decision. |
 
-Pending
+Approved
+
+_Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 27Jun2026
+
+---
 
 ---
 
