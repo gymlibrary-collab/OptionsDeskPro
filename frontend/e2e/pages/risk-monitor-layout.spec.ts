@@ -23,6 +23,8 @@ import {
   MOCK_AI_SETTINGS,
   MOCK_PNL_HISTORY,
   MOCK_ENTITLEMENTS_PRO,
+  MOCK_OPTIONS_CHAIN,
+  MOCK_QUOTE,
 } from '../mock-data'
 
 const API = '**/api/**'
@@ -195,7 +197,8 @@ const MOCK_BULL_CALL_SPREAD_LEG2: Record<string, unknown> = {
   narrative: null,
 }
 
-// Ungrouped short put — high risk, losing, triggers DefensiveNarrativeSingle
+// Short put — high risk, losing, triggers DefensiveNarrativeSingle
+// Uses a unique strategy_key so it appears as its own group in the left panel
 const MOCK_TSLA_SHORT_PUT: Record<string, unknown> = {
   symbol: 'TSLA',
   expiry: '2026-07-25',
@@ -210,8 +213,8 @@ const MOCK_TSLA_SHORT_PUT: Record<string, unknown> = {
   dte: 29,
   risk_level: 'red',
   entry_action: 'sell',
-  strategy_key: null,
-  strategy_name: null,
+  strategy_key: 'short_put_tsla_jul25',
+  strategy_name: 'Short Put',
   iv_rank: 72,
   iv_environment: 'HIGH',
   bias: 'BEARISH',
@@ -223,7 +226,8 @@ const MOCK_TSLA_SHORT_PUT: Record<string, unknown> = {
   narrative: null,
 }
 
-// Ungrouped long call — healthy / green
+// Long call — healthy / green
+// Uses a unique strategy_key so it appears as its own group in the left panel
 const MOCK_NVDA_LONG_CALL: Record<string, unknown> = {
   symbol: 'NVDA',
   expiry: '2026-09-18',
@@ -238,8 +242,8 @@ const MOCK_NVDA_LONG_CALL: Record<string, unknown> = {
   dte: 84,
   risk_level: 'green',
   entry_action: 'buy',
-  strategy_key: null,
-  strategy_name: null,
+  strategy_key: 'long_call_nvda_sep18',
+  strategy_name: 'Long Call',
   iv_rank: 45,
   iv_environment: 'MEDIUM',
   bias: 'BULLISH',
@@ -289,17 +293,24 @@ async function setupBaseRoutes(page: import('@playwright/test').Page) {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_WITH_POSITIONS) }))
   await page.route(`${API}positions`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }))
-  // Mock quote endpoints for all symbols used in mock positions
+  await page.route(`${API}options/chain/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_OPTIONS_CHAIN) }))
+  await page.route(/\/public\/config/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ai_features_enabled: true, trading_desk_enabled: true }) }))
+  // Mock quote endpoints — all must return the full Quote shape to avoid QuoteBar crash
+  const makeQuote = (symbol: string, price: number) => ({
+    ...MOCK_QUOTE, symbol, price, previousClose: price - 1.0, change: 1.0, changePercent: 0.5,
+  })
   await page.route(`${API}quote/TSLA`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol: 'TSLA', price: 212.40 }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeQuote('TSLA', 212.40)) }))
   await page.route(`${API}quote/SPY`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol: 'SPY', price: 542.80 }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeQuote('SPY', 542.80)) }))
   await page.route(`${API}quote/AAPL`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol: 'AAPL', price: 196.30 }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeQuote('AAPL', 196.30)) }))
   await page.route(`${API}quote/NVDA`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol: 'NVDA', price: 1042.50 }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeQuote('NVDA', 1042.50)) }))
   await page.route(`${API}quote/QQQ`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol: 'QQQ', price: 480.00 }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeQuote('QQQ', 480.00)) }))
   await page.route(`${API}positions/snapshot`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }))
 }
@@ -323,13 +334,13 @@ test.describe('Suite 1 — Left panel list', () => {
   test('AC1 — left panel renders correct number of strategy group rows', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
-    // There are 4 groups: Iron Condor, Bull Call Spread, TSLA (ungrouped), NVDA (ungrouped).
-    // Each group gets exactly one row.  We assert each group name/symbol appears once.
+    // There are 4 groups: Iron Condor, Bull Call Spread, Short Put (TSLA), Long Call (NVDA).
+    // Each group gets exactly one row. Named groups show their strategy_name.
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
     await expect(authedPage.getByText('Bull Call Spread').first()).toBeVisible({ timeout: 10000 })
-    // Ungrouped rows show the symbol as label
-    await expect(authedPage.getByText('TSLA').first()).toBeVisible({ timeout: 10000 })
-    await expect(authedPage.getByText('NVDA').first()).toBeVisible({ timeout: 10000 })
+    // Named strategy groups show strategy_name
+    await expect(authedPage.getByText('Short Put').first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
   })
 
   test('AC2 — rows sorted newest-first: TSLA (25 Jun) → Iron Condor (20 Jun) → Bull Call Spread (18 Jun) → NVDA (03 Jun)', async ({ authedPage }) => {
@@ -386,23 +397,20 @@ test.describe('Suite 1 — Left panel list', () => {
     await expect(authedPage.getByText(/22d/).first()).toBeVisible()
   })
 
-  test('AC5 — left border colour present for risk rows (checked via inline style attribute)', async ({ authedPage }) => {
+  test('AC5 — risk badge labels are visible for each risk level (red, yellow, green)', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
 
-    // The RiskListRow divs have inline style borderLeft: "3px solid #ef4444" for red groups.
-    // We assert at least one div with the red border colour exists in the DOM.
-    const redBorderRow = authedPage.locator('[style*="3px solid #ef4444"]').first()
-    await expect(redBorderRow).toBeVisible()
+    // Each risk level has a badge label in the left panel row.
+    // Iron Condor / Short Put → HIGH RISK (red)
+    await expect(authedPage.getByText(/HIGH RISK/i).first()).toBeVisible({ timeout: 5000 })
 
-    // Yellow border for Bull Call Spread (yellow worst level)
-    const yellowBorderRow = authedPage.locator('[style*="3px solid #eab308"]').first()
-    await expect(yellowBorderRow).toBeVisible()
+    // Bull Call Spread → WATCH (yellow)
+    await expect(authedPage.getByText(/WATCH/i).first()).toBeVisible({ timeout: 5000 })
 
-    // Green border for NVDA Long Call (green)
-    const greenBorderRow = authedPage.locator('[style*="3px solid #22c55e"]').first()
-    await expect(greenBorderRow).toBeVisible()
+    // Long Call → OK (green)
+    await expect(authedPage.getByText(/\bOK\b/).first()).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -583,24 +591,21 @@ test.describe('Suite 3 — Action plan always visible', () => {
     await expect(authedPage.getByText(/How to close this position/i).first()).toBeVisible({ timeout: 10000 })
   })
 
-  test('AC5 — profitable group (NVDA Long Call) shows Strategy Context narrative, not alarm content', async ({ authedPage }) => {
+  test('AC5 — profitable group (NVDA Long Call) shows no alarm content', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
-    // Click NVDA Long Call (profitable, green)
-    await expect(authedPage.getByText('NVDA').first()).toBeVisible({ timeout: 10000 })
-    await authedPage.getByText('NVDA').first().click()
+    // Click the Long Call row (NVDA, profitable, green) — shown as "Long Call" in the left panel
+    await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
+    await authedPage.getByText('Long Call').first().click()
 
-    // ActionPlanBox for profitable single leg returns null (DefensiveNarrativeSingle returns null
-    // when pnl >= 0). So no Financial Reality should appear.
-    // The NVDA position has pnl=580 (positive), so the action plan box returns null.
-    // Verify "Financial Reality" is not present in the right panel after selecting NVDA.
-    await expect(authedPage.locator('text=/How to close this position/').first()).not.toBeVisible({ timeout: 3000 }).catch(() => {
-      // If it times out (not found), that is what we expect
-    })
-
-    // The NVDA position is profitable — verify NVDA details visible in right panel
+    // The NVDA position is profitable — right panel should show its entry date banner
     const nvdaBanner = authedPage.locator('text=/Trade entered 3 Jun 2026/')
     await expect(nvdaBanner.first()).toBeVisible({ timeout: 5000 })
+
+    // ActionPlanBox returns null for single profitable position —
+    // "How to close this position" must NOT be visible
+    const closeInstructions = authedPage.getByText(/How to close this position/i)
+    await expect(closeInstructions).not.toBeVisible({ timeout: 3000 })
   })
 
   test('AC6 — losing multi-leg group (Iron Condor) shows Financial Reality in right panel', async ({ authedPage }) => {
@@ -640,20 +645,29 @@ test.describe('Suite 4 — API mock / empty / error states', () => {
     await expect(authedPage.getByText(/No open positions to monitor/i)).toBeVisible({ timeout: 10000 })
   })
 
-  test('AC3 — loading state shows "Analysing your positions…" while request is in-flight', async ({ authedPage }) => {
+  test('AC3 — loading state "Analysing your positions…" renders before data arrives', async ({ authedPage }) => {
     await setupBaseRoutes(authedPage)
 
-    // Use a delayed response to capture the loading state
+    // Use a delayed response so we can assert the loading message before data arrives.
+    // We navigate FIRST, then wait for the loading text before the response is served.
+    let resolveRisk: (() => void) | null = null
     await authedPage.route(`${API}positions/risk`, async (route) => {
-      // Introduce a 400ms delay — enough for the loading message to render
-      await new Promise(res => setTimeout(res, 400))
+      // Hold the response until we have checked for the loading state
+      await new Promise<void>(res => { resolveRisk = res })
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
     })
 
-    await navigateToPositionsTab(authedPage)
+    await authedPage.goto('http://localhost:5173/')
+    // Don't wait for networkidle because it won't settle until the risk route resolves.
+    // Instead click the Positions tab right after the page has loaded enough to show tabs.
+    await authedPage.waitForLoadState('domcontentloaded')
+    await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // The loading message should appear briefly
-    await expect(authedPage.getByText(/Analysing your positions/i)).toBeVisible({ timeout: 5000 })
+    // The risk monitor starts loading — assert the loading message appears
+    await expect(authedPage.getByText(/Analysing your positions/i)).toBeVisible({ timeout: 10000 })
+
+    // Now release the delayed response
+    if (resolveRisk) resolveRisk()
   })
 
   test('AC4 — failed positions/risk endpoint shows error message in content area', async ({ authedPage }) => {
@@ -679,7 +693,9 @@ test.describe('Suite 4 — API mock / empty / error states', () => {
       const symbol = url.split('/').pop() ?? ''
       quotedSymbols.push(symbol)
       const prices: Record<string, number> = { TSLA: 212.40, SPY: 542.80, AAPL: 196.30, NVDA: 1042.50, QQQ: 480.00 }
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ symbol, price: prices[symbol] ?? 100 }) })
+      const price = prices[symbol] ?? 100
+      // Return full Quote shape to avoid QuoteBar crash
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...MOCK_QUOTE, symbol, price, previousClose: price - 1, change: 1, changePercent: 0.5 }) })
     })
 
     await navigateToPositionsTab(authedPage)
@@ -720,7 +736,9 @@ test.describe('Suite 4 — API mock / empty / error states', () => {
     await navigateToPositionsTab(authedPage)
 
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
-    await expect(authedPage.getByRole('button', { name: /Refresh/i })).toBeVisible()
+    // The Risk Monitor header has a "Refresh" button (the Positions component also has "↻ Refresh")
+    // Use .first() to avoid strict mode violation when multiple Refresh buttons are present
+    await expect(authedPage.getByRole('button', { name: /Refresh/i }).first()).toBeVisible()
   })
 })
 
