@@ -543,17 +543,18 @@ test.describe('Suite 2 — Row selection and right panel', () => {
     await expect(authedPage.getByText(/\$210/).first()).toBeVisible()
   })
 
-  test('AC6 — per-leg entry-date chip reads "Entered DD Mon YYYY" inside the leg card', async ({ authedPage }) => {
+  test('AC6 — right panel header shows entry date for selected group (LegCard has no per-leg date chip)', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
     // Select Bull Call Spread
     await expect(authedPage.getByText('Bull Call Spread').first()).toBeVisible({ timeout: 10000 })
     await authedPage.getByText('Bull Call Spread').first().click()
 
-    // Each PositionCard (leg card) renders: "Entered {fmtFullDate(pos.entered_at)}"
-    // BCS entered_at = "2026-06-18" → "Entered 18 Jun 2026"
-    const legEntryChip = authedPage.locator('text=/Entered 18 Jun 2026/')
-    await expect(legEntryChip.first()).toBeVisible({ timeout: 5000 })
+    // The new LegCard layout does NOT render a per-leg "Entered DD Mon YYYY" chip.
+    // The entry date is surfaced once in the RightPanelHeader "Trade entered" banner.
+    // BCS group enteredAt = "2026-06-18" → banner reads "Trade entered 18 Jun 2026 — N days ago"
+    const headerBanner = authedPage.locator('text=/Trade entered 18 Jun 2026/')
+    await expect(headerBanner.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('AC7 — clicking second row replaces right panel content', async ({ authedPage }) => {
