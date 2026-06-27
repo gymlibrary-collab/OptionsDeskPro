@@ -61,11 +61,11 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | solution-architect |
+| **Date** | 27Jun2026 |
+| **Notes** | Presentation-only change to `frontend/src/components/RiskMonitor.tsx`. No migration, no new packages, no API change. New `LegCard` component and `riskShort()` helper added; `PositionCard` retained unchanged. Grid: `repeat(auto-fill, minmax(240px, 1fr))`, card `max-width: 360px`. Signal gap at action-plan level documented — raw signal messages not surfaced in v1 right panel; business meaning conveyed via `DefensiveNarrativeSingle`/`DefensiveNarrativeGroup`. Flagged as backlog item. All PO binding decisions (OQ-1 through OQ-4) addressed. |
 
-Pending
+Awaiting user approval to proceed to Gate 4 (Implementation).
 
 ---
 

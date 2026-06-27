@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getQuote } from '../api/client'
+import { getPositionsRisk, PositionRisk, getAISettings, aiRiskSummary, getQuote } from '../api/client'
 import { useWindowSize } from '../hooks/useWindowSize'
 
 const C = {
@@ -57,9 +57,10 @@ function riskLabel(level: string) {
   return '🟢 OK'
 }
 
-function signalIcon(type: string) {
-  const icons: Record<string, string> = { dte: '⏰', pnl: '💰', iv: '📊', bias: '🦭', healthy: '✅' }
-  return icons[type] || '•'
+function riskShort(level: string): string {
+  if (level === 'red') return 'HIGH'
+  if (level === 'yellow') return 'WATCH'
+  return 'OK'
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -77,35 +78,6 @@ function TypeBadge({ type }: { type: string }) {
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, background: isCall ? '#0d1a2d' : '#2d1a2d', color: isCall ? '#3b82f6' : '#a855f7', border: `1px solid ${isCall ? '#3b82f6' : '#a855f7'}40` }}>
       {type.toUpperCase()}
     </span>
-  )
-}
-
-function ProgressBar({ pct, target, level }: { pct: number; target: number; level: string }) {
-  const clampedPct = Math.max(-100, Math.min(200, pct))
-  const isPositive = clampedPct >= 0
-  const barPct = Math.min(Math.abs(clampedPct) / Math.max(target, 1) * 100, 100)
-  const color = isPositive ? (clampedPct >= target ? C.green : C.accent) : riskColor(level)
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: C.muted }}>
-        <span style={{ color: isPositive ? C.green : C.red, fontWeight: 700 }}>{isPositive ? '+' : ''}{fmt(pct, 1)}%</span>
-        <span>target {fmt(target, 0)}%</span>
-      </div>
-      <div style={{ height: '4px', background: '#252836', borderRadius: '2px', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${barPct}%`, background: color, borderRadius: '2px', transition: 'width 0.3s' }} />
-      </div>
-    </div>
-  )
-}
-
-function SignalRow({ signal }: { signal: RiskSignal }) {
-  const color = riskColor(signal.level)
-  const bg = signal.level === 'green' ? 'transparent' : riskBg(signal.level)
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: signal.level !== 'green' ? '6px 10px' : '2px 0', background: bg, borderRadius: '4px', border: signal.level !== 'green' ? `1px solid ${color}33` : 'none' }}>
-      <span style={{ fontSize: '13px', flexShrink: 0, marginTop: '1px' }}>{signalIcon(signal.type)}</span>
-      <span style={{ fontSize: '12px', color: signal.level === 'green' ? C.muted : color, lineHeight: 1.5 }}>{signal.msg}</span>
-    </div>
   )
 }
 
@@ -446,136 +418,110 @@ function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: Positi
   )
 }
 
-// ── PositionCard (LegCard in right panel) ────────────────────────────────────
+// ── LegCard ───────────────────────────────────────────────────────────────────
 
-function PositionCard({ pos, stockPrice, isInGroup }: {
-  pos: PositionRisk
-  stockPrice?: number
-  isInGroup?: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [actionPlanOpen, setActionPlanOpen] = useState(false)
-  const isLosing = pos.pnl < 0
-
-  const borderColor = riskColor(pos.risk_level)
-  const bgColor = riskBg(pos.risk_level)
+function LegCard({ pos }: { pos: PositionRisk }) {
   const entryAction = (pos.entry_action || (pos.quantity > 0 ? 'buy' : 'sell')).toLowerCase()
-  const qty = Math.abs(pos.quantity)
-  const totalCost = pos.avg_cost * qty * 100
-  const currentValue = pos.current_price * qty * 100
   const isSell = entryAction === 'sell'
-  const priceUp = isSell
-    ? pos.current_price <= pos.avg_cost   // sell: price falling = good
-    : pos.current_price >= pos.avg_cost   // buy:  price rising  = good
-  const redSignals = pos.signals.filter(s => s.level === 'red')
-  const yellowSignals = pos.signals.filter(s => s.level === 'yellow')
-  const greenSignals = pos.signals.filter(s => s.level === 'green')
-  const urgentSignals = [...redSignals, ...yellowSignals]
+  const qty = Math.abs(pos.quantity)
   const tileLabel = isSell ? 'Collected' : 'Cost'
+  const tileValue = pos.avg_cost * qty * 100
+
+  const ivColor =
+    pos.iv_rank == null ? undefined
+    : pos.iv_rank > 70  ? C.red
+    : pos.iv_rank > 50  ? C.yellow
+    : C.text
+
+  const pnlColor = pos.pnl >= 0 ? C.green : C.red
+  const pnlDisplay = pos.pnl >= 0
+    ? `+$${fmt(pos.pnl)}`
+    : `-$${fmt(Math.abs(pos.pnl))}`
+
+  const topBorderColor = riskColor(pos.risk_level)
 
   return (
-    <div style={{ background: bgColor, border: `1px solid ${borderColor}44`, borderLeft: `3px solid ${borderColor}`, borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{pos.symbol}</span>
-            {stockPrice != null && (
-              <span style={{ fontSize: '13px', color: '#7dd3fc', fontWeight: 600 }}>${fmt(stockPrice)}</span>
-            )}
-            <ActionBadge action={entryAction} />
-            <TypeBadge type={pos.option_type} />
-            <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {fmtDate(pos.expiry)}</span>
-            {pos.strategy_name && <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>{pos.strategy_name}</span>}
-            {pos.entered_at && (
-              <span style={{ fontSize: '10px', background: '#1a1d27', border: '1px solid #2d3148', color: '#64748b', padding: '1px 6px', borderRadius: '6px' }}>
-                Entered {fmtFullDate(pos.entered_at)}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>
-            {qty} contract{qty !== 1 ? 's' : ''}{' · '}Entry <strong style={{ color: C.text }}>${fmt(pos.avg_cost)}</strong>/share · <strong style={{ color: C.text }}>${fmt(totalCost, 0)}</strong> total
-          </div>
+    <div style={{
+      background: riskBg(pos.risk_level),
+      border: `1px solid ${topBorderColor}44`,
+      borderTop: `3px solid ${topBorderColor}`,
+      borderRadius: '8px',
+      padding: '10px 12px',
+      maxWidth: '360px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+    }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{pos.symbol}</span>
+          <ActionBadge action={entryAction} />
+          <TypeBadge type={pos.option_type} />
+          <span style={{
+            display: 'inline-block',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 700,
+            background: C.surface2,
+            color: C.muted,
+            border: `1px solid ${C.border}`,
+          }}>
+            ×{qty}
+          </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: borderColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{riskLabel(pos.risk_level)}</span>
-          <button onClick={() => setExpanded(e => !e)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}>{expanded ? '▲' : '▼'}</button>
-        </div>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: topBorderColor, flexShrink: 0 }}>
+          {riskShort(pos.risk_level)}
+        </span>
       </div>
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Days Left</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}<span style={{ fontSize: '12px', fontWeight: 400, marginLeft: '1px' }}>d</span></div>
+
+      {/* Sub-line */}
+      <div style={{ fontSize: '12px', color: '#7dd3fc' }}>
+        ${fmt(pos.strike, 0)} · {pos.dte}d left
+      </div>
+
+      {/* 3-tile mini-metric row */}
+      <div style={{ display: 'flex', gap: '6px' }}>
+        {/* Qty tile — always present */}
+        <div style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '2px' }}>Qty</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{qty}</div>
         </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Qty</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>{pos.quantity > 0 ? '+' : ''}{pos.quantity}</div>
-        </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Entry</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>${fmt(pos.avg_cost)}</div>
-        </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Current</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(pos.current_price)}</div>
-        </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>{tileLabel}</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</div>
-        </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Value</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(currentValue, 0)}</div>
-        </div>
-        <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px', border: `1px solid ${pos.pnl >= 0 ? C.green : C.red}33` }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>P&amp;L</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: pos.pnl >= 0 ? C.green : C.red }}>{pos.pnl >= 0 ? '+' : ''}${fmt(pos.pnl)}</div>
-        </div>
-        {pos.iv_rank !== undefined && pos.iv_rank !== null && (
-          <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-            <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>IV Rank</div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: pos.iv_rank > 50 ? C.yellow : C.text }}>{fmt(pos.iv_rank, 0)}</div>
+        {/* IV Rank tile — omitted when null/undefined */}
+        {pos.iv_rank != null && (
+          <div style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px' }}>
+            <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '2px' }}>IV Rank</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: ivColor }}>{fmt(pos.iv_rank, 0)}</div>
           </div>
         )}
-        {pos.bias && (
-          <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-            <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Bias</div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: pos.bias === 'BULLISH' ? C.green : pos.bias === 'BEARISH' ? C.red : C.muted }}>{pos.bias}</div>
-          </div>
-        )}
+        {/* Cost / Collected tile — always present */}
+        <div style={{ flex: 1, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px' }}>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '2px' }}>{tileLabel}</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>${fmt(tileValue, 0)}</div>
+        </div>
       </div>
-      <ProgressBar pct={pos.pnl_pct} target={pos.profit_target_pct} level={pos.risk_level} />
-      {urgentSignals.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>{urgentSignals.map((s, i) => <SignalRow key={i} signal={s} />)}</div>}
 
-      {/* Action Plan — plain text trigger, no pill border */}
-      {!isInGroup && isLosing && (
-        <button
-          onClick={() => setActionPlanOpen(o => !o)}
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: C.yellow, fontSize: '12px', fontWeight: 700 }}
-        >
-          <span>⚠</span>
-          {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
-        </button>
-      )}
+      {/* Bottom row */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '12px',
+        borderTop: `1px solid ${C.border}`,
+        paddingTop: '8px',
+      }}>
+        <span>
+          <span style={{ color: C.muted }}>ENTRY→NOW </span>
+          <span style={{ color: C.text }}>${fmt(pos.avg_cost)}</span>
+          <span style={{ color: C.muted }}> → </span>
+          <span style={{ color: C.text }}>${fmt(pos.current_price)}</span>
+        </span>
+        <span style={{ fontWeight: 700, color: pnlColor }}>{pnlDisplay}</span>
+      </div>
 
-      {/* Action Plan panel — includes close instructions */}
-      {!isInGroup && actionPlanOpen && (
-        <div style={{ borderTop: `1px solid ${C.yellow}33`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrice} />
-          <CloseInstructions pos={pos} />
-        </div>
-      )}
-
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {greenSignals.map((s, i) => <SignalRow key={i} signal={s} />)}
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '11px', color: C.muted, marginTop: '4px', background: C.surface2, borderRadius: '6px', padding: '8px 10px' }}>
-            <span>Quantity: {pos.quantity > 0 ? '+' : ''}{pos.quantity}</span>
-            <span>Entry price: ${fmt(pos.avg_cost)}</span>
-            <span>Current price: ${fmt(pos.current_price)}</span>
-            {pos.iv_environment && <span>IV environment: {pos.iv_environment}</span>}
-          </div>
-        </div>
-      )}
+      {/* Progress bar */}
+      <MiniProgressBar worstLegPnlPct={pos.pnl_pct} level={pos.risk_level} />
     </div>
   )
 }
@@ -952,13 +898,15 @@ function RightPanelDetail({ group, stockPrices }: {
       <RightPanelHeader group={group} />
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: '10px',
+        }}>
           {sortedPositions.map((pos, i) => (
-            <PositionCard
+            <LegCard
               key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
               pos={pos}
-              stockPrice={stockPrices[pos.symbol]}
-              isInGroup={true}
             />
           ))}
         </div>
