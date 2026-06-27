@@ -88,11 +88,13 @@ _Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated** | `frontend/e2e/pages/risk-monitor-group-risk.spec.ts` (17 new) — 81 passed / 0 failed across all risk-monitor suites (Chromium) |
+| **Manual plan** | 42-case exploratory plan, 15 areas (tester) |
+| **Approved by** | qa-engineer (automated), tester (manual) |
+| **Date** | 27Jun2026 |
+| **Notes** | No existing test needed updating — the Iron Condor mock computes to groupPnlPct −53.7% → red, matching the prior worst-leg result. New suites verify: profitable butterfly → WATCH + green bar (red leg's LegCard still HIGH); all-green profitable → OK; net-loss past stop → HIGH RISK; small net loss → WATCH; single ungrouped red → HIGH RISK (unchanged). Intended behaviours documented (not bugs): (a) all-green-legs but net-losing group shows WATCH per the chosen rule; (b) WATCH badge + green bar pairing; (c) summary chips / header indicator stay per-leg (OQ-1 residual) so a profitable butterfly with one red leg still increments the High-Risk chip. Automated gaps (DTE≤7 red trigger, narrative content, comparative bar widths) covered by the manual plan. |
 
-Pending
+Approved
 
 ---
 
