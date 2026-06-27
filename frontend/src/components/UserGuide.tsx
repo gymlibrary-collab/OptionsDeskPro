@@ -339,13 +339,12 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <P>Click any row in the left panel to view the full detail. The right panel shows:</P>
           <Sub>
             <Term term="Header">Strategy name, risk badge, net P&amp;L, leg count (e.g. "2 legs"), nearest expiry, IV Rank of the underlying, and a banner showing "Trade entered DD Mon YYYY — N days ago".</Term>
-            <Term term="Leg Cards">One card per position leg. Each card displays symbol, BUY/SELL and CALL/PUT badges, strike, expiry, entry date, risk badge, and metrics: DTE, Qty, Entry price, Current price, P&amp;L, IV Rank. SELL legs show "Collected" (premium received); BUY legs show "Cost" (premium paid).</Term>
-            <Term term="Signals">Below each leg card, red and yellow risk signals appear prominently; green signals appear at lower prominence. Tap to expand green signals for more detail.</Term>
+            <Term term="Leg Cards">One compact card per position leg, displayed side-by-side on desktop, reflowing to 2 per row on tablet, and single-column on mobile. Each card shows: symbol, BUY/SELL and CALL/PUT badges, ×N quantity chip, strike and days to expiration (e.g. "$490 · 18d left"), three metric tiles (Qty · IV Rank · Cost or Collected), entry→current prices, P&amp;L, and a progress bar. SELL legs label the tile "Collected" (premium received); BUY legs label it "Cost" (premium paid). The IV Rank tile is omitted when unavailable. The card's top border is coloured by risk level (red/yellow/green) for at-a-glance scanning.</Term>
             <Term term="Action Plan">Always visible (no toggle required). For losing trades, you see the Financial Reality section, Paths Forward, Summary Box, and close instructions — exactly what you need to decide your next move. For profitable trades, you see a brief strategy-context narrative.</Term>
             <Term term="Trade Narrative">If the position was created via the scanner, an expandable "Trade Narrative" section shows the original scanner analysis (initially collapsed — click to view).</Term>
           </Sub>
           <Note color={C.amber}>
-            <strong>The action plan is always visible.</strong> In the old layout, you had to click a toggle to see the defensive narrative. Now it appears immediately when you select a position. No action required from you — just read and decide.
+            <strong>Compact leg cards for faster scanning.</strong> The new card grid lets you see all four legs of an Iron Condor at once on desktop — identify the risky leg by its red top bar, then read the action plan below to decide your next move. No scrolling required to reach the advice.
           </Note>
         </div>
 

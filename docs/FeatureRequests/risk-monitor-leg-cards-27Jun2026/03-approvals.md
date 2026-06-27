@@ -115,9 +115,25 @@ _Waived by:_ orchestrator &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **User Guide updated** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **User Guide updated** | `frontend/src/components/UserGuide.tsx` — Risk Monitor section, right-panel Leg Cards term updated to describe compact grid layout, reflow behaviour at breakpoints, tile contents, and card top-border risk colour indicator. Note section updated to emphasise faster scanning. |
+| **Approved by** | technical-writer |
+| **Date** | 27Jun2026 |
+| **Notes** | Release note covers feature summary (compact leg card grid replacing stacked layout), what does not change (group header, action plan, left panel, all backend), tier availability (Starter+), deployment steps (frontend-only, no backend deploy, no migration), rollback (code revert), and known limitations (F-7 signal gap logged for follow-up, minor cosmetic items noted as non-blockers). User Guide updated to describe new compact card anatomy: side-by-side on desktop, reflowing to 2 per row tablet and single-column mobile; each card shows symbol, SELL/BUY pill, CALL/PUT pill, ×N chip, strike/DTE, 3-tile metrics with IV Rank omitted when null, entry→current prices, P&L, progress bar, risk-colour top border. |
 
-Pending
+**PASS — Gate 6 complete.**
+
+---
+
+## Overall Status
+
+**Ready to merge to main — pending user approval.**
+
+All 6 gates complete:
+- Gate 1 (BA Spec) — approved
+- Gate 2 (Product Owner) — approved with binding OQ decisions
+- Gate 3 (Architecture) — approved
+- Gate 4 (Test) — approved, 64 tests pass
+- Gate 5 (Security) — approved, FR-11 waiver recorded
+- Gate 6 (Release & Documentation) — approved
+
+Feature is buildable, testable, deployable, and documented. Ready for user acceptance and merge to main.
