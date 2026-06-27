@@ -26,13 +26,6 @@ function fmtDate(iso: string): string {
   return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
 }
 
-function fmtChipDate(iso: string): string {
-  // "2026-06-25" → "25 Jun"
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const [, mm, dd] = iso.split('-')
-  return `${parseInt(dd, 10)} ${MONTHS[parseInt(mm, 10) - 1]}`
-}
-
 function fmtFullDate(iso: string): string {
   // "2026-06-25" → "25 Jun 2026"
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -701,52 +694,97 @@ function MiniProgressBar({ worstLegPnlPct, level }: { worstLegPnlPct: number; le
   )
 }
 
-// ── DateSeparatorRow ──────────────────────────────────────────────────────────
+// ── Date grouping (D3 — left date rail) ───────────────────────────────────────
 
-function DateSeparatorRow({ dateStr }: { dateStr: string }) {
+const MONTH_ABBR = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+interface DateBlock {
+  date: string
+  items: StrategyGroup[]
+}
+
+// Group consecutive strategy groups that share the same entry date into date-blocks.
+// Groups are already sorted newest-first, so consecutive same-date entries cluster.
+function groupByEntryDate(groups: StrategyGroup[]): DateBlock[] {
+  const blocks: DateBlock[] = []
+  for (const g of groups) {
+    const last = blocks[blocks.length - 1]
+    if (last && last.date === g.enteredAt) {
+      last.items.push(g)
+    } else {
+      blocks.push({ date: g.enteredAt, items: [g] })
+    }
+  }
+  return blocks
+}
+
+// Vertical date rail shown to the left of all trades entered on the same date.
+function DateRail({ dateStr }: { dateStr: string }) {
+  const parts = dateStr.split('-')
+  const day = parts[2] ?? '—'
+  const mon = parts[1] ? MONTH_ABBR[parseInt(parts[1], 10)] : ''
   return (
     <div style={{
-      padding: '6px 12px 4px',
-      fontSize: '10px',
-      fontWeight: 700,
-      color: C.muted,
-      textTransform: 'uppercase' as const,
-      letterSpacing: '0.08em',
+      width: '54px',
+      flexShrink: 0,
       background: C.bg,
-      borderBottom: `1px solid ${C.border}`,
+      borderRight: `1px solid ${C.border}`,
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '8px 4px',
+      textAlign: 'center' as const,
     }}>
-      {fmtFullDate(dateStr)}
+      <div style={{ fontSize: '18px', fontWeight: 800, color: '#a78bfa', lineHeight: 1 }}>{day}</div>
+      <div style={{ fontSize: '9px', fontWeight: 700, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginTop: '2px' }}>{mon}</div>
     </div>
   )
 }
 
 // ── RiskListRow ───────────────────────────────────────────────────────────────
 
-function RiskListRow({ group, isSelected, onClick }: {
+function RiskListRow({ group, isSelected, onClick, isLast }: {
   group: StrategyGroup
   isSelected: boolean
   onClick: () => void
+  isLast?: boolean
 }) {
-  const worstDte = Math.max(...group.positions.map(p => p.dte))
+  const nearestDte = Math.min(...group.positions.map(p => p.dte))
   const borderColor = riskColor(group.worstLevel)
+
+  // S3 — selected rows lift off the list with an accent glow ring + shadow
+  const selectedStyle: React.CSSProperties = isSelected
+    ? {
+        background: '#1c1f3a',
+        margin: '4px',
+        borderRadius: '8px',
+        borderLeft: `4px solid ${borderColor}`,
+        boxShadow: `0 0 0 1px ${C.accent}, 0 4px 14px rgba(124,106,247,0.35)`,
+        position: 'relative' as const,
+        zIndex: 2,
+      }
+    : {
+        background: C.surface,
+        borderLeft: `3px solid ${borderColor}`,
+        borderBottom: isLast ? 'none' : `1px solid ${C.border}`,
+      }
 
   return (
     <div
       onClick={onClick}
       style={{
-        borderLeft: `3px solid ${borderColor}`,
-        background: isSelected ? '#1e2135' : C.surface,
         padding: '10px 12px',
         cursor: 'pointer',
-        borderBottom: `1px solid ${C.border}`,
-        transition: 'background 0.15s',
+        transition: 'background 0.15s, box-shadow 0.15s',
+        ...selectedStyle,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
         <span style={{
           fontSize: '12px',
           fontWeight: 700,
-          color: C.text,
+          color: isSelected ? '#ffffff' : C.text,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap' as const,
@@ -770,20 +808,8 @@ function RiskListRow({ group, isSelected, onClick }: {
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
-        {group.enteredAt && (
-          <span style={{
-            fontSize: '10px',
-            background: '#1a1d27',
-            border: `1px solid ${C.border}`,
-            color: C.muted,
-            padding: '1px 6px',
-            borderRadius: '6px',
-          }}>
-            Entered {fmtChipDate(group.enteredAt)}
-          </span>
-        )}
         <span style={{ fontSize: '11px', color: C.muted }}>
-          {worstDte}d
+          {nearestDte}d
         </span>
         <span style={{
           fontSize: '11px',
@@ -1029,7 +1055,7 @@ export default function RiskMonitor() {
   // ── Desktop split layout ──────────────────────────────────────────────────
 
   const renderDesktopSplit = () => {
-    let lastRenderedDate = ''
+    const blocks = groupByEntryDate(groups)
     return (
       <div style={{
         display: 'flex',
@@ -1037,30 +1063,30 @@ export default function RiskMonitor() {
         overflow: 'hidden',
         borderTop: `1px solid ${C.border}`,
       }}>
-        {/* Left panel */}
+        {/* Left panel — date-rail blocks */}
         <div style={{
-          width: '270px',
+          width: '290px',
           flexShrink: 0,
           overflowY: 'auto' as const,
           borderRight: `1px solid ${C.border}`,
           background: C.bg,
         }}>
-          {groups.map(group => {
-            const showSeparator = group.enteredAt !== lastRenderedDate
-            if (showSeparator) lastRenderedDate = group.enteredAt
-            return (
-              <React.Fragment key={group.key}>
-                {showSeparator && group.enteredAt && (
-                  <DateSeparatorRow dateStr={group.enteredAt} />
-                )}
-                <RiskListRow
-                  group={group}
-                  isSelected={group.key === selectedGroupKey}
-                  onClick={() => setSelectedGroupKey(group.key)}
-                />
-              </React.Fragment>
-            )
-          })}
+          {blocks.map((block, bi) => (
+            <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
+              <DateRail dateStr={block.date} />
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
+                {block.items.map((group, gi) => (
+                  <RiskListRow
+                    key={group.key}
+                    group={group}
+                    isSelected={group.key === selectedGroupKey}
+                    onClick={() => setSelectedGroupKey(group.key)}
+                    isLast={gi === block.items.length - 1}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Right panel */}
@@ -1088,34 +1114,37 @@ export default function RiskMonitor() {
   // ── Mobile accordion layout ───────────────────────────────────────────────
 
   const renderMobileAccordion = () => {
-    let lastRenderedDate = ''
+    const blocks = groupByEntryDate(groups)
     return (
       <div style={{ borderTop: `1px solid ${C.border}` }}>
-        {groups.map(group => {
-          const showSeparator = group.enteredAt !== lastRenderedDate
-          if (showSeparator) lastRenderedDate = group.enteredAt
-          const isExpanded = mobileExpandedKey === group.key
-          return (
-            <React.Fragment key={group.key}>
-              {showSeparator && group.enteredAt && (
-                <DateSeparatorRow dateStr={group.enteredAt} />
-              )}
-              <RiskListRow
-                group={group}
-                isSelected={isExpanded}
-                onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
-              />
-              {isExpanded && (
-                <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
-                  <RightPanelDetail
-                    group={group}
-                    stockPrices={stockPrices}
-                  />
-                </div>
-              )}
-            </React.Fragment>
-          )
-        })}
+        {blocks.map((block, bi) => (
+          <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
+            <DateRail dateStr={block.date} />
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
+              {block.items.map((group, gi) => {
+                const isExpanded = mobileExpandedKey === group.key
+                return (
+                  <React.Fragment key={group.key}>
+                    <RiskListRow
+                      group={group}
+                      isSelected={isExpanded}
+                      onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
+                      isLast={gi === block.items.length - 1 && !isExpanded}
+                    />
+                    {isExpanded && (
+                      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+                        <RightPanelDetail
+                          group={group}
+                          stockPrices={stockPrices}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }

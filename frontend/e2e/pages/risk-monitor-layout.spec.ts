@@ -349,50 +349,88 @@ test.describe('Suite 1 — Left panel list', () => {
     // Wait for the risk monitor to be populated
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
 
-    // Gather all "Entered DD Mon" chips and confirm their order
-    // Expected sequence: "Entered 25 Jun", "Entered 20 Jun", "Entered 18 Jun", "Entered 3 Jun"
-    const enteredChips = authedPage.locator('text=/Entered \\d+ \\w+/')
-    await expect(enteredChips.first()).toBeVisible({ timeout: 10000 })
+    // The new D3 date-rail design shows day numbers in a vertical DateRail on the left of each
+    // date block. Each block's rail shows the raw day string from the YYYY-MM-DD split (parts[2]),
+    // followed by the 3-letter month abbreviation. The rail day elements appear in newest-first
+    // DOM order: 25, 20, 18, 03.
+    // We locate all DateRail day number elements by their distinctive styling (18px, fontWeight 800,
+    // color #a78bfa). We use a specific selector targeting the day number div inside the rail.
+    // The rail is a 54px-wide flex column; the first child div holds the day number.
+    // Strategy: assert the four strategy-name rows appear in the correct top-to-bottom order.
+    const strategyNames = authedPage.locator('[style*="fontWeight: 700"][style*="overflow: hidden"]')
 
-    const chipTexts = await enteredChips.allInnerTexts()
-    // Newest-first: 25 Jun, 20 Jun, 18 Jun, 3 Jun
-    expect(chipTexts[0]).toContain('25 Jun')
-    expect(chipTexts[1]).toContain('20 Jun')
-    expect(chipTexts[2]).toContain('18 Jun')
-    // 3 Jun (parseInt('03', 10) === 3 — no leading zero in fmtChipDate)
-    expect(chipTexts[3]).toContain('Jun')
+    // Simpler approach: assert strategy names appear in newest-first order by checking
+    // their bounding boxes (topmost = newest).
+    await expect(authedPage.getByText('Short Put').first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('Iron Condor').first()).toBeVisible()
+    await expect(authedPage.getByText('Bull Call Spread').first()).toBeVisible()
+    await expect(authedPage.getByText('Long Call').first()).toBeVisible()
+
+    // Verify order by comparing vertical positions of the left-panel group name labels.
+    const shortPutBox = await authedPage.getByText('Short Put').first().boundingBox()
+    const ironCondorBox = await authedPage.getByText('Iron Condor').first().boundingBox()
+    const bcsBox = await authedPage.getByText('Bull Call Spread').first().boundingBox()
+    const longCallBox = await authedPage.getByText('Long Call').first().boundingBox()
+
+    // Each row must appear below the previous one (newest-first top-to-bottom)
+    expect(shortPutBox!.y).toBeLessThan(ironCondorBox!.y)
+    expect(ironCondorBox!.y).toBeLessThan(bcsBox!.y)
+    expect(bcsBox!.y).toBeLessThan(longCallBox!.y)
   })
 
-  test('AC3 — date separator rows appear between groups with different entry dates', async ({ authedPage }) => {
+  test('AC3 — date rail appears for each distinct entry date', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
-    // Expect date separator text for each distinct entered_at date
-    await expect(authedPage.getByText('25 Jun 2026').first()).toBeVisible({ timeout: 10000 })
-    await expect(authedPage.getByText('20 Jun 2026').first()).toBeVisible({ timeout: 10000 })
-    await expect(authedPage.getByText('18 Jun 2026').first()).toBeVisible({ timeout: 10000 })
-    await expect(authedPage.getByText('3 Jun 2026').first()).toBeVisible({ timeout: 10000 })
+    // The new D3 date-rail design replaces full-width DateSeparatorRow with a 54px vertical
+    // DateRail on the left of each date block. The rail renders:
+    //   - day number as a raw string from YYYY-MM-DD split (parts[2]): "25", "20", "18", "03"
+    //   - month abbreviation from MONTH_ABBR array (CSS uppercases visually; DOM text is "Jun")
+    //
+    // Assert each distinct date block's rail day number is present in the left panel.
+    // The four entered_at dates produce rails: 25 Jun, 20 Jun, 18 Jun, 03 Jun.
+    //
+    // NOTE: full "25 Jun 2026" format only appears in the RIGHT panel's "Trade entered" banner —
+    // not in the left panel date rail. We must NOT match that here.
+    await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
+
+    // Each DateRail renders the day number as its own text node. getByText with exact:true
+    // matches text nodes whose full content is the day number.
+    // "25" for 2026-06-25, "20" for 2026-06-20, "18" for 2026-06-18, "03" for 2026-06-03.
+    await expect(authedPage.getByText('25', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('20', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('18', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('03', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+
+    // All four rails show the same month abbreviation "Jun" (DOM text; CSS renders it uppercase)
+    // There must be at least 4 "Jun" text nodes in the left panel date rails.
+    const junNodes = authedPage.getByText('Jun', { exact: true })
+    const junCount = await junNodes.count()
+    expect(junCount).toBeGreaterThanOrEqual(4)
   })
 
-  test('AC4 — each list row shows strategy name, entry-date chip, risk badge, DTE, and P&L', async ({ authedPage }) => {
+  test('AC4 — each list row shows strategy name, date-rail day, risk badge, DTE, and P&L', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
     // Wait for data to render
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
 
-    // Strategy names visible
+    // Strategy names visible in left panel rows
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible()
     await expect(authedPage.getByText('Bull Call Spread').first()).toBeVisible()
 
-    // Entry-date chips — at least one must be visible
-    const enteredChip = authedPage.locator('text=/Entered \\d+ \\w+/').first()
-    await expect(enteredChip).toBeVisible()
+    // The "Entered DD Mon" per-row chip is REMOVED in the D3 date-rail design.
+    // Instead, the DateRail shows the day number and month abbreviation once per date block.
+    // Assert the date rail day numbers are visible for the TSLA (25) and Iron Condor (20) dates.
+    await expect(authedPage.getByText('25', { exact: true }).first()).toBeVisible()
+    await expect(authedPage.getByText('20', { exact: true }).first()).toBeVisible()
 
     // Risk badges — HIGH RISK and WATCH badges must be visible (red IC and yellow BCS)
     await expect(authedPage.getByText(/HIGH RISK/i).first()).toBeVisible()
     await expect(authedPage.getByText(/WATCH/i).first()).toBeVisible()
 
-    // DTE values — Iron Condor DTE = 56, BCS DTE = 22, TSLA DTE = 29, NVDA DTE = 84
-    // At least two distinct DTE values must appear in the left panel rows
+    // DTE values — nearestDte = Math.min across all legs of the group.
+    // Iron Condor: all 4 legs have dte=56 → min=56 → shows "56d"
+    // Bull Call Spread: both legs have dte=22 → min=22 → shows "22d"
     await expect(authedPage.getByText(/56d/).first()).toBeVisible()
     await expect(authedPage.getByText(/22d/).first()).toBeVisible()
   })
@@ -752,22 +790,32 @@ test.describe('Suite 5 — entered_at field display and sort', () => {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ALL_POSITIONS) }))
   })
 
-  test('AC1 — left panel entry-date chip shows "Entered DD Mon" matching the entered_at field', async ({ authedPage }) => {
+  test('AC1 — left panel date rail shows the day number and month matching the entered_at field', async ({ authedPage }) => {
     await navigateToPositionsTab(authedPage)
 
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
 
-    // TSLA entered_at: "2026-06-25" → chip: "Entered 25 Jun"
-    await expect(authedPage.locator('text=Entered 25 Jun').first()).toBeVisible()
+    // The per-row "Entered DD Mon" chip is REMOVED in the D3 date-rail design.
+    // Instead a DateRail on the left of each date block renders:
+    //   - day number as raw parts[2] from "YYYY-MM-DD".split('-'): "25", "20", "18", "03"
+    //   - month abbreviation from MONTH_ABBR: "Jun" (CSS text-transform uppercases visually)
+    //
+    // TSLA entered_at: "2026-06-25" → DateRail day: "25", month: "Jun"
+    await expect(authedPage.getByText('25', { exact: true }).first()).toBeVisible()
 
-    // Iron Condor entered_at: "2026-06-20" → chip: "Entered 20 Jun"
-    await expect(authedPage.locator('text=Entered 20 Jun').first()).toBeVisible()
+    // Iron Condor entered_at: "2026-06-20" → DateRail day: "20", month: "Jun"
+    await expect(authedPage.getByText('20', { exact: true }).first()).toBeVisible()
 
-    // Bull Call Spread entered_at: "2026-06-18" → chip: "Entered 18 Jun"
-    await expect(authedPage.locator('text=Entered 18 Jun').first()).toBeVisible()
+    // Bull Call Spread entered_at: "2026-06-18" → DateRail day: "18", month: "Jun"
+    await expect(authedPage.getByText('18', { exact: true }).first()).toBeVisible()
 
-    // NVDA entered_at: "2026-06-03" → fmtChipDate parses to "3 Jun" (no leading zero)
-    await expect(authedPage.locator('text=Entered 3 Jun').first()).toBeVisible()
+    // NVDA entered_at: "2026-06-03" → DateRail day: "03" (raw string, no parseInt), month: "Jun"
+    await expect(authedPage.getByText('03', { exact: true }).first()).toBeVisible()
+
+    // All four rails share the same month abbreviation "Jun"
+    const junNodes = authedPage.getByText('Jun', { exact: true })
+    const junCount = await junNodes.count()
+    expect(junCount).toBeGreaterThanOrEqual(4)
   })
 
   test('AC2 — right panel "Trade entered" banner reads "Trade entered DD Mon YYYY — N days ago"', async ({ authedPage }) => {
@@ -821,9 +869,10 @@ test.describe('Suite 5 — entered_at field display and sort', () => {
   })
 
   test('AC5 — sort uses minimum entered_at across all legs of a strategy group', async ({ authedPage }) => {
-    // Iron Condor has 4 legs all with entered_at: "2026-06-20".
-    // Create a version where legs 2/3 have a different (later) entered_at.
-    // The group must still sort by the earliest date (leg 1 and 4 = "2026-06-20").
+    // Iron Condor has 4 legs. We set leg 1 to entered_at "2026-06-19" (earliest)
+    // and legs 2/3/4 to "2026-06-22" (later). The group's enteredAt = min = "2026-06-19".
+    // Bull Call Spread legs remain at "2026-06-18".
+    // Newest-first sort: IC (19 Jun) appears before BCS (18 Jun) because 19 > 18.
     const mixedEnteredAt = [
       { ...MOCK_IRON_CONDOR_LEG1, entered_at: '2026-06-19' }, // earliest leg
       { ...MOCK_IRON_CONDOR_LEG2, entered_at: '2026-06-22' }, // later legs
@@ -840,20 +889,19 @@ test.describe('Suite 5 — entered_at field display and sort', () => {
     await navigateToPositionsTab(authedPage)
 
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('Bull Call Spread').first()).toBeVisible({ timeout: 10000 })
 
-    // The Iron Condor group min(entered_at) = "2026-06-19"
-    // Bull Call Spread group entered_at = "2026-06-18"
-    // Therefore BCS must appear above Iron Condor (18 Jun is newer… wait:
-    // newest-first means larger date = higher. 2026-06-19 > 2026-06-18.
-    // So Iron Condor (19 Jun) must be first, BCS (18 Jun) second.
+    // The per-row "Entered DD Mon" chip is gone. Verify sort order via vertical position:
+    // Iron Condor (min entered_at "2026-06-19") must appear above Bull Call Spread ("2026-06-18")
+    // because newest-first means 19 Jun > 18 Jun → IC first, BCS second.
+    const ironCondorBox = await authedPage.getByText('Iron Condor').first().boundingBox()
+    const bcsBox = await authedPage.getByText('Bull Call Spread').first().boundingBox()
+    expect(ironCondorBox!.y).toBeLessThan(bcsBox!.y)
 
-    const enteredChips = authedPage.locator('text=/Entered \\d+ Jun/')
-    await expect(enteredChips.first()).toBeVisible({ timeout: 10000 })
-
-    const texts = await enteredChips.allInnerTexts()
-    // Iron Condor with min date 19 Jun appears before BCS with 18 Jun
-    expect(texts[0]).toContain('19 Jun')
-    expect(texts[1]).toContain('18 Jun')
+    // Also verify the DateRail shows day "19" for IC's block and "18" for BCS's block.
+    // Both blocks should be visible (two separate date blocks since 19 ≠ 18).
+    await expect(authedPage.getByText('19', { exact: true }).first()).toBeVisible()
+    await expect(authedPage.getByText('18', { exact: true }).first()).toBeVisible()
   })
 })
 
@@ -928,7 +976,7 @@ test.describe('Suite 6 — Mobile accordion layout', () => {
     })
   })
 
-  test('AC4 — mobile rows still show entry-date chips, risk badge, and DTE', async ({ authedPage }) => {
+  test('AC4 — mobile rows show date-rail day number, risk badge, and DTE', async ({ authedPage }) => {
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
 
@@ -937,13 +985,18 @@ test.describe('Suite 6 — Mobile accordion layout', () => {
 
     await expect(authedPage.getByText('Iron Condor').first()).toBeVisible({ timeout: 10000 })
 
-    // Entry-date chips visible on mobile
-    await expect(authedPage.locator('text=Entered 25 Jun').first()).toBeVisible()
+    // The "Entered DD Mon" per-row chip is REMOVED on mobile too — the mobile accordion uses
+    // the same renderMobileAccordion() which wraps RiskListRow in DateRail blocks.
+    // Assert the DateRail day number for TSLA's block ("25") is visible on mobile.
+    await expect(authedPage.getByText('25', { exact: true }).first()).toBeVisible()
+
+    // Month abbreviation "Jun" must appear in the date rails
+    await expect(authedPage.getByText('Jun', { exact: true }).first()).toBeVisible()
 
     // Risk badge visible on mobile
     await expect(authedPage.getByText(/HIGH RISK/i).first()).toBeVisible()
 
-    // DTE visible on mobile (Iron Condor has 56d)
+    // DTE visible on mobile — Iron Condor nearestDte = min(56,56,56,56) = 56 → "56d"
     await expect(authedPage.getByText(/56d/).first()).toBeVisible()
   })
 })
