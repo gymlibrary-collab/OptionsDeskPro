@@ -1,0 +1,59 @@
+name: Cleanup old Actions runs
+
+# Prunes workflow run history (and the artifacts attached to those runs)
+# older than RETENTION_DAYS, to keep the Actions tab and artifact storage
+# tidy. NOTE: this trims clutter and *storage*, not billed minutes —
+# Actions minutes are compute time and reset each monthly billing cycle.
+# This job itself is tiny (a few API calls, no build).
+
+on:
+  schedule:
+    # Daily at 04:30 UTC (after the 03:00 purge job)
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Delete completed runs older than this many days'
+        required: false
+        default: '3'
+
+permissions:
+  actions: write      # required to delete workflow runs
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete completed runs older than retention window
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete old workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RETENTION_DAYS: ${{ github.event.inputs.retention_days || '3' }}
+        run: |
+          set -euo pipefail
+          cutoff=$(date -u -d "${RETENTION_DAYS} days ago" +%s)
+          echo "Retention: ${RETENTION_DAYS} days — deleting completed runs created before $(date -u -d "@${cutoff}" '+%Y-%m-%d %H:%M UTC')"
+
+          deleted=0
+          kept=0
+          # Paginate all runs; only consider completed ones so we never
+          # touch an in-progress run (including this cleanup run itself).
+          gh api --paginate "repos/${REPO}/actions/runs?per_page=100" \
+            --jq '.workflow_runs[] | select(.status=="completed") | "\(.id) \(.created_at)"' \
+          | while read -r id created; do
+              created_ts=$(date -u -d "${created}" +%s)
+              if [ "${created_ts}" -lt "${cutoff}" ]; then
+                echo "  delete run ${id} (created ${created})"
+                # Deleting a run also removes its logs and artifacts.
+                gh api -X DELETE "repos/${REPO}/actions/runs/${id}" >/dev/null 2>&1 \
+                  && deleted=$((deleted+1)) \
+                  || echo "    (skip ${id} — already gone or not deletable)"
+              else
+                kept=$((kept+1))
+              fi
+            done
+
+          echo "Done. Older runs deleted; recent runs (within ${RETENTION_DAYS} days) retained."
