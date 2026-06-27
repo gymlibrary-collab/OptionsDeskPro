@@ -118,21 +118,25 @@ _Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | technical-writer |
+| **Date** | 27Jun2026 |
+| **Notes** | Release note written covering the fix, worked example (Put Broken Wing Butterfly), intentional behaviours, known limitation (ratio spreads), unchanged elements, deployment steps, and rollback procedure. User Guide Risk Monitor section updated to explain that the group risk badge and left-panel progress bar now reflect the **whole strategy's net P&L**, not the worst single leg. The description clarifies the intentional yellow-badge + green-bar pairing for net-profitable groups with a stressed leg. Per-leg card descriptions and action-plan descriptions retained unchanged. All tier references correct (Starter+). No new env vars. Frontend-only redeploy on Railway. Code complete; pending user approval to merge to main. |
 
-Pending
+GATE 6 PASS — Release note and User Guide documentation complete.
 
 ---
 
 ## Overall Status
 
-Gates complete: 4 of 6 (Gate 4 Test pending; Gate 5 Security approved; Gate 6 Release pending).
+**Gates complete: 6 of 6**
 
-- Gate 1 (BA Spec) — approved
-- Gate 2 (Product Owner) — approved with binding OQ decisions
-- Gate 3 (Architecture) — approved
-- Gate 4 (Test) — pending
+- Gate 1 (BA Spec) — approved 27Jun2026
+- Gate 2 (Product Owner) — approved with binding OQ decisions 27Jun2026
+- Gate 3 (Architecture) — approved 27Jun2026
+- Gate 4 (Test) — approved 27Jun2026
 - Gate 5 (Security) — PASS — approved 27Jun2026
-- Gate 6 (Release & Documentation) — pending
+- Gate 6 (Release & Documentation) — PASS — approved 27Jun2026
+
+**Overall decision: Ready to merge to main — pending user approval.**
+
+All gates passed. Release note, User Guide update, and deployment documentation are complete. No backend changes, no migrations, no new dependencies. Frontend-only redeploy on Railway. Code ready for merge.
