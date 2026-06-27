@@ -323,10 +323,10 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Sub>
             <Term term="Strategy Name">The name of the strategy (e.g. "Bull Call Spread", "Iron Condor") or symbol for manually entered positions.</Term>
             <Term term="Entry Date">A chip reading "Entered DD Mon" (e.g. "Entered 25 Jun") — the date the position was opened.</Term>
-            <Term term="Risk Badge">A colour-coded indicator showing the worst risk level in that group: red (high risk), yellow (watch), or green (low risk).</Term>
+            <Term term="Risk Badge">A colour-coded indicator reflecting the **whole strategy's net P&L**, not the worst single leg: red (high risk group), yellow (watch group), or green (healthy group). A net-profitable group never shows red, even if one leg is individually down. A net-losing group shows red only if the combined loss meets a trigger (≥50% of cost basis, ≥100% of cost basis, or soonest leg ≤7 days to expiry).</Term>
             <Term term="DTE">Days to expiration — the nearest expiry date in the group.</Term>
             <Term term="P&amp;L">The net profit or loss across all legs in the group.</Term>
-            <Term term="Mini Progress Bar">A thin horizontal bar showing the worst-performing leg's P&amp;L as a percentage. Colour matches the risk badge.</Term>
+            <Term term="Mini Progress Bar">A thin horizontal bar showing the group's combined P&amp;L as a percentage. Colour is green when the group is net profitable, or matches the group's risk level when net losing. For a multi-leg strategy that is net profitable despite a leg being individually stressed, the bar is green while the badge may show yellow — this pairing is intentional and informative.</Term>
             <Term term="Left Border">A 3px coloured stripe on the left edge of each row (red/yellow/green) reflecting the group's risk level at a glance.</Term>
           </Sub>
           <Note color={C.green}>
