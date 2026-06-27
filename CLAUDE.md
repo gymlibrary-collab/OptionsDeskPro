@@ -199,7 +199,8 @@ Describe the feature in plain English. The `business-analyst` agent will run aut
 - Mock data: `frontend/e2e/mock-data.ts`
 - Config: `frontend/playwright.config.ts`
 - Run locally: `cd frontend && npx playwright test`
-- Nightly CI: `.github/workflows/e2e-nightly.yml` — 1am UTC; also has `workflow_dispatch` for manual runs
+- E2E CI: `.github/workflows/e2e-nightly.yml` — **on-demand only** via `workflow_dispatch` (the nightly cron was removed to conserve Actions minutes; run it manually before major deploys)
+- Run-history cleanup: `.github/workflows/cleanup-runs.yml` — daily 04:30 UTC; deletes completed runs + their artifacts older than 3 days (storage/clutter only, not minutes)
 - HTML report uploaded as a CI artifact on every run
 
 ### Feature request documents
