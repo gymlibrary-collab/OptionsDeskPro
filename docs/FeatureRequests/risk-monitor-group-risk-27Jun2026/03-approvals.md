@@ -53,7 +53,7 @@ Approved
 The solution architect may begin. The design doc must address:
 
 1. The `StrategyGroup` TypeScript interface extension: add `groupLevel: 'green' | 'yellow' | 'red'` and `groupPnlPct: number`, retaining `worstLevel` and `worstLegPnlPct` untouched.
-2. The `buildGroups` function: where `groupLevel` and `groupPnlPct` are computed, the ordered rule chain (profitable path first, then losing path with -100%, -50%, DTE triggers), and the updated sort comparator using `groupLevel` rank for same-date tiebreaks (OQ-2 binding decision).
+2. The `buildGroups` function: where `groupLevel` and `groupPnlPct` are computed, the ordered profitable/losing rule chain with -100%, -50%, DTE triggers, and the updated sort comparator using `groupLevel` rank for same-date tiebreaks (OQ-2 binding decision).
 3. The `RiskListRow` changes: all six reads of `group.worstLevel` and `group.worstLegPnlPct` that must switch to `group.groupLevel` and `group.groupPnlPct`, including the `level` and `worstLegPnlPct` props passed to `MiniProgressBar`.
 4. The `RightPanelHeader` changes: the three reads of `group.worstLevel` for badge text, colour, and background.
 5. Confirmation that `MiniProgressBar` is not modified — only the props supplied to it change.
@@ -101,11 +101,13 @@ Pending
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | security-reviewer |
+| **Date** | 27Jun2026 |
+| **Notes** | Presentation-only frontend change confirmed. All five checklist items verified by direct code inspection. No `dangerouslySetInnerHTML` present. Zero-cost-basis guard (`combinedCostBasis > 0` before division) confirmed at line 625 — defensive default of `0` prevents NaN/Infinity from reaching the DOM. No new data fetched, no new auth touchpoint, no secrets, no backend change. CLAUDE.md hard invariants unaffected. Zero findings across all categories. |
 
-Pending
+PASS — no conditions.
+
+_Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 27Jun2026
 
 ---
 
@@ -124,11 +126,11 @@ Pending
 
 ## Overall Status
 
-Gates complete: 3 of 6.
+Gates complete: 4 of 6 (Gate 4 Test pending; Gate 5 Security approved; Gate 6 Release pending).
 
 - Gate 1 (BA Spec) — approved
 - Gate 2 (Product Owner) — approved with binding OQ decisions
 - Gate 3 (Architecture) — approved
 - Gate 4 (Test) — pending
-- Gate 5 (Security) — pending
+- Gate 5 (Security) — PASS — approved 27Jun2026
 - Gate 6 (Release & Documentation) — pending
