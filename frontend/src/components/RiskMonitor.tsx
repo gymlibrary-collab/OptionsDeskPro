@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { getPositionsRisk, PositionRisk, RiskSignal, getAISettings, aiRiskSummary, getQuote } from '../api/client'
+import { useWindowSize } from '../hooks/useWindowSize'
 
 const C = {
   bg: '#0f1117',
@@ -23,6 +24,26 @@ function fmt(n: number, d = 2) {
 function fmtDate(iso: string): string {
   const parts = iso.split('-')
   return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
+}
+
+function fmtChipDate(iso: string): string {
+  // "2026-06-25" → "25 Jun"
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const [, mm, dd] = iso.split('-')
+  return `${parseInt(dd, 10)} ${MONTHS[parseInt(mm, 10) - 1]}`
+}
+
+function fmtFullDate(iso: string): string {
+  // "2026-06-25" → "25 Jun 2026"
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const [yyyy, mm, dd] = iso.split('-')
+  return `${parseInt(dd, 10)} ${MONTHS[parseInt(mm, 10) - 1]} ${yyyy}`
+}
+
+function daysAgo(isoDate: string): number {
+  const entered = new Date(isoDate)
+  const today = new Date()
+  return Math.floor((today.getTime() - entered.getTime()) / 86400000)
 }
 
 function riskColor(level: string) {
@@ -432,6 +453,8 @@ function DefensiveNarrativeGroup({ positions, stockPrices }: { positions: Positi
   )
 }
 
+// ── PositionCard (LegCard in right panel) ────────────────────────────────────
+
 function PositionCard({ pos, stockPrice, isInGroup }: {
   pos: PositionRisk
   stockPrice?: number
@@ -455,8 +478,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
   const yellowSignals = pos.signals.filter(s => s.level === 'yellow')
   const greenSignals = pos.signals.filter(s => s.level === 'green')
   const urgentSignals = [...redSignals, ...yellowSignals]
-
-
+  const tileLabel = isSell ? 'Collected' : 'Cost'
 
   return (
     <div style={{ background: bgColor, border: `1px solid ${borderColor}44`, borderLeft: `3px solid ${borderColor}`, borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -471,6 +493,11 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
             <TypeBadge type={pos.option_type} />
             <span style={{ fontSize: '12px', color: '#7dd3fc' }}>${fmt(pos.strike, 0)} · {fmtDate(pos.expiry)}</span>
             {pos.strategy_name && <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>{pos.strategy_name}</span>}
+            {pos.entered_at && (
+              <span style={{ fontSize: '10px', background: '#1a1d27', border: '1px solid #2d3148', color: '#64748b', padding: '1px 6px', borderRadius: '6px' }}>
+                Entered {fmtFullDate(pos.entered_at)}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>
             {qty} contract{qty !== 1 ? 's' : ''}{' · '}Entry <strong style={{ color: C.text }}>${fmt(pos.avg_cost)}</strong>/share · <strong style={{ color: C.text }}>${fmt(totalCost, 0)}</strong> total
@@ -482,7 +509,6 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
         </div>
       </div>
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-        {/* Days Left — first, matching current order */}
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
           <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Days Left</div>
           <div style={{ fontSize: '18px', fontWeight: 700, color: pos.dte <= 7 ? C.red : pos.dte <= 21 ? C.yellow : C.text }}>{pos.dte}<span style={{ fontSize: '12px', fontWeight: 400, marginLeft: '1px' }}>d</span></div>
@@ -500,7 +526,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
           <div style={{ fontSize: '18px', fontWeight: 700, color: priceUp ? C.green : C.red }}>${fmt(pos.current_price)}</div>
         </div>
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
-          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>Cost</div>
+          <div style={{ fontSize: '10px', color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '3px' }}>{tileLabel}</div>
           <div style={{ fontSize: '18px', fontWeight: 700, color: C.muted }}>${fmt(totalCost, 0)}</div>
         </div>
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '8px 14px' }}>
@@ -561,12 +587,7 @@ function PositionCard({ pos, stockPrice, isInGroup }: {
   )
 }
 
-interface StrategyGroup {
-  key: string
-  label: string
-  positions: PositionRisk[]
-  narrative: Record<string, unknown> | undefined
-}
+// ── NarrativePanel ────────────────────────────────────────────────────────────
 
 function NarrativePanel({ narrative }: { narrative: Record<string, unknown> }) {
   const profit = narrative.profit_scenario as string | undefined
@@ -603,137 +624,329 @@ function NarrativePanel({ narrative }: { narrative: Record<string, unknown> }) {
   )
 }
 
-function StrategyGroupCard({
-  group,
-  stockPrices,
-}: {
-  group: StrategyGroup
-  stockPrices: Record<string, number>
-}) {
-  const [narrativeOpen, setNarrativeOpen] = useState(false)
-  const [actionPlanOpen, setActionPlanOpen] = useState(false)
+// ── StrategyGroup type ────────────────────────────────────────────────────────
 
+interface StrategyGroup {
+  key: string
+  label: string
+  positions: PositionRisk[]
+  narrative: Record<string, unknown> | undefined
+  enteredAt: string          // "YYYY-MM-DD" — min entered_at across all legs of the group
+  worstLevel: 'green' | 'yellow' | 'red'
+  combinedPnl: number
+  worstLegPnlPct: number    // Math.min(...positions.map(p => p.pnl_pct))
+}
+
+// ── buildGroups — extracted so it can be called from both render and load ────
+
+function buildGroups(data: PositionRisk[]): StrategyGroup[] {
   const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
-  const worstLevel = group.positions.reduce<'green' | 'yellow' | 'red'>((worst, p) => {
-    return riskRank[p.risk_level] < riskRank[worst] ? p.risk_level : worst
-  }, 'green')
-  const combinedPnl = group.positions.reduce((sum, p) => sum + p.pnl, 0)
-  const anyLegLosing = group.positions.some(p => p.pnl < 0)
-  const legCount = group.positions.length
-  const hasNarrative = !!group.narrative
+  const groupMap = new Map<string, {
+    key: string
+    label: string
+    positions: PositionRisk[]
+    narrative: Record<string, unknown> | undefined
+  }>()
 
-  const sortedPositions = [...group.positions].sort(
-    (a, b) => riskRank[a.risk_level] - riskRank[b.risk_level]
-  )
-
-  const isUngrouped = group.key === '_ungrouped'
-
-  if (isUngrouped) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {sortedPositions.map((pos, i) => (
-          <PositionCard
-            key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
-            pos={pos}
-            stockPrice={stockPrices[pos.symbol]}
-            isInGroup={false}
-          />
-        ))}
-      </div>
-    )
+  let ungroupedIdx = 0
+  for (const pos of data) {
+    // Named strategy groups share a key; ungrouped positions each get their own row
+    const key = pos.strategy_key || `_ungrouped_${ungroupedIdx++}`
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        key,
+        label: pos.strategy_name || pos.symbol,
+        positions: [],
+        narrative: pos.narrative,
+      })
+    }
+    const g = groupMap.get(key)!
+    g.positions.push(pos)
+    if (!g.narrative && pos.narrative) g.narrative = pos.narrative
   }
 
-  // Named strategy group — wrapped in a perimeter with footer Action Plan
+  const groups: StrategyGroup[] = [...groupMap.values()].map(g => {
+    const worstLevel = g.positions.reduce<'green' | 'yellow' | 'red'>((worst, p) => {
+      return riskRank[p.risk_level] < riskRank[worst] ? p.risk_level as 'green' | 'yellow' | 'red' : worst
+    }, 'green')
+    const combinedPnl = g.positions.reduce((s, p) => s + p.pnl, 0)
+    const worstLegPnlPct = Math.min(...g.positions.map(p => p.pnl_pct))
+    // Take the minimum entered_at across all legs (string comparison is valid for YYYY-MM-DD)
+    const enteredAt = g.positions.reduce((min, p) => {
+      const d = p.entered_at || ''
+      return d && (!min || d < min) ? d : min
+    }, '')
+    return { ...g, worstLevel, combinedPnl, worstLegPnlPct, enteredAt }
+  })
+
+  // Sort: newest entered_at first (descending); tiebreak by worst risk level
+  return groups.sort((a, b) => {
+    if (b.enteredAt > a.enteredAt) return 1
+    if (b.enteredAt < a.enteredAt) return -1
+    const aWorst = a.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
+    const bWorst = b.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
+    return aWorst - bWorst
+  })
+}
+
+// ── MiniProgressBar ───────────────────────────────────────────────────────────
+
+function MiniProgressBar({ worstLegPnlPct, level }: { worstLegPnlPct: number; level: 'green' | 'yellow' | 'red' }) {
+  const displayPct = Math.min(Math.abs(worstLegPnlPct), 100)
+  const color = worstLegPnlPct >= 0 ? C.green : riskColor(level)
+  return (
+    <div style={{ height: '3px', background: '#252836', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
+      <div style={{ height: '100%', width: `${displayPct}%`, background: color, borderRadius: '2px' }} />
+    </div>
+  )
+}
+
+// ── DateSeparatorRow ──────────────────────────────────────────────────────────
+
+function DateSeparatorRow({ dateStr }: { dateStr: string }) {
   return (
     <div style={{
-      border: `1px solid ${riskColor(worstLevel)}44`,
-      borderRadius: '10px',
-      overflow: 'hidden',
+      padding: '6px 12px 4px',
+      fontSize: '10px',
+      fontWeight: 700,
+      color: C.muted,
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.08em',
+      background: C.bg,
+      borderBottom: `1px solid ${C.border}`,
     }}>
-      {/* Group header */}
-      <div style={{
-        background: C.surface2,
+      {fmtFullDate(dateStr)}
+    </div>
+  )
+}
+
+// ── RiskListRow ───────────────────────────────────────────────────────────────
+
+function RiskListRow({ group, isSelected, onClick }: {
+  group: StrategyGroup
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const worstDte = Math.max(...group.positions.map(p => p.dte))
+  const borderColor = riskColor(group.worstLevel)
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        borderLeft: `3px solid ${borderColor}`,
+        background: isSelected ? '#1e2135' : C.surface,
+        padding: '10px 12px',
+        cursor: 'pointer',
         borderBottom: `1px solid ${C.border}`,
-        padding: '10px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        flexWrap: 'wrap' as const,
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{group.label}</span>
-            <span style={{ fontSize: '10px', background: '#1a1440', border: '1px solid #7c6af744', color: C.accent, padding: '1px 7px', borderRadius: '8px', fontWeight: 600 }}>
-              {legCount} leg{legCount !== 1 ? 's' : ''}
-            </span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: combinedPnl >= 0 ? C.green : C.red }}>
-              {combinedPnl >= 0 ? '+' : ''}${fmt(combinedPnl)}
-            </span>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: riskColor(worstLevel), background: riskBg(worstLevel), border: `1px solid ${riskColor(worstLevel)}44`, padding: '1px 7px', borderRadius: '8px', textTransform: 'uppercase' as const }}>
-              {riskLabel(worstLevel)}
-            </span>
-          </div>
-        </div>
-        {hasNarrative && (
-          <button
-            onClick={() => setNarrativeOpen(o => !o)}
-            style={{ background: narrativeOpen ? '#1a1440' : 'transparent', border: `1px solid ${C.accent}66`, borderRadius: '6px', color: C.accent, padding: '4px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' as const, flexShrink: 0 }}
-          >
-            {narrativeOpen ? '▲' : '▼'} Trade Narrative
-          </button>
-        )}
-      </div>
-
-      {/* Narrative panel */}
-      {narrativeOpen && group.narrative && (
-        <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-          <NarrativePanel narrative={group.narrative} />
-        </div>
-      )}
-
-      {/* Leg cards */}
-      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px', padding: '8px' }}>
-        {sortedPositions.map((pos, i) => (
-          <PositionCard
-            key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
-            pos={pos}
-            stockPrice={stockPrices[pos.symbol]}
-            isInGroup={true}
-          />
-        ))}
-      </div>
-
-      {/* Action Plan panel — shown when toggled */}
-      {actionPlanOpen && (
-        <div style={{ padding: '10px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {group.positions.length === 1
-            ? (() => { const p = group.positions[0]; return <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}><DefensiveNarrativeSingle pos={p} stockPrice={stockPrices[p.symbol]} /><CloseInstructions pos={p} /></div> })()
-            : <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
-          }
-        </div>
-      )}
-
-      {/* Footer — amber left-border accent, Action Plan trigger bottom-left */}
-      {anyLegLosing && (
-        <div style={{
-          borderTop: `1px solid ${C.border}`,
-          borderLeft: `3px solid ${C.yellow}`,
-          background: '#151720',
-          padding: '8px 12px',
+        transition: 'background 0.15s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
+        <span style={{
+          fontSize: '12px',
+          fontWeight: 700,
+          color: C.text,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap' as const,
+          flex: 1,
+          minWidth: 0,
         }}>
-          <button
-            onClick={() => setActionPlanOpen(o => !o)}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.yellow, fontSize: '11px', fontWeight: 700 }}
-          >
-            ⚠ {actionPlanOpen ? 'Hide Action Plan' : 'Action Plan'}
-          </button>
+          {group.label}
+        </span>
+        <span style={{
+          fontSize: '10px',
+          fontWeight: 700,
+          color: borderColor,
+          background: riskBg(group.worstLevel),
+          border: `1px solid ${borderColor}44`,
+          padding: '1px 6px',
+          borderRadius: '6px',
+          whiteSpace: 'nowrap' as const,
+          flexShrink: 0,
+        }}>
+          {riskLabel(group.worstLevel)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+        {group.enteredAt && (
+          <span style={{
+            fontSize: '10px',
+            background: '#1a1d27',
+            border: `1px solid ${C.border}`,
+            color: C.muted,
+            padding: '1px 6px',
+            borderRadius: '6px',
+          }}>
+            Entered {fmtChipDate(group.enteredAt)}
+          </span>
+        )}
+        <span style={{ fontSize: '11px', color: C.muted }}>
+          {worstDte}d
+        </span>
+        <span style={{
+          fontSize: '11px',
+          fontWeight: 700,
+          color: group.combinedPnl >= 0 ? C.green : C.red,
+          marginLeft: 'auto',
+        }}>
+          {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
+        </span>
+      </div>
+      <MiniProgressBar worstLegPnlPct={group.worstLegPnlPct} level={group.worstLevel} />
+    </div>
+  )
+}
+
+// ── TradeNarrativeSection ─────────────────────────────────────────────────────
+
+function TradeNarrativeSection({ narrative }: { narrative: Record<string, unknown> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: open ? '#1a1440' : 'transparent',
+          border: `1px solid ${C.accent}66`,
+          borderRadius: '6px',
+          color: C.accent,
+          padding: '4px 10px',
+          fontSize: '11px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        {open ? '▲' : '▼'} Trade Narrative
+      </button>
+      {open && (
+        <div style={{ marginTop: '8px' }}>
+          <NarrativePanel narrative={narrative} />
         </div>
       )}
     </div>
   )
 }
 
+// ── ActionPlanBox ─────────────────────────────────────────────────────────────
+
+function ActionPlanBox({ group, stockPrices }: { group: StrategyGroup; stockPrices: Record<string, number> }) {
+  const combinedPnl = group.combinedPnl
+
+  if (group.positions.length === 1) {
+    const pos = group.positions[0]
+    if (combinedPnl < 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <DefensiveNarrativeSingle pos={pos} stockPrice={stockPrices[pos.symbol]} />
+          <CloseInstructions pos={pos} />
+        </div>
+      )
+    }
+    // combinedPnl >= 0 for single leg — DefensiveNarrativeSingle returns null; nothing to show
+    return null
+  }
+
+  // Multi-leg group
+  return <DefensiveNarrativeGroup positions={group.positions} stockPrices={stockPrices} />
+}
+
+// ── RightPanelHeader ──────────────────────────────────────────────────────────
+
+function RightPanelHeader({ group }: { group: StrategyGroup }) {
+  const nearestExpiry = [...group.positions].sort((a, b) => a.expiry.localeCompare(b.expiry))[0]?.expiry
+  const firstIvRank = group.positions.find(p => p.iv_rank != null)?.iv_rank
+  const legCount = group.positions.length
+  const days = group.enteredAt ? daysAgo(group.enteredAt) : null
+
+  const name = group.label
+
+  return (
+    <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, background: C.surface2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const, marginBottom: '6px' }}>
+        <span style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>{name}</span>
+        <span style={{
+          fontSize: '10px',
+          fontWeight: 700,
+          color: riskColor(group.worstLevel),
+          background: riskBg(group.worstLevel),
+          border: `1px solid ${riskColor(group.worstLevel)}44`,
+          padding: '2px 8px',
+          borderRadius: '6px',
+          textTransform: 'uppercase' as const,
+        }}>
+          {riskLabel(group.worstLevel)}
+        </span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: group.combinedPnl >= 0 ? C.green : C.red }}>
+          {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
+        </span>
+      </div>
+      <div style={{ fontSize: '11px', color: C.muted, marginBottom: '6px' }}>
+        {legCount} leg{legCount !== 1 ? 's' : ''}
+        {nearestExpiry && <> · Expiry {fmtDate(nearestExpiry)}</>}
+        {firstIvRank != null && <> · IV Rank {fmt(firstIvRank, 0)}</>}
+      </div>
+      {group.enteredAt && (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '11px',
+          color: C.muted,
+          background: '#1a1d27',
+          border: `1px solid ${C.border}`,
+          borderRadius: '6px',
+          padding: '3px 8px',
+        }}>
+          <span>📅</span>
+          <span>Trade entered {fmtFullDate(group.enteredAt)}{days !== null ? ` — ${days} day${days !== 1 ? 's' : ''} ago` : ''}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── RightPanelDetail ──────────────────────────────────────────────────────────
+
+function RightPanelDetail({ group, stockPrices }: {
+  group: StrategyGroup
+  stockPrices: Record<string, number>
+}) {
+  const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+  const sortedPositions = [...group.positions].sort(
+    (a, b) => riskRank[a.risk_level] - riskRank[b.risk_level]
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <RightPanelHeader group={group} />
+      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {sortedPositions.map((pos, i) => (
+            <PositionCard
+              key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+              pos={pos}
+              stockPrice={stockPrices[pos.symbol]}
+              isInGroup={true}
+            />
+          ))}
+        </div>
+        <ActionPlanBox group={group} stockPrices={stockPrices} />
+      </div>
+    </div>
+  )
+}
+
+// ── Main RiskMonitor ──────────────────────────────────────────────────────────
+
 export default function RiskMonitor() {
+  const { isMobile } = useWindowSize()
+
   const [data, setData] = useState<PositionRisk[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -744,6 +957,8 @@ export default function RiskMonitor() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [stockPrices, setStockPrices] = useState<Record<string, number>>({})
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
+  const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
@@ -753,6 +968,14 @@ export default function RiskMonitor() {
       const result = await getPositionsRisk()
       setData(result)
       setLastUpdated(new Date())
+      // Auto-select: on initial load always select first group; on silent refresh
+      // preserve selection if the group still exists, otherwise fall back to first.
+      setSelectedGroupKey(prev => {
+        const built = buildGroups(result)
+        if (built.length === 0) return null
+        if (silent && prev && built.some(g => g.key === prev)) return prev
+        return built[0].key
+      })
       const symbols = [...new Set(result.map(p => p.symbol))]
       Promise.all(symbols.map(s => getQuote(s).then(q => ({ s, price: q.price })).catch(() => null)))
         .then(results => {
@@ -760,8 +983,11 @@ export default function RiskMonitor() {
           results.forEach(r => { if (r) map[r.s] = r.price })
           setStockPrices(map)
         })
-    } catch (e: any) {
-      if (!silent) setError(e?.response?.data?.detail || e?.message || 'Failed to load risk data')
+    } catch (e: unknown) {
+      if (!silent) {
+        const err = e as { response?: { data?: { detail?: string } }; message?: string }
+        setError(err?.response?.data?.detail || err?.message || 'Failed to load risk data')
+      }
     } finally {
       if (silent) setRefreshing(false)
       else setLoading(false)
@@ -784,8 +1010,9 @@ export default function RiskMonitor() {
     try {
       const result = await aiRiskSummary(data)
       setAiSummary(result.summary || 'No summary available.')
-    } catch (e: any) {
-      setAiError(e?.response?.data?.detail || 'AI summary failed — please try again.')
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      setAiError(err?.response?.data?.detail || 'AI summary failed — please try again.')
     } finally {
       setAiLoading(false)
     }
@@ -796,35 +1023,106 @@ export default function RiskMonitor() {
   const greenCount = data.filter(p => p.risk_level === 'green').length
   const totalPnl = data.reduce((sum, p) => sum + p.pnl, 0)
 
-  // Group positions by strategy_key; ungrouped positions use '_ungrouped' key
-  const groups: StrategyGroup[] = (() => {
-    const groupMap = new Map<string, StrategyGroup>()
-    for (const pos of data) {
-      const key = pos.strategy_key || '_ungrouped'
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          key,
-          label: pos.strategy_name || key,
-          positions: [],
-          narrative: pos.narrative,
-        })
-      }
-      const g = groupMap.get(key)!
-      g.positions.push(pos)
-      // Use the first non-null narrative found in the group
-      if (!g.narrative && pos.narrative) g.narrative = pos.narrative
-    }
-    // Sort groups by worst risk level
-    const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
-    return [...groupMap.values()].sort((a, b) => {
-      const aWorst = a.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
-      const bWorst = b.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
-      return aWorst - bWorst
-    })
-  })()
+  const groups = buildGroups(data)
+  const selectedGroup = groups.find(g => g.key === selectedGroupKey) ?? null
+
+  // ── Desktop split layout ──────────────────────────────────────────────────
+
+  const renderDesktopSplit = () => {
+    let lastRenderedDate = ''
+    return (
+      <div style={{
+        display: 'flex',
+        maxHeight: 'calc(100vh - 260px)',
+        overflow: 'hidden',
+        borderTop: `1px solid ${C.border}`,
+      }}>
+        {/* Left panel */}
+        <div style={{
+          width: '270px',
+          flexShrink: 0,
+          overflowY: 'auto' as const,
+          borderRight: `1px solid ${C.border}`,
+          background: C.bg,
+        }}>
+          {groups.map(group => {
+            const showSeparator = group.enteredAt !== lastRenderedDate
+            if (showSeparator) lastRenderedDate = group.enteredAt
+            return (
+              <React.Fragment key={group.key}>
+                {showSeparator && group.enteredAt && (
+                  <DateSeparatorRow dateStr={group.enteredAt} />
+                )}
+                <RiskListRow
+                  group={group}
+                  isSelected={group.key === selectedGroupKey}
+                  onClick={() => setSelectedGroupKey(group.key)}
+                />
+              </React.Fragment>
+            )
+          })}
+        </div>
+
+        {/* Right panel */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto' as const,
+          background: C.surface,
+          minWidth: 0,
+        }}>
+          {selectedGroup ? (
+            <RightPanelDetail
+              group={selectedGroup}
+              stockPrices={stockPrices}
+            />
+          ) : (
+            <div style={{ color: C.muted, fontSize: '13px', padding: '40px', textAlign: 'center' }}>
+              Select a position from the list
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Mobile accordion layout ───────────────────────────────────────────────
+
+  const renderMobileAccordion = () => {
+    let lastRenderedDate = ''
+    return (
+      <div style={{ borderTop: `1px solid ${C.border}` }}>
+        {groups.map(group => {
+          const showSeparator = group.enteredAt !== lastRenderedDate
+          if (showSeparator) lastRenderedDate = group.enteredAt
+          const isExpanded = mobileExpandedKey === group.key
+          return (
+            <React.Fragment key={group.key}>
+              {showSeparator && group.enteredAt && (
+                <DateSeparatorRow dateStr={group.enteredAt} />
+              )}
+              <RiskListRow
+                group={group}
+                isSelected={isExpanded}
+                onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
+              />
+              {isExpanded && (
+                <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+                  <RightPanelDetail
+                    group={group}
+                    stockPrices={stockPrices}
+                  />
+                </div>
+              )}
+            </React.Fragment>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div style={{ marginTop: '16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
+      {/* Header strip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -837,7 +1135,7 @@ export default function RiskMonitor() {
         <button onClick={() => load(true)} disabled={refreshing || loading} style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '3px 8px', fontSize: '11px', cursor: 'pointer', opacity: refreshing ? 0.5 : 1 }}>Refresh</button>
       </div>
 
-      {/* Summary stat panels */}
+      {/* Summary stat chips */}
       {!loading && data.length > 0 && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
           {([
@@ -855,47 +1153,56 @@ export default function RiskMonitor() {
         </div>
       )}
 
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {loading && <div style={{ color: C.muted, fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Analysing your positions…</div>}
-        {!loading && error && <div style={{ color: C.red, fontSize: '12px', padding: '10px' }}>{error}</div>}
-        {!loading && !error && data.length === 0 && <div style={{ color: C.muted, fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>No open positions to monitor</div>}
-        {!loading && data.length > 0 && groups.map(group => (
-          <StrategyGroupCard
-            key={group.key}
-            group={group}
-            stockPrices={stockPrices}
-          />
-        ))}
-        {!loading && data.length > 0 && aiEnabled && (
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button
-              onClick={fetchAISummary}
-              disabled={aiLoading}
-              style={{
-                background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
-                color: C.accent, padding: '8px 16px', fontSize: '12px', fontWeight: 700,
-                cursor: aiLoading ? 'default' : 'pointer', opacity: aiLoading ? 0.6 : 1,
-                display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start',
-              }}
-            >
-              <span style={{ fontSize: '14px' }}>✦</span>
-              {aiLoading ? 'Analysing portfolio…' : aiSummary ? 'Refresh AI Overview' : 'Get AI Risk Overview'}
-            </button>
-            {aiError && <div style={{ fontSize: '12px', color: C.red }}>{aiError}</div>}
-            {aiSummary && (
-              <div style={{
-                background: '#1a1440', border: `1px solid ${C.accent}44`, borderRadius: '8px',
-                padding: '12px 14px', fontSize: '13px', color: C.text, lineHeight: 1.7,
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
-                  ✦ AI Risk Overview
-                </div>
-                {aiSummary}
+      {/* Loading / error / empty states */}
+      {loading && (
+        <div style={{ color: C.muted, fontSize: '13px', padding: '20px 16px', textAlign: 'center' }}>
+          Analysing your positions…
+        </div>
+      )}
+      {!loading && error && (
+        <div style={{ color: C.red, fontSize: '12px', padding: '10px 16px' }}>{error}</div>
+      )}
+      {!loading && !error && data.length === 0 && (
+        <div style={{ color: C.muted, fontSize: '13px', padding: '20px 16px', textAlign: 'center' }}>
+          No open positions to monitor
+        </div>
+      )}
+
+      {/* Master-Detail split (desktop) or Accordion (mobile) */}
+      {!loading && !error && data.length > 0 && (
+        isMobile ? renderMobileAccordion() : renderDesktopSplit()
+      )}
+
+      {/* AI Risk Overview — below split on all viewports */}
+      {!loading && data.length > 0 && aiEnabled && (
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button
+            onClick={fetchAISummary}
+            disabled={aiLoading}
+            style={{
+              background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px',
+              color: C.accent, padding: '8px 16px', fontSize: '12px', fontWeight: 700,
+              cursor: aiLoading ? 'default' : 'pointer', opacity: aiLoading ? 0.6 : 1,
+              display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start',
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>✦</span>
+            {aiLoading ? 'Analysing portfolio…' : aiSummary ? 'Refresh AI Overview' : 'Get AI Risk Overview'}
+          </button>
+          {aiError && <div style={{ fontSize: '12px', color: C.red }}>{aiError}</div>}
+          {aiSummary && (
+            <div style={{
+              background: '#1a1440', border: `1px solid ${C.accent}44`, borderRadius: '8px',
+              padding: '12px 14px', fontSize: '13px', color: C.text, lineHeight: 1.7,
+            }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+                ✦ AI Risk Overview
               </div>
-            )}
-          </div>
-        )}
-      </div>
+              {aiSummary}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

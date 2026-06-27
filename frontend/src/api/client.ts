@@ -141,6 +141,7 @@ export interface PositionRisk {
   bias?: string
   signals: RiskSignal[]
   narrative?: Record<string, unknown>
+  entered_at: string   // "YYYY-MM-DD" — never null per backend guarantee
 }
 
 export const getQuote = (symbol: string) =>

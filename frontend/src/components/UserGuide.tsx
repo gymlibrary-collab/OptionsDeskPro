@@ -305,6 +305,69 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         </Note>
       </Section>
 
+      {/* ── RISK MONITOR ── */}
+      <Section title="Risk Monitor">
+        <P>
+          The <strong>Risk Monitor</strong> tab gives you a live overview of all open positions and alerts
+          you to which ones need attention. It is available to Starter tier and higher.
+        </P>
+        <P>
+          The layout uses a <strong>split view on desktop</strong>: a compact left panel lists all your strategy groups sorted
+          by entry date (newest first), and clicking any row opens its full detail in the right panel. On mobile,
+          it becomes a single-column accordion — tap a row to expand its detail inline.
+        </P>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Left Panel — Your Position List</div>
+          <P>Scroll through your open strategy groups in one view. Each row shows:</P>
+          <Sub>
+            <Term term="Strategy Name">The name of the strategy (e.g. "Bull Call Spread", "Iron Condor") or symbol for manually entered positions.</Term>
+            <Term term="Entry Date">A chip reading "Entered DD Mon" (e.g. "Entered 25 Jun") — the date the position was opened.</Term>
+            <Term term="Risk Badge">A colour-coded indicator showing the worst risk level in that group: red (high risk), yellow (watch), or green (low risk).</Term>
+            <Term term="DTE">Days to expiration — the nearest expiry date in the group.</Term>
+            <Term term="P&amp;L">The net profit or loss across all legs in the group.</Term>
+            <Term term="Mini Progress Bar">A thin horizontal bar showing the worst-performing leg's P&amp;L as a percentage. Colour matches the risk badge.</Term>
+            <Term term="Left Border">A 3px coloured stripe on the left edge of each row (red/yellow/green) reflecting the group's risk level at a glance.</Term>
+          </Sub>
+          <Note color={C.green}>
+            The list is sorted newest-first — your most recent trades appear at the top. Date separator rows (e.g. "25 Jun 2026") divide groups entered on different dates.
+          </Note>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.blue, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Right Panel — Position Detail</div>
+          <P>Click any row in the left panel to view the full detail. The right panel shows:</P>
+          <Sub>
+            <Term term="Header">Strategy name, risk badge, net P&amp;L, leg count (e.g. "2 legs"), nearest expiry, IV Rank of the underlying, and a banner showing "Trade entered DD Mon YYYY — N days ago".</Term>
+            <Term term="Leg Cards">One card per position leg. Each card displays symbol, BUY/SELL and CALL/PUT badges, strike, expiry, entry date, risk badge, and metrics: DTE, Qty, Entry price, Current price, P&amp;L, IV Rank. SELL legs show "Collected" (premium received); BUY legs show "Cost" (premium paid).</Term>
+            <Term term="Signals">Below each leg card, red and yellow risk signals appear prominently; green signals appear at lower prominence. Tap to expand green signals for more detail.</Term>
+            <Term term="Action Plan">Always visible (no toggle required). For losing trades, you see the Financial Reality section, Paths Forward, Summary Box, and close instructions — exactly what you need to decide your next move. For profitable trades, you see a brief strategy-context narrative.</Term>
+            <Term term="Trade Narrative">If the position was created via the scanner, an expandable "Trade Narrative" section shows the original scanner analysis (initially collapsed — click to view).</Term>
+          </Sub>
+          <Note color={C.amber}>
+            <strong>The action plan is always visible.</strong> In the old layout, you had to click a toggle to see the defensive narrative. Now it appears immediately when you select a position. No action required from you — just read and decide.
+          </Note>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.amber, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Portfolio Summary Strip</div>
+          <P>Above the split panel, dark pill-shaped stat chips show: your total portfolio P&amp;L (green or red), total number of open positions, and counts of positions by risk level (red, yellow, green). Click the Refresh button to update all data immediately.</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>AI Risk Overview (Below the Split)</div>
+          <P>Scroll to the very bottom of the Risk Monitor to find the "Get AI Risk Overview" button. Click it to request an AI-generated summary of your entire portfolio, highlighting concentration risk, DTE urgency, and positions approaching loss thresholds.</P>
+        </div>
+
+        <P>
+          <strong>On mobile (viewport width ≤ 768px):</strong> The split layout is replaced by a single-column accordion. Your strategy groups appear as tappable rows. Tap any row to expand an inline detail section directly below it — same content as the right panel. Only one row expands at a time.
+        </P>
+
+        <Note color={C.blue}>
+          <strong>Entry dates and sorting:</strong> Every position's entry date is shown both in the left-panel chip ("Entered 25 Jun") and in the right-panel header banner ("Trade entered 25 Jun 2026 — 2 days ago"). The left panel sorts newest-first by this date, so your most recent trades are always at the top. If you placed two trades on the same date, they appear under the same date separator.
+        </Note>
+      </Section>
+
       {/* ── PORTFOLIO ── */}
       <Section title="Positions & P&L">
         <P>
