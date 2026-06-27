@@ -73,11 +73,13 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 27Jun2026
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | solution-architect |
+| **Date** | 27Jun2026 |
+| **Notes** | Frontend-only. Single file changed: `RiskMonitor.tsx`. `StrategyGroup` interface extended with `groupLevel` and `groupPnlPct`; both `worstLevel` and `worstLegPnlPct` retained. `buildGroups` computes both new fields using the ordered profitable/losing rule chain with -100/-50/-25% bands and DTE <= 7 trigger. Sort tiebreak switched to `groupLevel` rank per OQ-2. Five read-sites in `RiskListRow` and four in `RightPanelHeader` switched to `groupLevel`/`groupPnlPct`. `MiniProgressBar` component signature unchanged — only props supplied to it change. Zero-cost-basis defensive default documented. Ratio-spread caveat documented as known limitation. Worked example (Put Broken Wing Butterfly) verified: groupLevel='yellow', bar green. Badge/bar intentional tension documented explicitly. No ADR required. |
 
-Pending
+Approved
+
+_Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 27Jun2026
 
 ---
 
@@ -122,11 +124,11 @@ Pending
 
 ## Overall Status
 
-Gates complete: 1 of 6.
+Gates complete: 3 of 6.
 
 - Gate 1 (BA Spec) — approved
 - Gate 2 (Product Owner) — approved with binding OQ decisions
-- Gate 3 (Architecture) — pending
+- Gate 3 (Architecture) — approved
 - Gate 4 (Test) — pending
 - Gate 5 (Security) — pending
 - Gate 6 (Release & Documentation) — pending

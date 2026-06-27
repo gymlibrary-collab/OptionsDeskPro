@@ -571,9 +571,11 @@ interface StrategyGroup {
   positions: PositionRisk[]
   narrative: Record<string, unknown> | undefined
   enteredAt: string          // "YYYY-MM-DD" — min entered_at across all legs of the group
-  worstLevel: 'green' | 'yellow' | 'red'
+  worstLevel: 'green' | 'yellow' | 'red'   // RETAINED — kept for potential future use
   combinedPnl: number
-  worstLegPnlPct: number    // Math.min(...positions.map(p => p.pnl_pct))
+  worstLegPnlPct: number    // Math.min(...positions.map(p => p.pnl_pct)) — RETAINED
+  groupLevel: 'green' | 'yellow' | 'red'   // group-aware badge level
+  groupPnlPct: number                        // combined P&L as % of combined cost basis
 }
 
 // ── buildGroups — extracted so it can be called from both render and load ────
@@ -615,16 +617,46 @@ function buildGroups(data: PositionRisk[]): StrategyGroup[] {
       const d = p.entered_at || ''
       return d && (!min || d < min) ? d : min
     }, '')
-    return { ...g, worstLevel, combinedPnl, worstLegPnlPct, enteredAt }
+
+    // ── New: group-level risk computation ────────────────────────────────────
+    const combinedCostBasis = g.positions.reduce(
+      (s, p) => s + Math.abs(p.avg_cost * p.quantity * 100), 0
+    )
+    const groupPnlPct = combinedCostBasis > 0 ? (combinedPnl / combinedCostBasis) * 100 : 0
+
+    let groupLevel: 'green' | 'yellow' | 'red'
+    if (g.positions.length === 1 && g.key.startsWith('_ungrouped_')) {
+      // Single ungrouped position — pass through per-leg risk_level unchanged
+      groupLevel = g.positions[0].risk_level as 'green' | 'yellow' | 'red'
+    } else if (combinedPnl >= 0) {
+      // Net profitable — NEVER red
+      const allLegsGreen = g.positions.every(p => p.risk_level === 'green')
+      groupLevel = allLegsGreen ? 'green' : 'yellow'
+    } else {
+      // Net losing — apply escalation bands
+      if (groupPnlPct <= -100) {
+        groupLevel = 'red'   // loss equals or exceeds total premium at risk
+      } else if (groupPnlPct <= -50) {
+        groupLevel = 'red'   // group-level stop-loss threshold
+      } else {
+        const minDte = Math.min(...g.positions.map(p => p.dte))
+        if (minDte <= 7) {
+          groupLevel = 'red'   // imminent expiry with net losing group
+        } else {
+          // Net losing but no red trigger — always at least yellow (see design §8 clarification)
+          groupLevel = 'yellow'
+        }
+      }
+    }
+
+    return { ...g, worstLevel, combinedPnl, worstLegPnlPct, enteredAt, groupLevel, groupPnlPct }
   })
 
-  // Sort: newest entered_at first (descending); tiebreak by worst risk level
+  // Sort: newest entered_at first (descending); tiebreak by groupLevel rank (red=0 sorts first)
   return groups.sort((a, b) => {
     if (b.enteredAt > a.enteredAt) return 1
     if (b.enteredAt < a.enteredAt) return -1
-    const aWorst = a.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
-    const bWorst = b.positions.reduce<number>((w, p) => Math.min(w, riskRank[p.risk_level]), 2)
-    return aWorst - bWorst
+    return riskRank[a.groupLevel] - riskRank[b.groupLevel]
   })
 }
 
@@ -697,7 +729,7 @@ function RiskListRow({ group, isSelected, onClick, isLast }: {
   isLast?: boolean
 }) {
   const nearestDte = Math.min(...group.positions.map(p => p.dte))
-  const borderColor = riskColor(group.worstLevel)
+  const borderColor = riskColor(group.groupLevel)
 
   // S3 — selected rows lift off the list with an accent glow ring + shadow
   const selectedStyle: React.CSSProperties = isSelected
@@ -743,14 +775,14 @@ function RiskListRow({ group, isSelected, onClick, isLast }: {
           fontSize: '10px',
           fontWeight: 700,
           color: borderColor,
-          background: riskBg(group.worstLevel),
+          background: riskBg(group.groupLevel),
           border: `1px solid ${borderColor}44`,
           padding: '1px 6px',
           borderRadius: '6px',
           whiteSpace: 'nowrap' as const,
           flexShrink: 0,
         }}>
-          {riskLabel(group.worstLevel)}
+          {riskLabel(group.groupLevel)}
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
@@ -766,7 +798,7 @@ function RiskListRow({ group, isSelected, onClick, isLast }: {
           {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
         </span>
       </div>
-      <MiniProgressBar worstLegPnlPct={group.worstLegPnlPct} level={group.worstLevel} />
+      <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.groupLevel} />
     </div>
   )
 }
@@ -844,14 +876,14 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
         <span style={{
           fontSize: '10px',
           fontWeight: 700,
-          color: riskColor(group.worstLevel),
-          background: riskBg(group.worstLevel),
-          border: `1px solid ${riskColor(group.worstLevel)}44`,
+          color: riskColor(group.groupLevel),
+          background: riskBg(group.groupLevel),
+          border: `1px solid ${riskColor(group.groupLevel)}44`,
           padding: '2px 8px',
           borderRadius: '6px',
           textTransform: 'uppercase' as const,
         }}>
-          {riskLabel(group.worstLevel)}
+          {riskLabel(group.groupLevel)}
         </span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: group.combinedPnl >= 0 ? C.green : C.red }}>
           {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
