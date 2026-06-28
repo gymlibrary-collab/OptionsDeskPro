@@ -312,17 +312,29 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           you to which ones need attention. It is available to Starter tier and higher.
         </P>
         <P>
-          The layout uses a <strong>split view on desktop</strong>: a compact left panel lists all your strategy groups sorted
-          by entry date (newest first), and clicking any row opens its full detail in the right panel. On mobile,
+          The layout uses a <strong>split view on desktop</strong>: a compact left panel lists all your strategy groups, and clicking any row opens its full detail in the right panel. On mobile,
           it becomes a single-column accordion — tap a row to expand its detail inline.
         </P>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Header Bar — "Trades · N" with Sort</div>
+          <P>At the top of the left panel (desktop) or above the accordion (mobile), you will see a header reading <strong>"Trades · N"</strong> where N is your number of open strategy groups. A sort dropdown on the right lets you reorder the list:</P>
+          <Sub>
+            <Term term="Newest first">Your most recent trades appear at the top. Groups are organised by entry date with date separator rows (e.g. "25 Jun 2026") dividing groups by day. This is the default and identical to the previous layout.</Term>
+            <Term term="Risk first">Flat list ordered by risk level: all red (high risk) groups first, then yellow, then green. Date separators are removed and each row shows a small "Entered DD Mon" date chip for reference. Tiebreak: within the same risk tier, groups with the worst P&L appear first.</Term>
+            <Term term="Worst P&amp;L first">Flat list ordered by your biggest losers — most negative P&L at the top. Profitable groups appear at the bottom. Each row shows "Entered DD Mon" for reference. Use this to focus on which trades need the most attention at end of session.</Term>
+          </Sub>
+          <Note color={C.green}>
+            The count next to "Trades" equals your number of strategy groups, not individual legs. A 3-leg Iron Condor + a 2-leg Spread = 2 groups = "Trades · 2".
+          </Note>
+        </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Left Panel — Your Position List</div>
           <P>Scroll through your open strategy groups in one view. Each row shows:</P>
           <Sub>
             <Term term="Strategy Name">The name of the strategy (e.g. "Bull Call Spread", "Iron Condor") or symbol for manually entered positions.</Term>
-            <Term term="Entry Date">A chip reading "Entered DD Mon" (e.g. "Entered 25 Jun") — the date the position was opened.</Term>
+            <Term term="Entry Date">A chip reading "Entered DD Mon" (e.g. "Entered 25 Jun") — the date the position was opened. (Shown in all sort modes.)</Term>
             <Term term="Risk Badge">A colour-coded indicator reflecting the **whole strategy's net P&L**, not the worst single leg: red (high risk group), yellow (watch group), or green (healthy group). A net-profitable group never shows red, even if one leg is individually down. A net-losing group shows red only if the combined loss meets a trigger (≥50% of cost basis, ≥100% of cost basis, or soonest leg ≤7 days to expiry).</Term>
             <Term term="DTE">Days to expiration — the nearest expiry date in the group.</Term>
             <Term term="P&amp;L">The net profit or loss across all legs in the group.</Term>
@@ -330,7 +342,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             <Term term="Left Border">A 3px coloured stripe on the left edge of each row (red/yellow/green) reflecting the group's risk level at a glance.</Term>
           </Sub>
           <Note color={C.green}>
-            The list is sorted newest-first — your most recent trades appear at the top. Date separator rows (e.g. "25 Jun 2026") divide groups entered on different dates.
+            In Newest first mode (the default), date separator rows divide groups entered on different dates. In Risk first and Worst P&L first modes, the separators are removed and the flat list is ordered by risk or P&L. The selected trade remains selected when you switch sort modes — your place in the right panel does not change.
           </Note>
         </div>
 
