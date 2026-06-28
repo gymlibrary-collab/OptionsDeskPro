@@ -84,11 +84,13 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 28Jun2026
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | solution-architect |
+| **Date** | 28Jun2026 |
+| **Notes** | Frontend-only change confined to `RiskMonitor.tsx`. No backend, no migration, no new package. Key decisions: `sortMode` as session-only `useState<'newest' \| 'risk' \| 'pnl'>` (default `'newest'`); `sortGroups` as a module-level pure function (not a `useEffect`) with explicit empty-`enteredAt` guards in all comparators; `SortBar` uses native `<select>` for accessibility; `showDateChip` optional prop on `RiskListRow` gates the "Entered DD Mon" chip; `fmtChipDate` helper reintroduced; desktop left column restructured as a flex column so `SortBar` sits outside the `overflowY:auto` scroll div (pinned above the list); mobile bar is a static row at the top of the accordion container (non-sticky). All binding PO decisions implemented as specified. OQ-7 field verification confirms `groupLevel`, `combinedPnl`, and `enteredAt` are all present on `StrategyGroup` — no interface addendum required. `buildGroups`, `groupByEntryDate`, `DateRail`, all right-panel components, summary stat chips, header strip, and AI overview section are confirmed unchanged. |
 
-Pending
+Approved
+
+_Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 28Jun2026
 
 ---
 
@@ -112,11 +114,13 @@ Pending
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | security-reviewer |
+| **Date** | 28Jun2026 |
+| **Notes** | Frontend-only, presentation-only change. Zero Critical or High findings. Two Informational findings: unchecked enum cast on native `<select>` onChange (no security consequence — value only drives a client-side array sort) and duplicate MONTHS constant (maintainability only). All CLAUDE.md invariants confirmed satisfied. No backend touched; no auth, secret, SQL, or injection surface introduced. Overall decision: PASS. |
 
-Pending
+Approved
+
+_Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 28Jun2026
 
 ---
 
@@ -135,11 +139,11 @@ Pending
 
 ## Overall Status
 
-**Gates complete: 2 of 6**
+**Gates complete: 4 of 6**
 
 - Gate 1 (BA Spec) — approved 27Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 28Jun2026
-- Gate 3 (Architecture) — pending
+- Gate 3 (Architecture) — approved 28Jun2026
 - Gate 4 (Test) — pending
-- Gate 5 (Security) — pending
+- Gate 5 (Security) — approved 28Jun2026
 - Gate 6 (Release & Documentation) — pending
