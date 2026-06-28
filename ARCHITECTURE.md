@@ -17,10 +17,9 @@ FastAPI Backend (Railway)                                │
       │                                         Supabase Postgres
       │  All reads/writes via supabase-py               (RLS on all tables)
       ▼
-Market Data (3-tier fallback)
-  1. api.marketdata.app  ← primary (OPRA data, full greeks, 5-min cache)
-  2. yfinance (PyPI)     ← free fallback (30-sec cache)
-  3. Synthetic BS chain  ← last resort (Black-Scholes, flagged _synthetic=True)
+Market Data (2-tier fallback)
+  1. yfinance (PyPI)     ← primary (30-sec cache)
+  2. Synthetic BS chain  ← last resort (Black-Scholes, flagged _synthetic=True)
 ```
 
 ## Backend routes
@@ -34,6 +33,7 @@ Market Data (3-tier fallback)
 | GET | `/api/orders` | JWT | Order history |
 | POST | `/api/trades/record` | JWT | Record a real trade for monitoring |
 | GET | `/api/positions` | JWT | Open positions with live P&L |
+| GET | `/api/positions/risk` | JWT | Risk Monitor data: positions grouped by strategy with group risk levels and entry dates |
 | GET | `/api/portfolio` | JWT | Cash + positions value |
 | POST | `/api/positions/snapshot` | JWT | Save daily P&L snapshot |
 | GET | `/api/watchlist` | JWT | Get saved watchlist + tier info |
@@ -138,6 +138,23 @@ Main content area                          │  Sidebar (desktop only)
 ──────────────────────────────────────────────────────────────────────────────
 Mobile: FAB "Place Order" button → bottom drawer (OrderEntry)
 ```
+
+## Risk Monitor Component
+
+The **Risk Monitor** tab (`frontend/src/components/RiskMonitor.tsx`) displays all open strategy positions grouped by strategy and sorted by entry date, risk level, or P&L. Layout responds to viewport width:
+
+**Desktop (> 768px):** Master-Detail split with a compact left-panel list (strategy groups, 3px risk-coloured border, entry date chip, DTE, net P&L, mini progress bar) and a scrollable right-panel detail showing strategy name, risk badge, combined P&L, header with entry date banner ("Trade entered DD Mon YYYY — N days ago"), compact leg cards in a responsive grid (symbol, BUY/SELL + CALL/PUT badges, ×N quantity, strike, DTE, 3-tile metrics: Qty · IV Rank · Cost/Collected, entry→current prices, P&L, risk-coloured top bar), an expandable Trade Narrative section (if strategy-linked), and an always-visible Action Plan (defensive narrative for losing trades, strategy context for profitable ones).
+
+**Mobile (≤ 768px):** Single-column accordion where tapping a group row expands inline detail below it — same content as right panel, only one row expanded at a time.
+
+**Sort modes (session-only, all tiers with Risk Monitor access):**
+- **Newest first** (default): groups by entry date with date separator rails ("25 Jun 2026"). Identical to original layout.
+- **Risk first**: flat list ordered red → yellow → green, with "Entered DD Mon" chip on each row. Tiebreak: worst P&L first within the same risk tier.
+- **Worst P&L first**: flat list ordered by most negative combined P&L, with "Entered DD Mon" chip on each row.
+
+**Group-based risk logic:** The group risk badge and left-panel progress bar reflect the **entire strategy's net P&L**, not the worst single leg. A net-profitable multi-leg strategy never shows HIGH RISK, even if one leg is individually stressed — it shows WATCH if a leg is stressed, OK if all legs are green. A net-losing group shows HIGH RISK only if the combined loss meets a trigger (≥50% cost basis, ≥100% cost basis, or soonest leg ≤7 DTE). Per-leg cards retain their own per-leg risk status (red/yellow/green top border).
+
+**Backend endpoint:** `GET /api/positions/risk` returns a `PositionRisk[]` array with `entered_at` field (ISO date string, earliest order date for the position's group) and a `risk_level` field (per-leg). The component groups positions by `strategy_key`, computes `groupLevel` and `groupPnlPct` in JavaScript, and renders accordingly.
 
 ## Database schema (Supabase Postgres)
 

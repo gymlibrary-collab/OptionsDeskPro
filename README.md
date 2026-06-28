@@ -8,7 +8,7 @@ A paper-trading options dashboard with AI-driven strategy recommendations.
 - **AI strategy scanner** — analyses IV environment + directional bias and recommends the best-fit options strategy from a catalog of 31 strategies
 - **Plain-English narratives** — every recommendation comes with a 7-section breakdown: market snapshot, IV context, why this strategy, exact trade structure, profit/loss scenarios, and an execution checklist
 - **Paper trading** — place and track paper trades linked to strategy recommendations; P&L updates in real time
-- **Risk monitor** — per-position risk signals showing DTE risk, P&L targets, IV environment and directional bias
+- **Risk monitor** — Master-Detail split-view (desktop) or accordion (mobile) showing all open strategy groups; per-leg risk cards with strike, entry price, cost/collected, P&L, and IV; group-based risk badges reflecting net strategy P&L; action plans for defense or adjustment; sortable by entry date, risk level, or P&L
 - **90-day P&L chart** — daily portfolio value history
 - **Watchlist scanner** — scan a saved list of symbols and surface the top strategy for each
 - **Reddit buzz feed** — trending posts from r/options, r/wallstreetbets, r/stocks and earnings-related subs

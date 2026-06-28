@@ -308,74 +308,78 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
       {/* ── RISK MONITOR ── */}
       <Section title="Risk Monitor">
         <P>
-          The <strong>Risk Monitor</strong> tab gives you a live overview of all open positions and alerts
-          you to which ones need attention. It is available to Starter tier and higher.
+          The <strong>Risk Monitor</strong> tab gives you a live overview of all open strategy positions and alerts you to which ones need attention. It is available on the <strong>Enterprise</strong> tier.
         </P>
         <P>
-          The layout uses a <strong>split view on desktop</strong>: a compact left panel lists all your strategy groups, and clicking any row opens its full detail in the right panel. On mobile,
-          it becomes a single-column accordion — tap a row to expand its detail inline.
+          The layout uses a <strong>Master-Detail split view on desktop</strong>: a compact left panel lists all your strategy groups, and clicking any row displays its full detail in the right panel. On mobile (≤ 768px),
+          the split collapses to a single-column accordion — tap a row to expand its detail inline.
         </P>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Header Bar — "Trades · N" with Sort</div>
-          <P>At the top of the left panel (desktop) or above the accordion (mobile), you will see a header reading <strong>"Trades · N"</strong> where N is your number of open strategy groups. A sort dropdown on the right lets you reorder the list:</P>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Portfolio Summary Strip</div>
+          <P>At the very top, dark pill-shaped stat chips display: total portfolio P&amp;L (green if positive, red if negative), total number of open strategy groups, and counts by risk level (red / yellow / green). A Refresh button updates all data immediately without leaving the tab.</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Sort Header — "Trades · N" with Dropdown</div>
+          <P>Below the summary chips, a bar reads <strong>"Trades · N"</strong> (where N is your number of open strategy groups) with a sort dropdown on the right. Three sort modes are available (session-only; resets to Newest first when you return to the tab):</P>
           <Sub>
-            <Term term="Newest first">Your most recent trades appear at the top. Groups are organised by entry date with date separator rows (e.g. "25 Jun 2026") dividing groups by day. This is the default and identical to the previous layout.</Term>
-            <Term term="Risk first">Flat list ordered by risk level: all red (high risk) groups first, then yellow, then green. Date separators are removed and each row shows a small "Entered DD Mon" date chip for reference. Tiebreak: within the same risk tier, groups with the worst P&L appear first.</Term>
-            <Term term="Worst P&amp;L first">Flat list ordered by your biggest losers — most negative P&L at the top. Profitable groups appear at the bottom. Each row shows "Entered DD Mon" for reference. Use this to focus on which trades need the most attention at end of session.</Term>
+            <Term term="Newest first"><strong>Default.</strong> Groups sorted by entry date, newest at top. Date separator rows (e.g. "25 Jun 2026") divide groups by day. Same layout as the original Risk Monitor.</Term>
+            <Term term="Risk first">Flat list ordered red → yellow → green. Removes date separators; each row shows a small "Entered DD Mon" chip for date reference. Tiebreak: within the same risk tier, groups with the most negative P&L appear first.</Term>
+            <Term term="Worst P&amp;L first">Flat list ordered by your biggest losers — most negative combined P&L at the top. Profitable groups appear at the bottom. Each row shows "Entered DD Mon" for reference. Use this to focus on trades needing the most attention.</Term>
           </Sub>
           <Note color={C.green}>
-            The count next to "Trades" equals your number of strategy groups, not individual legs. A 3-leg Iron Condor + a 2-leg Spread = 2 groups = "Trades · 2".
+            The count N equals your number of strategy groups, not individual legs. A 3-leg Iron Condor + a 2-leg Bull Call Spread = 2 groups = "Trades · 2".
           </Note>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
-          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Left Panel — Your Position List</div>
-          <P>Scroll through your open strategy groups in one view. Each row shows:</P>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Left Panel — Position List</div>
+          <P>Each row in the left panel represents one strategy group. Compact rows show:</P>
           <Sub>
-            <Term term="Strategy Name">The name of the strategy (e.g. "Bull Call Spread", "Iron Condor") or symbol for manually entered positions.</Term>
-            <Term term="Entry Date">A chip reading "Entered DD Mon" (e.g. "Entered 25 Jun") — the date the position was opened. (Shown in all sort modes.)</Term>
-            <Term term="Risk Badge">A colour-coded indicator reflecting the **whole strategy's net P&L**, not the worst single leg: red (high risk group), yellow (watch group), or green (healthy group). A net-profitable group never shows red, even if one leg is individually down. A net-losing group shows red only if the combined loss meets a trigger (≥50% of cost basis, ≥100% of cost basis, or soonest leg ≤7 days to expiry).</Term>
-            <Term term="DTE">Days to expiration — the nearest expiry date in the group.</Term>
-            <Term term="P&amp;L">The net profit or loss across all legs in the group.</Term>
-            <Term term="Mini Progress Bar">A thin horizontal bar showing the group's combined P&amp;L as a percentage. Colour is green when the group is net profitable, or matches the group's risk level when net losing. For a multi-leg strategy that is net profitable despite a leg being individually stressed, the bar is green while the badge may show yellow — this pairing is intentional and informative.</Term>
-            <Term term="Left Border">A 3px coloured stripe on the left edge of each row (red/yellow/green) reflecting the group's risk level at a glance.</Term>
+            <Term term="Strategy Name">The strategy name (e.g. "Bull Call Spread", "Iron Condor") or the symbol for manually entered positions.</Term>
+            <Term term="Risk Badge">Colour-coded indicator (red / yellow / green) reflecting the <strong>entire group's net P&L</strong>, not the worst single leg. A net-profitable multi-leg strategy never shows red, even if one leg is underwater — it shows green if all legs are healthy, yellow if any leg is stressed. A net-losing group shows red only when the combined loss hits a trigger (≥50% cost basis, ≥100% cost basis, or soonest leg ≤7 DTE).</Term>
+            <Term term="DTE">Days to expiration — the nearest expiry in the group.</Term>
+            <Term term="P&amp;L">Combined profit or loss across all legs in the group.</Term>
+            <Term term="Mini Progress Bar">Thin horizontal bar showing the group's combined P&amp;L as a percentage. Green when net profitable; matches the group's risk level when net losing. For a net-profitable strategy with a stressed leg, the bar is green while the badge is yellow — intentional pairing showing the group is solvent but warrants a close look.</Term>
+            <Term term="Left Border">3px coloured stripe (red/yellow/green) on the left edge of each row, reflecting group risk at a glance.</Term>
           </Sub>
           <Note color={C.green}>
-            In Newest first mode (the default), date separator rows divide groups entered on different dates. In Risk first and Worst P&L first modes, the separators are removed and the flat list is ordered by risk or P&L. The selected trade remains selected when you switch sort modes — your place in the right panel does not change.
+            In Newest first mode, date separators divide groups by entry date. In Risk first and Worst P&L first modes, separators are removed and rows show date chips. When you switch sort modes, the selected trade remains selected — your position in the right panel does not change.
           </Note>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
-          <div style={{ fontWeight: 700, color: C.blue, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Right Panel — Position Detail</div>
-          <P>Click any row in the left panel to view the full detail. The right panel shows:</P>
+          <div style={{ fontWeight: 700, color: C.blue, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Right Panel — Full Detail (Desktop) or Inline Expansion (Mobile)</div>
+          <P>Click any row to view full detail. The panel displays:</P>
           <Sub>
-            <Term term="Header">Strategy name, risk badge, net P&amp;L, leg count (e.g. "2 legs"), nearest expiry, IV Rank of the underlying, and a banner showing "Trade entered DD Mon YYYY — N days ago".</Term>
-            <Term term="Leg Cards">One compact card per position leg, displayed side-by-side on desktop, reflowing to 2 per row on tablet, and single-column on mobile. Each card shows: symbol, BUY/SELL and CALL/PUT badges, ×N quantity chip, strike and days to expiration (e.g. "$490 · 18d left"), three metric tiles (Qty · IV Rank · Cost or Collected), entry→current prices, P&amp;L, and a progress bar. SELL legs label the tile "Collected" (premium received); BUY legs label it "Cost" (premium paid). The IV Rank tile is omitted when unavailable. The card's top border is coloured by risk level (red/yellow/green) for at-a-glance scanning.</Term>
-            <Term term="Action Plan">Always visible (no toggle required). For losing trades, you see the Financial Reality section, Paths Forward, Summary Box, and close instructions — exactly what you need to decide your next move. For profitable trades, you see a brief strategy-context narrative.</Term>
-            <Term term="Trade Narrative">If the position was created via the scanner, an expandable "Trade Narrative" section shows the original scanner analysis (initially collapsed — click to view).</Term>
+            <Term term="Header">Strategy name + group risk badge (red/yellow/green) + combined P&L (green if profitable, red if losing) + entry date banner reading "Trade entered DD Mon YYYY — N days ago".</Term>
+            <Term term="Subheader">Leg count (e.g. "3 legs"), nearest expiry date, and first-leg IV Rank (if available). All on a second line for reference.</Term>
+            <Term term="Trade Narrative">Expandable section (collapsed by default) showing the original scanner analysis if the position was created via the scanner. Click to expand and read the profit/loss scenarios and defensive tactic.</Term>
+            <Term term="Leg Cards">One card per position leg in a responsive grid: 1 column on mobile, 2 on tablet, 3+ on desktop. Each card displays: symbol, BUY/SELL and CALL/PUT badges, ×N quantity chip, strike and DTE (e.g. "$490 · 18d left"), three metric tiles (Qty · IV Rank · Cost/Collected), entry→current prices, P&L (green if profitable, red if losing), and a progress bar. SELL legs show "Collected" (premium received); BUY legs show "Cost" (premium paid). IV Rank tile is omitted when unavailable. Card top border is coloured by that leg's individual risk level (red/yellow/green) for per-leg scanning. The card height ensures four legs of an Iron Condor are visible at once on desktop without scrolling.</Term>
+            <Term term="Action Plan">Always visible, never collapsed. For losing trades, shows Financial Reality (what you paid/collected vs current cost), Paths Forward (A/B/C options for defense or adjustment), Summary Box (one-sentence call to action), and close instructions (step-by-step to exit). For profitable trades, shows strategy context narrative explaining that the group is working as designed and to monitor for net P&L crossing zero.</Term>
           </Sub>
           <Note color={C.amber}>
-            <strong>Compact leg cards for faster scanning.</strong> The new card grid lets you see all four legs of an Iron Condor at once on desktop — identify the risky leg by its red top bar, then read the action plan below to decide your next move. No scrolling required to reach the advice.
+            <strong>Fast scanning for multi-leg trades.</strong> Compact leg cards let you see all four legs of an Iron Condor at once on desktop — immediately identify which leg has the red top bar, then read the action plan below to decide your next move. No scrolling required.
           </Note>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
-          <div style={{ fontWeight: 700, color: C.amber, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Portfolio Summary Strip</div>
-          <P>Above the split panel, dark pill-shaped stat chips show: your total portfolio P&amp;L (green or red), total number of open positions, and counts of positions by risk level (red, yellow, green). Click the Refresh button to update all data immediately.</P>
+          <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Mobile Layout (≤ 768px Viewport)</div>
+          <P>The split layout becomes a single-column accordion. Strategy groups appear as tappable rows with the same compact info (name, entry date chip, risk badge, DTE, P&L, mini progress bar). Tap any row to expand inline detail (header, leg cards, Trade Narrative, Action Plan) directly below it. Only one row can be expanded at a time. Tapping another row collapses the previous one.</P>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
-          <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>AI Risk Overview (Below the Split)</div>
+          <div style={{ fontWeight: 700, color: C.text, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>AI Risk Overview Button</div>
           <P>Scroll to the very bottom of the Risk Monitor to find the "Get AI Risk Overview" button. Click it to request an AI-generated summary of your entire portfolio, highlighting concentration risk, DTE urgency, and positions approaching loss thresholds.</P>
         </div>
 
         <P>
-          <strong>On mobile (viewport width ≤ 768px):</strong> The split layout is replaced by a single-column accordion. Your strategy groups appear as tappable rows. Tap any row to expand an inline detail section directly below it — same content as the right panel. Only one row expands at a time.
+          <strong>Entry dates:</strong> Every position shows "Entered DD Mon" in the left-panel chip (or date separator in Newest first mode) and in the right-panel header banner as "Trade entered DD Mon YYYY — N days ago". The entry date is always the calendar date the position was first opened, not a specific time.
         </P>
 
         <Note color={C.blue}>
-          <strong>Entry dates and sorting:</strong> Every position's entry date is shown both in the left-panel chip ("Entered 25 Jun") and in the right-panel header banner ("Trade entered 25 Jun 2026 — 2 days ago"). The left panel sorts newest-first by this date, so your most recent trades are always at the top. If you placed two trades on the same date, they appear under the same date separator.
+          <strong>Group risk vs per-leg risk — intentional design.</strong> A Bull Call Spread with the long call down −$40 (red leg, individually HIGH RISK) but the spread net profitable at +$60 shows a yellow WATCH badge (one leg is stressed, look closer) and a green progress bar (group is above water). This pairing tells the full story at a glance: the trade is not in financial distress, but a leg warrants monitoring. Click in to see per-leg risk badges (the long call shows red, the short call shows green) and read the Action Plan, which explains that the net positive spread is working as designed.
         </Note>
       </Section>
 
@@ -542,13 +546,13 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginTop: '8px', marginBottom: '8px' }}>
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Free Tier</div>
           <P><Label color={C.green}>Included:</Label> Strategy Scanner (10 scans/month, max 5 watchlist symbols), Options Chain.</P>
-          <P><Label color={C.red}>Locked:</Label> Trading Desk (requires Starter+), Positions & P&amp;L (requires Starter+), Risk Monitor (requires Pro+).</P>
+          <P><Label color={C.red}>Locked:</Label> Positions & P&amp;L (requires Starter+), Trading Desk (requires Pro+), Risk Monitor (requires Enterprise).</P>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '8px' }}>
           <div style={{ fontWeight: 700, color: C.blue, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Starter ($9/mo)</div>
           <P><Label color={C.green}>Included:</Label> Everything in Free tier + Strategy Scanner (100 scans/month, max 15 watchlist symbols) + Positions & P&amp;L tab.</P>
-          <P><Label color={C.red}>Locked:</Label> Trading Desk (requires Pro+), Risk Monitor (requires Pro+).</P>
+          <P><Label color={C.red}>Locked:</Label> Trading Desk (requires Pro+), Risk Monitor (requires Enterprise).</P>
         </div>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '8px' }}>
@@ -559,7 +563,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
           <div style={{ fontWeight: 700, color: C.text, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Enterprise ($99+/mo)</div>
-          <P><Label color={C.green}>Included:</Label> Unlimited everything — unlimited scans, unlimited watchlist symbols, all tabs unlocked including Risk Monitor.</P>
+          <P><Label color={C.green}>Included:</Label> Unlimited everything — unlimited scans, unlimited watchlist symbols, all tabs unlocked including the Risk Monitor.</P>
         </div>
 
         <Note color={C.blue}>
