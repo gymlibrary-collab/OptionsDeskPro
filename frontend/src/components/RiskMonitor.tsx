@@ -943,8 +943,8 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
         }}>
           {riskLabel(group.groupLevel)}
         </span>
-        {/* P&L + entry date grouped on the right, on the same row to keep the header compact */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' as const }}>
+        {/* P&L + entry date flow inline right after the risk badge, same row to keep the header compact */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const }}>
           <span style={{ fontSize: '15px', fontWeight: 700, color: group.combinedPnl >= 0 ? C.green : C.red }}>
             {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
           </span>
