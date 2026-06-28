@@ -1030,6 +1030,9 @@ function SortBar({
       <select
         value={sortMode}
         onChange={e => onSortChange(e.target.value as SortMode)}
+        aria-label="Sort trades"
+        onFocus={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.boxShadow = `0 0 0 1px ${C.accent}` }}
+        onBlur={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = 'none' }}
         style={{
           background: C.surface,
           border: `1px solid ${C.border}`,

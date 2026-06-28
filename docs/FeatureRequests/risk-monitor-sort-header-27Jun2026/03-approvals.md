@@ -99,13 +99,13 @@ _Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 28Jun2026
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated** | |
-| **Manual plan** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated** | `frontend/e2e/pages/risk-monitor-sort-header.spec.ts` (36 new) — 117 passed / 0 failed across all risk-monitor suites (Chromium); zero regressions |
+| **Manual plan** | 58-case exploratory plan, 12 areas + 7 fragility findings (tester) |
+| **Approved by** | qa-engineer (automated), tester (manual) |
+| **Date** | 28Jun2026 |
+| **Notes** | No existing test needed changing — the SortBar + left-column flex restructure broke nothing. New suites verify: "Trades · N" = group count; default Newest first with date rails (no chip); Risk first flat list red→yellow→green with chips; Worst P&L first flat list most-negative first; selection preserved across sort changes; mobile parity; edge cases. Tester fragility findings actioned: FRAG-001/FRAG-007 (a11y) fixed in-place — added `aria-label="Sort trades"` and an accent focus ring (focus/blur handlers) to the sort `<select>`; spec re-run 36/36 green after the fix. FRAG-002 (hard-refresh selection falls back to newest-first first row when the selected key is gone) logged as a minor known quirk for future polish. Documented automated gaps (tab-reset, equal-pnl tiebreak, silent-refresh sortMode retention) covered structurally / by the manual plan. |
 
-Pending
+Approved
 
 ---
 
