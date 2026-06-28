@@ -128,22 +128,26 @@ _Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 28Jun2026
 
 | | |
 |---|---|
-| **Document** | `06-release-note.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Document** | `06-release-note.md` + `UserGuide.tsx` update |
+| **Approved by** | technical-writer |
+| **Date** | 28Jun2026 |
+| **Notes** | Release note (v1.12.0) written in clear, user-facing language covering: what's new (three sort modes with specific examples), what does not change, how sort works (default, session-only, mobile parity), accessibility, known limitation (hard refresh fallback), deployment steps (frontend-only, no backend/migration), rollback procedure, testing summary (36 new tests, 117 total, zero regressions), tier availability (Starter+). User Guide updated: added "Header Bar" subsection under Risk Monitor explaining the three sort options with inline examples ("Trades · 3" for 2 Iron Condor legs + 1 spread = 2 groups, plus emphasis on group count not leg count). Existing left-panel and right-panel descriptions preserved; all non-regressed content intact. Both documents follow the established tone (plain English, no jargon, specific names, tier references, minimal prose). |
 
-Pending
+Approved
 
 ---
 
 ## Overall Status
 
-**Gates complete: 4 of 6**
+**Gates complete: 6 of 6**
 
 - Gate 1 (BA Spec) — approved 27Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 28Jun2026
 - Gate 3 (Architecture) — approved 28Jun2026
-- Gate 4 (Test) — pending
+- Gate 4 (Test) — approved 28Jun2026
 - Gate 5 (Security) — approved 28Jun2026
-- Gate 6 (Release & Documentation) — pending
+- Gate 6 (Release & Documentation) — approved 28Jun2026
+
+**FEATURE STATUS: Ready to merge to main — pending user approval**
+
+All gates closed. Release note, User Guide update, and deployment documentation complete. Feature branch has zero regressions (117 risk-monitor tests all pass). No backend changes, no migrations, no new env vars. Frontend-only redeploy on Railway frontend service.
