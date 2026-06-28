@@ -33,6 +33,17 @@ function fmtFullDate(iso: string): string {
   return `${parseInt(dd, 10)} ${MONTHS[parseInt(mm, 10) - 1]} ${yyyy}`
 }
 
+function fmtChipDate(iso: string): string {
+  // "2026-06-24" → "24 Jun"
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const parts = iso.split('-')
+  if (parts.length !== 3) return ''
+  const day = parseInt(parts[2], 10)
+  const mon = MONTHS[parseInt(parts[1], 10) - 1]
+  if (!mon || isNaN(day)) return ''
+  return `${day} ${mon}`
+}
+
 function daysAgo(isoDate: string): number {
   const entered = new Date(isoDate)
   const today = new Date()
@@ -578,10 +589,44 @@ interface StrategyGroup {
   groupPnlPct: number                        // combined P&L as % of combined cost basis
 }
 
+// ── Sort types and pure sort function ─────────────────────────────────────────
+
+type SortMode = 'newest' | 'risk' | 'pnl'
+
+const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+
+function sortGroups(groups: StrategyGroup[], mode: SortMode): StrategyGroup[] {
+  if (mode === 'newest') {
+    return [...groups].sort((a, b) => {
+      if (b.enteredAt > a.enteredAt) return 1
+      if (b.enteredAt < a.enteredAt) return -1
+      return riskRank[a.groupLevel] - riskRank[b.groupLevel]
+    })
+  }
+  if (mode === 'risk') {
+    return [...groups].sort((a, b) => {
+      const rankDiff = riskRank[a.groupLevel] - riskRank[b.groupLevel]
+      if (rankDiff !== 0) return rankDiff
+      if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
+      if (a.enteredAt === '' && b.enteredAt === '') return 0
+      if (a.enteredAt === '') return 1
+      if (b.enteredAt === '') return -1
+      return b.enteredAt.localeCompare(a.enteredAt)
+    })
+  }
+  // mode === 'pnl'
+  return [...groups].sort((a, b) => {
+    if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
+    if (a.enteredAt === '' && b.enteredAt === '') return 0
+    if (a.enteredAt === '') return 1
+    if (b.enteredAt === '') return -1
+    return b.enteredAt.localeCompare(a.enteredAt)
+  })
+}
+
 // ── buildGroups — extracted so it can be called from both render and load ────
 
 function buildGroups(data: PositionRisk[]): StrategyGroup[] {
-  const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
   const groupMap = new Map<string, {
     key: string
     label: string
@@ -722,11 +767,12 @@ function DateRail({ dateStr }: { dateStr: string }) {
 
 // ── RiskListRow ───────────────────────────────────────────────────────────────
 
-function RiskListRow({ group, isSelected, onClick, isLast }: {
+function RiskListRow({ group, isSelected, onClick, isLast, showDateChip }: {
   group: StrategyGroup
   isSelected: boolean
   onClick: () => void
   isLast?: boolean
+  showDateChip?: boolean
 }) {
   const nearestDte = Math.min(...group.positions.map(p => p.dte))
   const borderColor = riskColor(group.groupLevel)
@@ -799,6 +845,16 @@ function RiskListRow({ group, isSelected, onClick, isLast }: {
         </span>
       </div>
       <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.groupLevel} />
+      {showDateChip && group.enteredAt !== '' && (
+        <div style={{
+          marginTop: '5px',
+          fontSize: '10px',
+          color: C.muted,
+          letterSpacing: '0.03em',
+        }}>
+          Entered {fmtChipDate(group.enteredAt)}
+        </div>
+      )}
     </div>
   )
 }
@@ -948,6 +1004,51 @@ function RightPanelDetail({ group, stockPrices }: {
   )
 }
 
+// ── SortBar ───────────────────────────────────────────────────────────────────
+
+function SortBar({
+  count,
+  sortMode,
+  onSortChange,
+}: {
+  count: number
+  sortMode: SortMode
+  onSortChange: (m: SortMode) => void
+}) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '6px 12px',
+      background: C.surface2,
+      borderBottom: `1px solid ${C.border}`,
+    }}>
+      <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.04em' }}>
+        Trades · {count}
+      </span>
+      <select
+        value={sortMode}
+        onChange={e => onSortChange(e.target.value as SortMode)}
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: '5px',
+          color: C.text,
+          fontSize: '11px',
+          padding: '2px 6px',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+      >
+        <option value="newest">Newest first</option>
+        <option value="risk">Risk first</option>
+        <option value="pnl">Worst P&amp;L first</option>
+      </select>
+    </div>
+  )
+}
+
 // ── Main RiskMonitor ──────────────────────────────────────────────────────────
 
 export default function RiskMonitor() {
@@ -965,6 +1066,7 @@ export default function RiskMonitor() {
   const [stockPrices, setStockPrices] = useState<Record<string, number>>({})
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null)
+  const [sortMode, setSortMode] = useState<SortMode>('newest')
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
@@ -1030,12 +1132,12 @@ export default function RiskMonitor() {
   const totalPnl = data.reduce((sum, p) => sum + p.pnl, 0)
 
   const groups = buildGroups(data)
-  const selectedGroup = groups.find(g => g.key === selectedGroupKey) ?? null
+  const sortedGroups = sortGroups(groups, sortMode)
+  const selectedGroup = sortedGroups.find(g => g.key === selectedGroupKey) ?? null
 
   // ── Desktop split layout ──────────────────────────────────────────────────
 
   const renderDesktopSplit = () => {
-    const blocks = groupByEntryDate(groups)
     return (
       <div style={{
         display: 'flex',
@@ -1043,30 +1145,50 @@ export default function RiskMonitor() {
         overflow: 'hidden',
         borderTop: `1px solid ${C.border}`,
       }}>
-        {/* Left panel — date-rail blocks */}
+        {/* Left column wrapper — flex column so SortBar sits above the scroll div */}
         <div style={{
           width: '290px',
           flexShrink: 0,
-          overflowY: 'auto' as const,
+          display: 'flex',
+          flexDirection: 'column',
           borderRight: `1px solid ${C.border}`,
           background: C.bg,
         }}>
-          {blocks.map((block, bi) => (
-            <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
-              <DateRail dateStr={block.date} />
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
-                {block.items.map((group, gi) => (
-                  <RiskListRow
-                    key={group.key}
-                    group={group}
-                    isSelected={group.key === selectedGroupKey}
-                    onClick={() => setSelectedGroupKey(group.key)}
-                    isLast={gi === block.items.length - 1}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          {/* SortBar — pinned above the scroll list, does not scroll */}
+          <SortBar count={sortedGroups.length} sortMode={sortMode} onSortChange={setSortMode} />
+
+          {/* Scrollable list */}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {sortMode === 'newest' ? (
+              groupByEntryDate(sortedGroups).map((block, bi) => (
+                <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
+                  <DateRail dateStr={block.date} />
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
+                    {block.items.map((group, gi) => (
+                      <RiskListRow
+                        key={group.key}
+                        group={group}
+                        isSelected={group.key === selectedGroupKey}
+                        onClick={() => setSelectedGroupKey(group.key)}
+                        isLast={gi === block.items.length - 1}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              sortedGroups.map((group, gi) => (
+                <RiskListRow
+                  key={group.key}
+                  group={group}
+                  isSelected={group.key === selectedGroupKey}
+                  onClick={() => setSelectedGroupKey(group.key)}
+                  isLast={gi === sortedGroups.length - 1}
+                  showDateChip
+                />
+              ))
+            )}
+          </div>
         </div>
 
         {/* Right panel */}
@@ -1094,37 +1216,64 @@ export default function RiskMonitor() {
   // ── Mobile accordion layout ───────────────────────────────────────────────
 
   const renderMobileAccordion = () => {
-    const blocks = groupByEntryDate(groups)
     return (
       <div style={{ borderTop: `1px solid ${C.border}` }}>
-        {blocks.map((block, bi) => (
-          <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
-            <DateRail dateStr={block.date} />
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
-              {block.items.map((group, gi) => {
-                const isExpanded = mobileExpandedKey === group.key
-                return (
-                  <React.Fragment key={group.key}>
-                    <RiskListRow
-                      group={group}
-                      isSelected={isExpanded}
-                      onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
-                      isLast={gi === block.items.length - 1 && !isExpanded}
-                    />
-                    {isExpanded && (
-                      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
-                        <RightPanelDetail
-                          group={group}
-                          stockPrices={stockPrices}
-                        />
-                      </div>
-                    )}
-                  </React.Fragment>
-                )
-              })}
+        {/* SortBar — non-sticky, scrolls with the list */}
+        <SortBar count={sortedGroups.length} sortMode={sortMode} onSortChange={setSortMode} />
+
+        {sortMode === 'newest' ? (
+          groupByEntryDate(sortedGroups).map((block, bi) => (
+            <div key={block.date || `blk-${bi}`} style={{ display: 'flex', borderTop: bi > 0 ? `1px solid ${C.border}` : 'none' }}>
+              <DateRail dateStr={block.date} />
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const }}>
+                {block.items.map((group, gi) => {
+                  const isExpanded = mobileExpandedKey === group.key
+                  return (
+                    <React.Fragment key={group.key}>
+                      <RiskListRow
+                        group={group}
+                        isSelected={isExpanded}
+                        onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
+                        isLast={gi === block.items.length - 1 && !isExpanded}
+                      />
+                      {isExpanded && (
+                        <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+                          <RightPanelDetail
+                            group={group}
+                            stockPrices={stockPrices}
+                          />
+                        </div>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          sortedGroups.map((group, gi) => {
+            const isExpanded = mobileExpandedKey === group.key
+            return (
+              <React.Fragment key={group.key}>
+                <RiskListRow
+                  group={group}
+                  isSelected={isExpanded}
+                  onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
+                  isLast={gi === sortedGroups.length - 1 && !isExpanded}
+                  showDateChip
+                />
+                {isExpanded && (
+                  <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+                    <RightPanelDetail
+                      group={group}
+                      stockPrices={stockPrices}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            )
+          })
+        )}
       </div>
     )
   }
