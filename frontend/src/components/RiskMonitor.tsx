@@ -941,31 +941,24 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
         }}>
           {riskLabel(group.groupLevel)}
         </span>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: group.combinedPnl >= 0 ? C.green : C.red }}>
-          {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
-        </span>
+        {/* P&L + entry date grouped on the right, on the same row to keep the header compact */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' as const }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: group.combinedPnl >= 0 ? C.green : C.red }}>
+            {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
+          </span>
+          {group.enteredAt && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: C.muted, whiteSpace: 'nowrap' as const }}>
+              <span>📅</span>
+              <span>Trade entered {fmtFullDate(group.enteredAt)}{days !== null ? ` — ${days} day${days !== 1 ? 's' : ''} ago` : ''}</span>
+            </span>
+          )}
+        </div>
       </div>
-      <div style={{ fontSize: '11px', color: C.muted, marginBottom: '6px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, color: '#cbd5e1' }}>
         {legCount} leg{legCount !== 1 ? 's' : ''}
         {nearestExpiry && <> · Expiry {fmtDate(nearestExpiry)}</>}
         {firstIvRank != null && <> · IV Rank {fmt(firstIvRank, 0)}</>}
       </div>
-      {group.enteredAt && (
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          fontSize: '11px',
-          color: C.muted,
-          background: '#1a1d27',
-          border: `1px solid ${C.border}`,
-          borderRadius: '6px',
-          padding: '3px 8px',
-        }}>
-          <span>📅</span>
-          <span>Trade entered {fmtFullDate(group.enteredAt)}{days !== null ? ` — ${days} day${days !== 1 ? 's' : ''} ago` : ''}</span>
-        </div>
-      )}
     </div>
   )
 }
