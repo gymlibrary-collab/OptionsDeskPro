@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { getPositionsRisk, PositionRisk, getAISettings, aiRiskSummary, getQuote } from '../api/client'
 import { useWindowSize } from '../hooks/useWindowSize'
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 const C = {
   bg: '#0f1117',
@@ -28,14 +30,12 @@ function fmtDate(iso: string): string {
 
 function fmtFullDate(iso: string): string {
   // "2026-06-25" → "25 Jun 2026"
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const [yyyy, mm, dd] = iso.split('-')
   return `${parseInt(dd, 10)} ${MONTHS[parseInt(mm, 10) - 1]} ${yyyy}`
 }
 
 function fmtChipDate(iso: string): string {
   // "2026-06-24" → "24 Jun"
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const parts = iso.split('-')
   if (parts.length !== 3) return ''
   const day = parseInt(parts[2], 10)
@@ -595,32 +595,31 @@ type SortMode = 'newest' | 'risk' | 'pnl'
 
 const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
 
+// Newest-first tiebreak shared by the risk/pnl modes: most recent entry first,
+// with empty (undated) entries pushed to the end.
+function enteredAtTiebreak(a: StrategyGroup, b: StrategyGroup): number {
+  if (a.enteredAt === '' && b.enteredAt === '') return 0
+  if (a.enteredAt === '') return 1
+  if (b.enteredAt === '') return -1
+  return b.enteredAt.localeCompare(a.enteredAt)
+}
+
 function sortGroups(groups: StrategyGroup[], mode: SortMode): StrategyGroup[] {
-  if (mode === 'newest') {
-    return [...groups].sort((a, b) => {
-      if (b.enteredAt > a.enteredAt) return 1
-      if (b.enteredAt < a.enteredAt) return -1
-      return riskRank[a.groupLevel] - riskRank[b.groupLevel]
-    })
-  }
+  // 'newest' is buildGroups' native order (enteredAt desc, groupLevel tiebreak) —
+  // return as-is rather than re-sorting an already-sorted array.
+  if (mode === 'newest') return groups
   if (mode === 'risk') {
     return [...groups].sort((a, b) => {
       const rankDiff = riskRank[a.groupLevel] - riskRank[b.groupLevel]
       if (rankDiff !== 0) return rankDiff
       if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
-      if (a.enteredAt === '' && b.enteredAt === '') return 0
-      if (a.enteredAt === '') return 1
-      if (b.enteredAt === '') return -1
-      return b.enteredAt.localeCompare(a.enteredAt)
+      return enteredAtTiebreak(a, b)
     })
   }
   // mode === 'pnl'
   return [...groups].sort((a, b) => {
     if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
-    if (a.enteredAt === '' && b.enteredAt === '') return 0
-    if (a.enteredAt === '') return 1
-    if (b.enteredAt === '') return -1
-    return b.enteredAt.localeCompare(a.enteredAt)
+    return enteredAtTiebreak(a, b)
   })
 }
 
@@ -921,7 +920,10 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
   const nearestExpiry = [...group.positions].sort((a, b) => a.expiry.localeCompare(b.expiry))[0]?.expiry
   const firstIvRank = group.positions.find(p => p.iv_rank != null)?.iv_rank
   const legCount = group.positions.length
+  // Human-readable "ago" suffix: same-day (or any non-positive delta) reads
+  // "today"; otherwise "N day(s) ago" with correct pluralisation.
   const days = group.enteredAt ? daysAgo(group.enteredAt) : null
+  const enteredAgo = days === null ? '' : days <= 0 ? ' — today' : ` — ${days} day${days !== 1 ? 's' : ''} ago`
 
   const name = group.label
 
@@ -949,7 +951,7 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
           {group.enteredAt && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: C.muted, whiteSpace: 'nowrap' as const }}>
               <span>📅</span>
-              <span>Trade entered {fmtFullDate(group.enteredAt)}{days !== null ? ` — ${days} day${days !== 1 ? 's' : ''} ago` : ''}</span>
+              <span>Trade entered {fmtFullDate(group.enteredAt)}{enteredAgo}</span>
             </span>
           )}
         </div>
@@ -1064,6 +1066,11 @@ export default function RiskMonitor() {
   const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('newest')
 
+  // Mirror sortMode in a ref so the (deps-stable) load callback can read the
+  // current sort without being recreated on every sort change.
+  const sortModeRef = useRef(sortMode)
+  sortModeRef.current = sortMode
+
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true)
     else setLoading(true)
@@ -1072,13 +1079,14 @@ export default function RiskMonitor() {
       const result = await getPositionsRisk()
       setData(result)
       setLastUpdated(new Date())
-      // Auto-select: on initial load always select first group; on silent refresh
-      // preserve selection if the group still exists, otherwise fall back to first.
+      // Auto-select: on initial load select the first group; on silent refresh
+      // preserve selection if the group still exists, otherwise fall back to the
+      // first group in the CURRENT sort order (the visible top row).
       setSelectedGroupKey(prev => {
         const built = buildGroups(result)
         if (built.length === 0) return null
         if (silent && prev && built.some(g => g.key === prev)) return prev
-        return built[0].key
+        return sortGroups(built, sortModeRef.current)[0].key
       })
       const symbols = [...new Set(result.map(p => p.symbol))]
       Promise.all(symbols.map(s => getQuote(s).then(q => ({ s, price: q.price })).catch(() => null)))
@@ -1127,8 +1135,8 @@ export default function RiskMonitor() {
   const greenCount = data.filter(p => p.risk_level === 'green').length
   const totalPnl = data.reduce((sum, p) => sum + p.pnl, 0)
 
-  const groups = buildGroups(data)
-  const sortedGroups = sortGroups(groups, sortMode)
+  const groups = useMemo(() => buildGroups(data), [data])
+  const sortedGroups = useMemo(() => sortGroups(groups, sortMode), [groups, sortMode])
   const selectedGroup = sortedGroups.find(g => g.key === selectedGroupKey) ?? null
 
   // ── Desktop split layout ──────────────────────────────────────────────────
