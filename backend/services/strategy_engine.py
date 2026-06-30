@@ -778,14 +778,14 @@ def recommend_strategies(iv_env: str, bias: str, top_n: int = 5) -> list[dict]:
 
 def recommend_by_category(iv_env: str) -> dict:
     """
-    For each directional category, return the top 3 strategies (sorted by
+    For each directional category, return all qualifying strategies (sorted by
     complexity ascending) whose iv_environment includes iv_env.
 
     Categories: BULLISH, BEARISH, NEUTRAL, NEUTRAL_BULLISH, NEUTRAL_BEARISH,
                 OMNIDIRECTIONAL
 
-    Returns a dict keyed by category name, each value a list of up to 3 strategy
-    dicts (same fields as before, without fit_score).
+    Returns a dict keyed by category name, each value a list of all qualifying
+    strategy dicts (same fields as before, without fit_score).
     """
     categories = [
         "BULLISH",
@@ -819,7 +819,7 @@ def recommend_by_category(iv_env: str) -> dict:
                 "profit_target_pct": strat["profit_target_pct"],
                 "greek_profile": strat.get("greek_profile"),
             }
-            for _, key, strat in matches[:3]
+            for _, key, strat in matches
         ]
 
     return result
