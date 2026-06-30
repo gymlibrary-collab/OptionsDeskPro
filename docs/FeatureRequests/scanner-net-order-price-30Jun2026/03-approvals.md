@@ -82,8 +82,8 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 |---|---|
 | **Document** | `02-design.md` |
 | **Approved by** | solution-architect |
-| **Date** | |
-| **Notes** | |
+| **Date** | 30Jun2026 |
+| **Notes** | Frontend-only, single file (`StrategyDetail.tsx`). OQ-6 confirmed via `strategy_engine.py`: both `covered_call` (lines 1197–1211) and `covered_put` (lines 1451–1465) yield `displayLegs.length === 1` after stock-leg filtering — box correctly suppressed for both by the `>= 2` gate, no per-strategy hardcoding. `DisplayLeg` fields confirmed: `leg.action` (string `"sell"`/`"buy"`), `leg.mid` (number), `leg.qty` (local type extension, not on base `TradeLeg`). Responsive mechanism: `useState` + resize listener inside `TradeInstructions` for `isMobile` (< 480px) — `useWindowSize` not present in this file; no import needed. `NetOrderPriceBox` is a local sub-component in the same file — not a new file. No migration. No new npm package. No backend change. No API contract change. No tier gate. All 10 PO checklist items addressed in design. |
 
 ---
 
@@ -124,11 +124,11 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ## Overall Status
 
-**Gates complete: 2 of 6**
+**Gates complete: 3 of 6**
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
-- Gate 3 (Architecture) — pending
+- Gate 3 (Architecture) — approved 30Jun2026
 - Gate 4 (Test) — pending
 - Gate 5 (Security) — pending
 - Gate 6 (Release & Documentation) — pending
