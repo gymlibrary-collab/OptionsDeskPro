@@ -73,8 +73,12 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 |---|---|
 | **Document** | `02-design.md` |
 | **Approved by** | solution-architect |
-| **Date** | |
-| **Notes** | Pending. |
+| **Date** | 30Jun2026 |
+| **Notes** | Single one-line change: `matches[:3]` → `matches` on line 822 of `backend/services/strategy_engine.py`. No migration, no API contract change, no frontend change, no ADR. Design delivers all five PO checklist items: (1) exact diff with surrounding context; (2) full per-category count matrix for all three IV environments — six (category, IV env) pairs were truncated before the fix, with OMNIDIRECTIONAL/HIGH the worst case at 6 qualifying strategies vs. 3 returned; (3) formal proof that net `build_trade` call count is zero for every IV environment — truncated keys migrate from `build_comparison_matrix` fallback to the fan-out, same total; (4) route filter at lines 252–259 (`if rec["key"] in trades_by_key`) is unchanged and continues to exclude non-viable strategies; (5) `recommend_strategies`, `get_strategy_count`, all frontend files, API contract, DB schema, and tier gates are all confirmed unchanged. |
+
+Approved
+
+_Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ---
 
@@ -113,11 +117,11 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ## Overall Status
 
-**Gates complete: 2 of 6**
+**Gates complete: 3 of 6**
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
-- Gate 3 (Architecture) — pending
+- Gate 3 (Architecture) — approved 30Jun2026
 - Gate 4 (Test) — pending
 - Gate 5 (Security) — pending
 - Gate 6 (Release & Documentation) — pending
