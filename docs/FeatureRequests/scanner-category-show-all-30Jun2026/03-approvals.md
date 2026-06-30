@@ -116,18 +116,24 @@ _Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 30Jun2026
 |---|---|
 | **Document** | `06-release-note.md` |
 | **Approved by** | technical-writer |
-| **Date** | |
-| **Notes** | Pending. |
+| **Date** | 30Jun2026 |
+| **Notes** | Release note written. Covers exactly what changed (the cap removal), why (data completeness), which categories were affected (six truncated cells across three IV environments), what doesn't change (matrix, scan, filter logic, API contract, tier gates), deployment (backend-only), rollback (git revert), testing (39 new tests; 435 existing pass), and tier availability (all tiers). User Guide checked: no existing reference to the cap or "top 3" per category in the Scanner or Deep Analysis sections — no update required. The category panel feature itself is not documented in the User Guide, only the comparison matrix is covered. |
+
+Approved
+
+_Approved by:_ technical-writer &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ---
 
 ## Overall Status
 
-**Gates complete: 4 of 6**
+**All gates complete: 6 of 6**
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
 - Gate 3 (Architecture) — approved 30Jun2026
-- Gate 4 (Test) — pending
+- Gate 4 (Test) — approved 30Jun2026
 - Gate 5 (Security) — approved 30Jun2026 (PASS — 0 critical/high/medium; 2 informational)
-- Gate 6 (Release & Documentation) — pending
+- Gate 6 (Release & Documentation) — approved 30Jun2026
+
+**Ready to merge to main — pending user approval.**
