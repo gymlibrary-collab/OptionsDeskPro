@@ -87,9 +87,11 @@ _Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 30Jun2026
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Approved by** | qa-engineer (automated), tester (manual) |
-| **Date** | |
-| **Notes** | Pending. |
+| **Automated** | `backend/tests/test_recommend_by_category.py` (39 tests) — 39 passed (pytest, runs in `.github/workflows/backend-tests.yml`). 435 pre-existing strategy-engine tests still pass. |
+| **Manual plan** | 30+ case exploratory plan, 10 areas (tester). |
+| **Approved by** | backend pytest (automated), tester (manual) |
+| **Date** | 30Jun2026 |
+| **Notes** | Backend-only change with no frontend change, so the automated coverage is the pytest suite (not Playwright). 39 tests assert the cap is removed: OMNIDIRECTIONAL/HIGH = 6 incl. put_broken_heart_butterfly + the two call broken variants; BULLISH/HIGH = 5; BEARISH/HIGH = 5; NEUTRAL/HIGH = 5; BULLISH/LOW = 5; BEARISH/LOW = 5; untruncated cells still 3 (or 0); complexity-ascending order + per-strategy qualification invariants. Tester's manual plan covers the live IV-environment-dependent rendering, matrix↔category consistency, non-viable-strategy filtering (do-no-harm), watchlist-scan regression (recommend_strategies top_n=5 unchanged), and mobile — all of which automated tests can't reproduce (real IV classification, max_profit-guard suppression, synthetic chains). No new defects; fragility notes are pre-existing (no loading skeleton, IV-env boundary sensitivity, CategorySection state resets on tab switch). |
 
 ---
 
