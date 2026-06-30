@@ -105,9 +105,13 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | security-reviewer |
+| **Date** | 30Jun2026 |
+| **Notes** | Frontend-only, single-file change. All seven checklist items (XSS, data exposure, network/auth/DB paths, listener lifecycle, dev-only logging, NaN/Infinity guard, formula injection) confirmed clean. No Critical, High, Medium, or Low findings — all findings are Informational (confirmed safe). CLAUDE.md invariants unaffected. One non-blocking hardening recommendation recorded (add `Number.isFinite` arm to hasMissingMid guard) — not required for release. Unconditional PASS. |
+
+Approved
+
+_Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ---
 
@@ -124,11 +128,11 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ## Overall Status
 
-**Gates complete: 3 of 6**
+**Gates complete: 5 of 6**
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
 - Gate 3 (Architecture) — approved 30Jun2026
 - Gate 4 (Test) — pending
-- Gate 5 (Security) — pending
+- Gate 5 (Security) — approved 30Jun2026
 - Gate 6 (Release & Documentation) — pending
