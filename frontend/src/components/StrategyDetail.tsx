@@ -270,6 +270,171 @@ function LegsTable({ legs }: { legs: TradeLeg[] }) {
   )
 }
 
+interface NetOrderPriceBoxProps {
+  displayLegs: Array<{ action: string; mid: number; qty: number }>
+  estimatedCreditOrDebit: number
+  isMobile: boolean
+}
+
+function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: NetOrderPriceBoxProps) {
+  const hasMissingMid = displayLegs.some(leg => leg.mid == null || leg.mid <= 0)
+
+  const signedNet: number = displayLegs.reduce(
+    (sum, leg) => sum + (leg.action === 'sell' ? 1 : -1) * leg.mid * leg.qty,
+    0
+  )
+
+  if (!hasMissingMid && import.meta.env.DEV) {
+    const estimated = Math.abs(estimatedCreditOrDebit)
+    const computed = Math.abs(signedNet)
+    if (Math.abs(computed - estimated) > 0.05) {
+      console.warn(
+        `[NetOrderPrice] signedNet (${computed.toFixed(4)}) diverges from ` +
+        `estimated_credit_or_debit (${estimated.toFixed(4)}) by more than $0.05`
+      )
+    }
+  }
+
+  const boxIsCredit: boolean = signedNet > 0
+  const totalDollars: number = Math.round(signedNet * 100)
+
+  const borderColor = hasMissingMid ? '#d97706' : boxIsCredit ? C.green : C.red
+
+  const boxStyle: React.CSSProperties = {
+    background: '#0a1628',
+    borderLeft: `4px solid ${borderColor}`,
+    borderRadius: '6px',
+    padding: '12px 14px',
+    marginTop: '8px',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    color: C.accent,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    marginBottom: '8px',
+  }
+
+  if (hasMissingMid) {
+    return (
+      <div style={boxStyle}>
+        <div style={labelStyle}>⌨ Net order price — key this ONE number as a combo order</div>
+        <div style={{ color: '#d97706', fontSize: '12px', lineHeight: 1.5 }}>
+          One or more leg mids are unavailable — verify the net price on your broker before placing this order.
+        </div>
+      </div>
+    )
+  }
+
+  const signedResult = signedNet < 0
+    ? `−${Math.abs(signedNet).toFixed(2)}`
+    : `+${signedNet.toFixed(2)}`
+
+  // Build formula terms
+  const terms = displayLegs.map((leg, i) => {
+    const isSell = leg.action === 'sell'
+    const value = leg.qty > 1
+      ? `(${leg.qty} × $${leg.mid.toFixed(2)})`
+      : `$${leg.mid.toFixed(2)}`
+    if (i === 0) {
+      return isSell ? value : `−${value}`
+    }
+    return isSell ? `+ ${value}` : `− ${value}`
+  }).join(' ')
+
+  const formulaLine = isMobile
+    ? `net = ${signedResult} (${boxIsCredit ? 'credit' : 'debit'})`
+    : `net = ${terms} = ${signedResult}`
+
+  const numColor = boxIsCredit ? C.green : C.red
+  const tagBg = boxIsCredit ? `${C.green}22` : `${C.red}22`
+  const tagBorder = boxIsCredit ? `${C.green}55` : `${C.red}55`
+  const tagLabel = boxIsCredit ? 'Credit' : 'Debit'
+
+  const totalAbs = Math.abs(totalDollars)
+  const totalSign = totalDollars < 0 ? '−' : '+'
+  const totalColor = totalDollars < 0 ? C.red : C.green
+
+  const drCrLabel = boxIsCredit ? 'CR' : 'DR'
+  const drCrValue = boxIsCredit
+    ? signedNet.toFixed(2)
+    : Math.abs(signedNet).toFixed(2)
+
+  return (
+    <div style={boxStyle}>
+      <div style={labelStyle}>⌨ Net order price — key this ONE number as a combo order</div>
+
+      {/* Formula / condensed line */}
+      <div style={{ fontSize: '12px', color: C.muted, fontFamily: 'monospace', lineHeight: 1.5, wordBreak: 'break-word', marginBottom: '8px' }}>
+        {formulaLine}
+      </div>
+
+      {/* Large signed number + tag row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '22px', fontWeight: 800, color: numColor, fontVariantNumeric: 'tabular-nums' }}>
+          {signedResult}
+        </span>
+        <span style={{
+          fontSize: '13px', fontWeight: 700, color: numColor,
+          background: tagBg, border: `1px solid ${tagBorder}`,
+          borderRadius: '4px', padding: '3px 8px',
+        }}>
+          {tagLabel}
+        </span>
+      </div>
+
+      {/* Per-spread total */}
+      <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>
+        per spread ·{' '}
+        <span style={{ color: totalColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          {totalSign}${totalAbs}
+        </span>
+        {' '}total
+      </div>
+
+      {/* DR/CR alternative row */}
+      <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>
+        Alternative (broker toggle):{' '}
+        <span style={{ color: C.muted }}>{drCrLabel} </span>
+        <span style={{ color: C.text, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{drCrValue}</span>
+      </div>
+
+      {/* Direction guide */}
+      <div style={{
+        marginTop: '10px', paddingTop: '10px',
+        borderTop: `1px solid ${C.border}44`,
+        fontSize: '12px', color: C.muted, lineHeight: 1.5,
+      }}>
+        {boxIsCredit ? (
+          <>
+            Key the positive number. Better fill = more positive (collect more). Worse fill = less positive.
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+              <span style={{ fontSize: '10px', color: C.green }}>better</span>
+              <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${C.green}, #4b5563, ${C.red})`, position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '50%', top: '-3px', width: '2px', height: '12px', background: C.muted, borderRadius: '1px', transform: 'translateX(-50%)' }} />
+              </div>
+              <span style={{ fontSize: '10px', color: C.red }}>worse</span>
+            </div>
+          </>
+        ) : (
+          <>
+            Pay as little as possible — key it as close to 0 as you can get filled; less-negative = better (pay less, lower max loss).
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+              <span style={{ fontSize: '10px', color: C.green }}>better</span>
+              <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${C.green}, #4b5563, ${C.red})`, position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '50%', top: '-3px', width: '2px', height: '12px', background: C.muted, borderRadius: '1px', transform: 'translateX(-50%)' }} />
+              </div>
+              <span style={{ fontSize: '10px', color: C.red }}>worse</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: string }) {
   const isCredit = trade.estimated_credit_or_debit >= 0
   const netDollars = Math.abs(trade.estimated_credit_or_debit) * 100
@@ -293,6 +458,14 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
       displayLegs.push({ ...leg, qty: 1 })
     }
   }
+
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth)
+  useEffect(() => {
+    const handler = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  const isMobile = viewportWidth < 480
 
   return (
     <div style={{ background: '#0d1220', border: `1px solid ${C.accent}44`, borderRadius: '8px', padding: '14px 16px', marginBottom: '4px' }}>
@@ -361,6 +534,14 @@ function TradeInstructions({ trade, symbol }: { trade: TradeStructure; symbol: s
           </div>
         )}
       </div>
+
+      {displayLegs.length >= 2 && (
+        <NetOrderPriceBox
+          displayLegs={displayLegs}
+          estimatedCreditOrDebit={trade.estimated_credit_or_debit}
+          isMobile={isMobile}
+        />
+      )}
     </div>
   )
 }
