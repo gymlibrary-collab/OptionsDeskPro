@@ -99,8 +99,12 @@ _Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 30Jun2026
 |---|---|
 | **Document** | `05-security-review.md` |
 | **Approved by** | security-reviewer |
-| **Date** | |
-| **Notes** | Pending. |
+| **Date** | 30Jun2026 |
+| **Notes** | Pure-function catalog change: single `[:3]` → no-slice removal in `recommend_by_category`. Zero findings (Critical, High, or Medium). Two informational notes (optional auth on `analyze_symbol`; bounded response size growth) — both pre-existing, neither introduced by this change. All CLAUDE.md invariants confirmed upheld: `auth.get_user()` unchanged, no python-jose, no SUPABASE_JWT_SECRET, no MARKETDATA_API_TOKEN, no module-level get_supabase, no frontend change. Tier limits, scan usage caps, and `recommend_strategies` (watchlist scan path) are unaffected. Net `build_trade` call count confirmed unchanged. Gate decision: PASS. |
+
+Approved
+
+_Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ---
 
@@ -117,11 +121,11 @@ _Approved by:_ solution-architect &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ## Overall Status
 
-**Gates complete: 3 of 6**
+**Gates complete: 4 of 6**
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
 - Gate 3 (Architecture) — approved 30Jun2026
 - Gate 4 (Test) — pending
-- Gate 5 (Security) — pending
+- Gate 5 (Security) — approved 30Jun2026 (PASS — 0 critical/high/medium; 2 informational)
 - Gate 6 (Release & Documentation) — pending
