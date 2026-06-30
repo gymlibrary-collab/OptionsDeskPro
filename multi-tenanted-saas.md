@@ -1,7 +1,8 @@
 # OptionsDesk — Multi-Tenanted SaaS Architecture
 
-**Version:** 1.0 — Full redesign from first principles  
-**Status:** Design document for Step 2 (UI) and Step 3 (implementation)
+**Status:** Superseded by current production implementation. See [ARCHITECTURE.md](./ARCHITECTURE.md), [CLAUDE.md](./CLAUDE.md), and [README.md](./README.md) for current state.
+
+**Legacy version:** 1.0 — Design document archived below for historical reference.
 
 ---
 

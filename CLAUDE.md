@@ -60,7 +60,7 @@ options/
 │           ├── OrderEntry.tsx       Paper trade form (sidebar/drawer)
 │           ├── Orders.tsx           Order history table
 │           ├── Positions.tsx        Open positions + portfolio summary
-│           ├── RiskMonitor.tsx      Per-position risk signals and alerts
+│           ├── RiskMonitor.tsx      Master-Detail split (desktop) / accordion (mobile); group-based risk badges; sortable (newest/risk/P&L)
 │           ├── PnLChart.tsx         90-day portfolio value chart
 │           ├── AdminPanel.tsx       User mgmt, whitelist, stats, leaderboard
 │           └── UserGuide.tsx        In-app help (role-aware sections)
