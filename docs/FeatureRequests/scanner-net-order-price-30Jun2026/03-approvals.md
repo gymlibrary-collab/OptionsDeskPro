@@ -120,19 +120,25 @@ _Approved by:_ security-reviewer &nbsp;&nbsp; _Date:_ 30Jun2026
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | technical-writer |
+| **Date** | 30Jun2026 |
+| **Notes** | Release note written for v1.13.0 (frontend-only redeploy). Covers what's new (Net Order Price box, signed net computation, formula, Debit/Credit tag, per-spread total, DR/CR alternative, direction guide, mobile responsive layout), which strategies show the box (multi-leg only), zero-mid amber caution path, what does NOT change (existing panel elements, narrative, tier restrictions), why it matters (speed for traders, learning tool for beginners), deployment steps (Railway frontend only), and testing summary (35 E2E tests pass, 58 manual test cases pass, zero regressions). User Guide updated with a new subsection under "Deep Analysis" explaining the Net Order Price box: multi-leg strategies only, shows exact combo-order number, direction guide for fill improvement, single-leg strategies unaffected. |
+
+Approved
+
+_Approved by:_ technical-writer &nbsp;&nbsp; _Date:_ 30Jun2026
 
 ---
 
 ## Overall Status
 
-**Gates complete: 5 of 6**
+**Gates complete: 6 of 6** — Ready to merge to main.
 
 - Gate 1 (BA Spec) — approved 30Jun2026
 - Gate 2 (Product Owner) — approved with binding OQ decisions 30Jun2026
 - Gate 3 (Architecture) — approved 30Jun2026
-- Gate 4 (Test) — pending
+- Gate 4 (Test) — approved 30Jun2026
 - Gate 5 (Security) — approved 30Jun2026
-- Gate 6 (Release & Documentation) — pending
+- Gate 6 (Release & Documentation) — approved 30Jun2026
+
+**Status:** Ready to merge to main — pending user approval for production deployment.

@@ -267,6 +267,10 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             <div style={{ fontWeight: 700, color: C.muted, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Execution Checklist</div>
             <P>Step-by-step instructions for placing the trade in your broker, including limit price, GTC closing order, price alerts, and the 21-DTE close reminder. Click <strong>Copy Checklist</strong> to paste it into your notes. The checklist shows the correct broker approval level required: Level 2 for defined-risk strategies (spreads, covered calls) and Level 3 or higher for undefined-risk strategies (naked options). Risk labels appear as plain text (DEFINED-RISK / UNDEFINED-RISK) for clarity.</P>
           </div>
+          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontWeight: 700, color: C.green, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Net Order Price (Multi-Leg Strategies)</div>
+            <P>For strategies with two or more option legs (Iron Condor, Bull Call Spread, Butterfly, etc.), a <strong>Net Order Price box</strong> appears below the "How to place this trade" panel. This box shows the exact signed net price you key into your broker as a single combo order — no mental arithmetic required. Real brokers require multi-leg trades to be placed at one net price, not leg-by-leg. The box displays: the large signed number (debit = negative, credit = positive), the per-spread total in dollars, a Debit/Credit tag with directional hint, and the broker-toggle alternative (DR/CR format) for brokers using a separate toggle instead of signs. A direction guide tells you which way improves your fill (less-negative for debits, more-positive for credits). On desktop, the formula shows the per-leg arithmetic; on mobile, it condenses to just the result. Single-leg strategies (Short Naked Put, Covered Call, etc.) do not show this box.</P>
+          </div>
         </div>
 
         <Note color={C.blue}>
