@@ -92,11 +92,11 @@ _Approved by:_ product-owner &nbsp;&nbsp; _Date:_ 30Jun2026
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated** | |
-| **Manual plan** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated** | `frontend/e2e/pages/net-order-price-box.spec.ts` (35 tests) — 35 passed / 0 failed (Chromium). 3 pre-existing failures in `strategy-comparison-matrix.spec.ts` (auth-wall, confirmed baseline) are unrelated. |
+| **Manual plan** | 58-case exploratory plan, 11 areas + fragility findings (tester) |
+| **Approved by** | qa-engineer (automated), tester (manual) |
+| **Date** | 30Jun2026 |
+| **Notes** | Box verified for ≥2-leg strategies and absent for single-leg; signed net / formula / DR-CR / direction guide / per-spread total / amber zero-mid caution all covered. Mobile condensed formula covered. Tester fragility findings actioned in a polish pass (spec re-run 35/35 green after): (1) direction guide now states the explicit number to key — `Key −3.49 — the negative number (a debit)` / `Key +1.85 — the positive number (a credit)` — directly serving the user's "what do I type" need; (2) zero/cancelling signedNet now renders `0.00` instead of a contradictory `+0.00` with a Debit tag; (3) per-spread total uses thousands separators (`$4,000`); (4) zero-mid guard hardened with `!Number.isFinite` (security non-blocking rec). Tester's F-03 "double space in formula" was investigated and REFUTED — `["$1.85","+ $1.45"].join(' ')` yields single spaces. Known/accepted: calendar-spread single-expiry label (pre-existing, out of scope); resize listener has no debounce (negligible). |
 
 ---
 

@@ -277,7 +277,7 @@ interface NetOrderPriceBoxProps {
 }
 
 function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: NetOrderPriceBoxProps) {
-  const hasMissingMid = displayLegs.some(leg => leg.mid == null || leg.mid <= 0)
+  const hasMissingMid = displayLegs.some(leg => leg.mid == null || !Number.isFinite(leg.mid) || leg.mid <= 0)
 
   const signedNet: number = displayLegs.reduce(
     (sum, leg) => sum + (leg.action === 'sell' ? 1 : -1) * leg.mid * leg.qty,
@@ -330,7 +330,9 @@ function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: Net
 
   const signedResult = signedNet < 0
     ? `−${Math.abs(signedNet).toFixed(2)}`
-    : `+${signedNet.toFixed(2)}`
+    : signedNet > 0
+      ? `+${signedNet.toFixed(2)}`
+      : '0.00'
 
   // Build formula terms
   const terms = displayLegs.map((leg, i) => {
@@ -389,7 +391,7 @@ function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: Net
       <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>
         per spread ·{' '}
         <span style={{ color: totalColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-          {totalSign}${totalAbs}
+          {totalSign}${totalAbs.toLocaleString('en-US')}
         </span>
         {' '}total
       </div>
@@ -409,7 +411,7 @@ function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: Net
       }}>
         {boxIsCredit ? (
           <>
-            Key the positive number. Better fill = more positive (collect more). Worse fill = less positive.
+            Key <span style={{ color: numColor, fontWeight: 700 }}>{signedResult}</span> — the positive number (a credit). More-positive = better (collect more); less-positive = worse.
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
               <span style={{ fontSize: '10px', color: C.green }}>better</span>
               <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${C.green}, #4b5563, ${C.red})`, position: 'relative' }}>
@@ -420,7 +422,7 @@ function NetOrderPriceBox({ displayLegs, estimatedCreditOrDebit, isMobile }: Net
           </>
         ) : (
           <>
-            Pay as little as possible — key it as close to 0 as you can get filled; less-negative = better (pay less, lower max loss).
+            Key <span style={{ color: numColor, fontWeight: 700 }}>{signedResult}</span> — the negative number (a debit). Less-negative = better (pay less, lower max loss); more-negative = worse.
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
               <span style={{ fontSize: '10px', color: C.green }}>better</span>
               <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, ${C.green}, #4b5563, ${C.red})`, position: 'relative' }}>

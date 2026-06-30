@@ -897,3 +897,391 @@ export const MOCK_ADMIN_FAQ = {
     },
   ],
 }
+
+// ─── Net Order Price Box mock data (scanner-net-order-price-30Jun2026) ────────
+
+/**
+ * A complete TradeStructure for the QQQ Put Broken Wing Butterfly.
+ * Legs: BUY 1×739 put @28.26, SELL 2×704 put @14.80, BUY 1×645 put @4.83.
+ * signedNet = −28.26 + (2 × 14.80) − 4.83 = −3.49 (debit)
+ * totalDollars = −349
+ * estimated_credit_or_debit = −3.49 (matches leg-mid computation exactly)
+ */
+export const MOCK_TRADE_DEBIT_MULTILEG = {
+  strategy: 'Put Broken Wing Butterfly',
+  strategy_key: 'put_bwb',
+  expiry: '2026-08-15',
+  legs: [
+    { role: 'Long Put 1', option_type: 'put', strike: 739, delta: -0.45, gamma: 0.02, theta: -0.12, vega: 0.30, bid: 27.90, ask: 28.62, mid: 28.26, action: 'buy' },
+    { role: 'Short Put 1', option_type: 'put', strike: 704, delta: -0.28, gamma: 0.03, theta: -0.08, vega: 0.22, bid: 14.50, ask: 15.10, mid: 14.80, action: 'sell' },
+    { role: 'Short Put 2', option_type: 'put', strike: 704, delta: -0.28, gamma: 0.03, theta: -0.08, vega: 0.22, bid: 14.50, ask: 15.10, mid: 14.80, action: 'sell' },
+    { role: 'Long Put 2', option_type: 'put', strike: 645, delta: -0.12, gamma: 0.01, theta: -0.04, vega: 0.10, bid: 4.60, ask: 5.06, mid: 4.83, action: 'buy' },
+  ],
+  max_profit: 31.51,
+  max_loss: 3.49,
+  estimated_credit_or_debit: -3.49,
+  pop_estimate: 72,
+  breakeven_low: 700.51,
+  breakeven_high: null,
+  tastylive_profit_target: null,
+  risk_type: 'DEFINED',
+  profit_target_pct: 50,
+}
+
+/**
+ * A complete TradeStructure for an Iron Condor.
+ * Legs: SELL 115P @1.85, BUY 110P @0.63, SELL 125C @1.45, BUY 130C @0.52.
+ * signedNet = 1.85 − 0.63 + 1.45 − 0.52 = +2.15 (credit)
+ * totalDollars = +215
+ * estimated_credit_or_debit = 2.15
+ */
+export const MOCK_TRADE_CREDIT_MULTILEG = {
+  strategy: 'Iron Condor',
+  strategy_key: 'iron_condor',
+  expiry: '2026-08-15',
+  legs: [
+    { role: 'Short Put', option_type: 'put', strike: 115, delta: -0.18, gamma: 0.02, theta: 0.09, vega: -0.18, bid: 1.80, ask: 1.90, mid: 1.85, action: 'sell' },
+    { role: 'Long Put', option_type: 'put', strike: 110, delta: -0.10, gamma: 0.01, theta: 0.04, vega: -0.10, bid: 0.58, ask: 0.68, mid: 0.63, action: 'buy' },
+    { role: 'Short Call', option_type: 'call', strike: 125, delta: 0.17, gamma: 0.02, theta: 0.08, vega: -0.16, bid: 1.40, ask: 1.50, mid: 1.45, action: 'sell' },
+    { role: 'Long Call', option_type: 'call', strike: 130, delta: 0.10, gamma: 0.01, theta: 0.04, vega: -0.09, bid: 0.47, ask: 0.57, mid: 0.52, action: 'buy' },
+  ],
+  max_profit: 2.15,
+  max_loss: 2.85,
+  estimated_credit_or_debit: 2.15,
+  pop_estimate: 65,
+  breakeven_low: 112.85,
+  breakeven_high: 127.15,
+  tastylive_profit_target: 1.08,
+  risk_type: 'DEFINED',
+  profit_target_pct: 50,
+}
+
+/**
+ * A complete TradeStructure for a Short Naked Put (single-leg after stock filtering).
+ * displayLegs.length === 1 after stock-leg filter — NetOrderPriceBox must NOT render.
+ */
+export const MOCK_TRADE_SINGLE_LEG = {
+  strategy: 'Short Naked Put',
+  strategy_key: 'short_naked_put',
+  expiry: '2026-08-15',
+  legs: [
+    { role: 'Short Put', option_type: 'put', strike: 180, delta: -0.30, gamma: 0.02, theta: 0.08, vega: -0.18, bid: 2.90, ask: 3.10, mid: 3.00, action: 'sell' },
+  ],
+  max_profit: 3.00,
+  max_loss: null,
+  estimated_credit_or_debit: 3.00,
+  pop_estimate: 70,
+  breakeven_low: 177.00,
+  breakeven_high: null,
+  tastylive_profit_target: null,
+  risk_type: 'UNDEFINED',
+  profit_target_pct: 50,
+}
+
+/**
+ * A complete TradeStructure for a Bull Call Spread where one leg has mid === 0.
+ * This triggers the amber caution path in NetOrderPriceBox.
+ * BUY 150C @3.20, SELL 155C mid=0 (zero-mid condition).
+ */
+export const MOCK_TRADE_ZERO_MID = {
+  strategy: 'Bull Call Spread',
+  strategy_key: 'bull_call_spread',
+  expiry: '2026-08-15',
+  legs: [
+    { role: 'Long Call', option_type: 'call', strike: 150, delta: 0.48, gamma: 0.03, theta: -0.10, vega: 0.25, bid: 3.10, ask: 3.30, mid: 3.20, action: 'buy' },
+    { role: 'Short Call', option_type: 'call', strike: 155, delta: 0.25, gamma: 0.02, theta: -0.06, vega: 0.15, bid: 0, ask: 0, mid: 0, action: 'sell' },
+  ],
+  max_profit: null,
+  max_loss: 3.20,
+  estimated_credit_or_debit: -3.20,
+  pop_estimate: 48,
+  breakeven_low: 153.20,
+  breakeven_high: null,
+  tastylive_profit_target: null,
+  risk_type: 'DEFINED',
+  profit_target_pct: 50,
+}
+
+/**
+ * A Bull Call Spread with valid mids (no zero-mid condition).
+ * BUY 150C @3.20, SELL 155C @1.05.
+ * signedNet = −3.20 + 1.05 = −2.15 (debit)
+ * Used to verify full box content for a clean 2-leg debit spread.
+ */
+export const MOCK_TRADE_BULL_CALL_SPREAD = {
+  strategy: 'Bull Call Spread',
+  strategy_key: 'bull_call_spread',
+  expiry: '2026-08-15',
+  legs: [
+    { role: 'Long Call', option_type: 'call', strike: 150, delta: 0.48, gamma: 0.03, theta: -0.10, vega: 0.25, bid: 3.10, ask: 3.30, mid: 3.20, action: 'buy' },
+    { role: 'Short Call', option_type: 'call', strike: 155, delta: 0.25, gamma: 0.02, theta: -0.06, vega: 0.15, bid: 0.98, ask: 1.12, mid: 1.05, action: 'sell' },
+  ],
+  max_profit: 2.85,
+  max_loss: 2.15,
+  estimated_credit_or_debit: -2.15,
+  pop_estimate: 52,
+  breakeven_low: 152.15,
+  breakeven_high: null,
+  tastylive_profit_target: null,
+  risk_type: 'DEFINED',
+  profit_target_pct: 50,
+}
+
+// ─── Analyze responses that include full trade structures ──────────────────
+
+/** StrategyRecommendation base shape (shared fields) */
+const baseRec = {
+  description: 'Mock strategy for NetOrderPriceBox tests.',
+  direction: ['BULLISH'] as string[],
+  iv_environment: ['MEDIUM'] as string[],
+  risk_type: 'DEFINED',
+  complexity: 2,
+  dte_target: 45,
+  pop_range: [50, 65] as [number, number],
+  profit_target_pct: 50,
+}
+
+/**
+ * Analyze response with a debit 4-leg strategy (QQQ Put BWB) in the BULLISH category.
+ * signedNet = −3.49 (debit): BUY 1×739 @28.26, SELL 2×704 @14.80, BUY 1×645 @4.83
+ * The body SELL legs are deduplicated by TradeInstructions into qty:2.
+ */
+export const MOCK_ANALYZE_WITH_DEBIT_TRADE = {
+  symbol: 'QQQ',
+  iv_analysis: {
+    symbol: 'QQQ',
+    current_iv: 0.28,
+    iv_rank: 42,
+    iv_source: 'option_chain' as const,
+    hv_30d: 0.22,
+    hv_52wk_high: 0.45,
+    hv_52wk_low: 0.18,
+    iv_environment: 'MEDIUM',
+    percentile_label: 'IVR 42 — Medium IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'QQQ',
+    price: 720.0,
+    sma20: 710.0,
+    sma50: 695.0,
+    rsi14: 58.0,
+    bias: 'BULLISH',
+    strength: 'MODERATE',
+    error: null,
+  },
+  detected_bias: 'BULLISH',
+  recommendations_by_category: {
+    BULLISH: [
+      {
+        ...baseRec,
+        key: 'put_bwb',
+        name: 'Put Broken Wing Butterfly',
+        trade: MOCK_TRADE_DEBIT_MULTILEG,
+      },
+    ],
+    BEARISH: [],
+    NEUTRAL: [],
+    NEUTRAL_BULLISH: [],
+    NEUTRAL_BEARISH: [],
+    OMNIDIRECTIONAL: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+  news_sentiment: null,
+}
+
+/**
+ * Analyze response with a credit 4-leg Iron Condor in the NEUTRAL category.
+ * signedNet = +2.15 (credit)
+ */
+export const MOCK_ANALYZE_WITH_CREDIT_TRADE = {
+  symbol: 'SPY',
+  iv_analysis: {
+    symbol: 'SPY',
+    current_iv: 0.38,
+    iv_rank: 72,
+    iv_source: 'option_chain' as const,
+    hv_30d: 0.28,
+    hv_52wk_high: 0.52,
+    hv_52wk_low: 0.18,
+    iv_environment: 'HIGH',
+    percentile_label: 'IVR 72 — High IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'SPY',
+    price: 550.0,
+    sma20: 545.0,
+    sma50: 535.0,
+    rsi14: 52.0,
+    bias: 'NEUTRAL',
+    strength: 'MODERATE',
+    error: null,
+  },
+  detected_bias: 'NEUTRAL',
+  recommendations_by_category: {
+    BULLISH: [],
+    BEARISH: [],
+    NEUTRAL: [
+      {
+        ...baseRec,
+        key: 'iron_condor',
+        name: 'Iron Condor',
+        direction: ['NEUTRAL'],
+        trade: MOCK_TRADE_CREDIT_MULTILEG,
+      },
+    ],
+    NEUTRAL_BULLISH: [],
+    NEUTRAL_BEARISH: [],
+    OMNIDIRECTIONAL: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+  news_sentiment: null,
+}
+
+/**
+ * Analyze response with a single-leg Short Naked Put.
+ * displayLegs.length === 1 after stock-leg filter → NetOrderPriceBox must NOT render.
+ */
+export const MOCK_ANALYZE_WITH_SINGLE_LEG_TRADE = {
+  symbol: 'AAPL',
+  iv_analysis: {
+    symbol: 'AAPL',
+    current_iv: 0.28,
+    iv_rank: 42,
+    iv_source: 'option_chain' as const,
+    hv_30d: 0.22,
+    hv_52wk_high: 0.45,
+    hv_52wk_low: 0.18,
+    iv_environment: 'MEDIUM',
+    percentile_label: 'IVR 42 — Medium IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'AAPL',
+    price: 185.5,
+    sma20: 182.3,
+    sma50: 178.6,
+    rsi14: 58.4,
+    bias: 'NEUTRAL_BULLISH',
+    strength: 'MODERATE',
+    error: null,
+  },
+  detected_bias: 'NEUTRAL_BULLISH',
+  recommendations_by_category: {
+    BULLISH: [],
+    BEARISH: [],
+    NEUTRAL: [],
+    NEUTRAL_BULLISH: [
+      {
+        ...baseRec,
+        key: 'short_naked_put',
+        name: 'Short Naked Put',
+        direction: ['NEUTRAL_BULLISH'],
+        trade: MOCK_TRADE_SINGLE_LEG,
+      },
+    ],
+    NEUTRAL_BEARISH: [],
+    OMNIDIRECTIONAL: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+  news_sentiment: null,
+}
+
+/**
+ * Analyze response with a Bull Call Spread where the short leg has mid === 0.
+ * NetOrderPriceBox must render with amber caution text, no formula or signed number.
+ */
+export const MOCK_ANALYZE_WITH_ZERO_MID_TRADE = {
+  symbol: 'TSLA',
+  iv_analysis: {
+    symbol: 'TSLA',
+    current_iv: 0.65,
+    iv_rank: 85,
+    iv_source: 'option_chain' as const,
+    hv_30d: 0.55,
+    hv_52wk_high: 0.90,
+    hv_52wk_low: 0.35,
+    iv_environment: 'HIGH',
+    percentile_label: 'IVR 85 — High IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'TSLA',
+    price: 280.0,
+    sma20: 270.0,
+    sma50: 260.0,
+    rsi14: 62.0,
+    bias: 'BULLISH',
+    strength: 'STRONG',
+    error: null,
+  },
+  detected_bias: 'BULLISH',
+  recommendations_by_category: {
+    BULLISH: [
+      {
+        ...baseRec,
+        key: 'bull_call_spread',
+        name: 'Bull Call Spread',
+        direction: ['BULLISH'],
+        trade: MOCK_TRADE_ZERO_MID,
+      },
+    ],
+    BEARISH: [],
+    NEUTRAL: [],
+    NEUTRAL_BULLISH: [],
+    NEUTRAL_BEARISH: [],
+    OMNIDIRECTIONAL: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+  news_sentiment: null,
+}
+
+/**
+ * Analyze response with a clean 2-leg Bull Call Spread (no zero mids).
+ * signedNet = −2.15 (debit): BUY 150C @3.20, SELL 155C @1.05
+ */
+export const MOCK_ANALYZE_WITH_BULL_CALL_SPREAD = {
+  symbol: 'NVDA',
+  iv_analysis: {
+    symbol: 'NVDA',
+    current_iv: 0.35,
+    iv_rank: 55,
+    iv_source: 'option_chain' as const,
+    hv_30d: 0.30,
+    hv_52wk_high: 0.60,
+    hv_52wk_low: 0.22,
+    iv_environment: 'MEDIUM',
+    percentile_label: 'IVR 55 — Medium IV',
+    error: null,
+  },
+  bias_analysis: {
+    symbol: 'NVDA',
+    price: 900.0,
+    sma20: 880.0,
+    sma50: 850.0,
+    rsi14: 60.0,
+    bias: 'BULLISH',
+    strength: 'MODERATE',
+    error: null,
+  },
+  detected_bias: 'BULLISH',
+  recommendations_by_category: {
+    BULLISH: [
+      {
+        ...baseRec,
+        key: 'bull_call_spread',
+        name: 'Bull Call Spread',
+        direction: ['BULLISH'],
+        trade: MOCK_TRADE_BULL_CALL_SPREAD,
+      },
+    ],
+    BEARISH: [],
+    NEUTRAL: [],
+    NEUTRAL_BULLISH: [],
+    NEUTRAL_BEARISH: [],
+    OMNIDIRECTIONAL: [],
+  },
+  comparison_matrix: MOCK_COMPARISON_MATRIX,
+  news_sentiment: null,
+}
