@@ -86,7 +86,7 @@ GET /api/strategies/analyze/{symbol}
           │      31-strategy catalog grouped by direction category:
           │        Bullish, Bearish, Neutral/Income, Omnidirectional
           │      Fit score: IV match (40%) + direction match (40%) + DTE bonus (20%)
-          │      Top 3 per direction category returned
+          │      All applicable strategies per direction category returned (sorted by complexity)
           │
           ├─ 6. Strike Selection (strategy_engine.py)
           │      Matches target deltas to live chain contracts
