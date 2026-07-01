@@ -5,7 +5,7 @@ A paper-trading options dashboard with AI-driven strategy recommendations.
 ## What it does
 
 - **Options chain viewer** — live calls/puts table with greeks (delta, gamma, theta, vega), bid/ask, IV, and volume
-- **AI strategy scanner** — analyses IV environment + directional bias and recommends the best-fit options strategy from a catalog of 31 strategies
+- **AI strategy scanner** — analyses IV environment + directional bias, compares all applicable strategies from a catalog of 31, and ranks by fit score; includes a Net Order Price box for multi-leg trades that shows the exact signed combo-order price to key into your broker
 - **Plain-English narratives** — every recommendation comes with a 7-section breakdown: market snapshot, IV context, why this strategy, exact trade structure, profit/loss scenarios, and an execution checklist
 - **Paper trading** — place and track paper trades linked to strategy recommendations; P&L updates in real time
 - **Risk monitor** — Master-Detail split-view (desktop) or accordion (mobile) showing all open strategy groups; per-leg risk cards with strike, entry price, cost/collected, P&L, and IV; group-based risk badges reflecting net strategy P&L; action plans for defense or adjustment; sortable by entry date, risk level, or P&L
