@@ -14,6 +14,15 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Verify DATABASE_URL secret is configured
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::secrets.SUPABASE_DB_URL is not set for this repository. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
       - name: Purge user_action_log rows older than 30 days
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
