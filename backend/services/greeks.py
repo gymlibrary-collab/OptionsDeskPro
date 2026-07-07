@@ -53,11 +53,11 @@ def calculate_greeks(S: float, K: float, T: float, r: float, sigma: float, optio
             rho = -K * T * math.exp(-r * T) * Nd2_neg / 100
 
         return {
-            "delta": round(delta, 4),
-            "gamma": round(gamma, 4),
-            "theta": round(theta, 4),
-            "vega": round(vega, 4),
-            "rho": round(rho, 4),
+            "delta": round(delta, 4) + 0.0,
+            "gamma": round(gamma, 4) + 0.0,
+            "theta": round(theta, 4) + 0.0,
+            "vega": round(vega, 4) + 0.0,
+            "rho": round(rho, 4) + 0.0,
         }
     except Exception:
         return {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
