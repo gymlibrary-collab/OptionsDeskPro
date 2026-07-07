@@ -111,7 +111,7 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
 
     # Treat any value that rounds to $0.00 as missing — catches tiny yfinance
     # fractional quotes (e.g. 0.001) that are not meaningful displayed prices.
-    if round(bid, 2) <= 0 and round(ask, 2) <= 0:
+    if round(bid, 2) <= 0 or round(ask, 2) <= 0:
         estimated = True
         if T <= 0:
             # 0-DTE: yfinance bid/ask are absent; lastPrice can be stale in the
