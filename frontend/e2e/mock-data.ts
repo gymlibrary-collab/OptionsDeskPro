@@ -1002,6 +1002,69 @@ export const MOCK_TRADE_ZERO_MID = {
   profit_target_pct: 50,
 }
 
+// ─── Position Lifecycle & Risk Monitor mock data (position-lifecycle-riskmonitor-18Jul2026) ──────
+
+/**
+ * Three closed positions representing all three settlement_source values.
+ *
+ * Row 0 — INTC Long Call Vertical Spread, settled via live market price.
+ *          realised_pnl = +100.00 (green), source = 'market' → "Market" badge.
+ * Row 1 — MSFT Short Put, settled via intrinsic (ITM at expiry using yfinance historical close).
+ *          realised_pnl = -160.00 (red), source = 'intrinsic' → "Intrinsic" badge.
+ * Row 2 — QQQ Long Call, expired worthless (OTM).
+ *          realised_pnl = -450.00 (red), source = 'worthless' → "Expired Worthless" badge.
+ */
+export const MOCK_CLOSED_POSITIONS = [
+  {
+    symbol: 'INTC',
+    strategy_name: 'Long Call Vertical Spread',
+    expiry: '2026-06-20',
+    strike: 30.0,
+    option_type: 'call',
+    settlement_price: 1.25,
+    entry_avg_cost: 0.75,
+    quantity: 2,
+    entry_action: 'buy',
+    realised_pnl: 100.00,
+    realised_pnl_pct: 66.67,
+    settlement_source: 'market',
+    closed_at: '2026-06-20T16:30:00Z',
+    is_auto_settled: true,
+  },
+  {
+    symbol: 'MSFT',
+    strategy_name: 'Short Put',
+    expiry: '2026-06-15',
+    strike: 410.0,
+    option_type: 'put',
+    settlement_price: 0.50,
+    entry_avg_cost: 2.10,
+    quantity: 1,
+    entry_action: 'buy',
+    realised_pnl: -160.00,
+    realised_pnl_pct: -76.19,
+    settlement_source: 'intrinsic',
+    closed_at: '2026-06-15T16:30:00Z',
+    is_auto_settled: true,
+  },
+  {
+    symbol: 'QQQ',
+    strategy_name: 'Long Call',
+    expiry: '2026-06-07',
+    strike: 460.0,
+    option_type: 'call',
+    settlement_price: 0.00,
+    entry_avg_cost: 1.50,
+    quantity: 3,
+    entry_action: 'buy',
+    realised_pnl: -450.00,
+    realised_pnl_pct: -100.00,
+    settlement_source: 'worthless',
+    closed_at: '2026-06-07T16:30:00Z',
+    is_auto_settled: true,
+  },
+]
+
 /**
  * A Bull Call Spread with valid mids (no zero-mid condition).
  * BUY 150C @3.20, SELL 155C @1.05.
