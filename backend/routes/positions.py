@@ -2,16 +2,16 @@ import asyncio
 import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel
-from services.auth_utils import verify_token, get_user_id
+from services.auth_utils import verify_token, get_user_id, get_user_email
 from services.db import get_supabase
 from services.legal_service import legal_gate_dep
 from services import user_portfolio
-from services.db import get_supabase
+from services import settlement
 from services.iv_analysis import get_iv_rank, get_directional_bias
 from services.strategy_engine import STRATEGIES
 
@@ -21,12 +21,16 @@ router = APIRouter(dependencies=[Depends(legal_gate_dep)])
 @router.get("/positions")
 async def list_positions(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    user_email = get_user_email(payload)
+    await settlement.auto_settle_expired(user_id, user_email)
     return await user_portfolio.get_positions(user_id)
 
 
 @router.get("/portfolio")
 async def get_portfolio(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    user_email = get_user_email(payload)
+    await settlement.auto_settle_expired(user_id, user_email)
     return await user_portfolio.get_summary(user_id)
 
 
@@ -225,9 +229,95 @@ def _assess_risk(pos, iv_data, bias_data) -> dict:
     }
 
 
+@router.get("/positions/closed")
+async def get_closed_positions(payload: dict = Depends(verify_token)):
+    """
+    Return the last 90 days of closed trades for the authenticated user.
+
+    Includes:
+      - auto-settled orders (status = 'auto_settled')
+      - manual close orders (leg_role = 'close', added from migration 025 onward)
+
+    Legacy close orders (pre-migration 025, leg_role IS NULL) are excluded
+    because they lack settlement_metadata and cannot produce meaningful P&L rows.
+    """
+    user_id = get_user_id(payload)
+    sb = get_supabase()
+    cutoff_iso = (date.today() - timedelta(days=90)).isoformat()
+
+    try:
+        result = (
+            sb.table("orders")
+            .select("*")
+            .eq("user_id", user_id)
+            .or_("status.eq.auto_settled,leg_role.eq.close")
+            .gte("created_at", cutoff_iso)
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+        rows = result.data or []
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch closed positions: {exc}")
+
+    closed = []
+    for row in rows:
+        meta = row.get("settlement_metadata") or {}
+        is_auto = row.get("status") == "auto_settled"
+
+        settlement_price = float(row.get("price") or 0.0)
+        raw_avg_cost = meta.get("entry_avg_cost")
+        entry_avg_cost = float(raw_avg_cost) if raw_avg_cost is not None else None
+        entry_action = meta.get("entry_action") or row.get("action")
+        quantity = abs(int(row.get("quantity") or 0))
+        source = meta.get("source")
+
+        # Realised P&L
+        realised_pnl = None
+        if is_auto:
+            raw_pnl = meta.get("realised_pnl")
+            realised_pnl = float(raw_pnl) if raw_pnl is not None else None
+        elif entry_avg_cost is not None and entry_action:
+            # Compute for manual close orders
+            if entry_action == "buy":
+                # Long position closed: pnl = (close_price - entry) × qty × 100
+                realised_pnl = round((settlement_price - entry_avg_cost) * quantity * 100, 2)
+            else:
+                # Short position closed: pnl = (entry - close_price) × qty × 100
+                realised_pnl = round((entry_avg_cost - settlement_price) * quantity * 100, 2)
+
+        # Realised P&L %
+        realised_pnl_pct = None
+        if realised_pnl is not None and entry_avg_cost and entry_avg_cost > 0 and quantity > 0:
+            cost_basis = entry_avg_cost * quantity * 100
+            if cost_basis != 0:
+                realised_pnl_pct = round(realised_pnl / abs(cost_basis) * 100, 2)
+
+        closed.append({
+            "symbol": row.get("symbol"),
+            "strategy_name": row.get("strategy_name"),
+            "expiry": row.get("expiry"),
+            "strike": float(row.get("strike") or 0.0),
+            "option_type": row.get("option_type"),
+            "settlement_price": settlement_price,
+            "entry_avg_cost": entry_avg_cost,
+            "quantity": quantity,
+            "entry_action": entry_action,
+            "realised_pnl": realised_pnl,
+            "realised_pnl_pct": realised_pnl_pct,
+            "settlement_source": source,
+            "closed_at": row.get("created_at"),
+            "is_auto_settled": is_auto,
+        })
+
+    return closed
+
+
 @router.get("/positions/risk")
 async def get_positions_risk(payload: dict = Depends(verify_token)):
     user_id = get_user_id(payload)
+    user_email = get_user_email(payload)
+    await settlement.auto_settle_expired(user_id, user_email)
     positions = await user_portfolio.get_positions(user_id)
     if not positions:
         return []
