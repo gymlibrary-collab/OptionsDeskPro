@@ -173,6 +173,26 @@ export const updatePositionAvgCost = (req: {
 }): Promise<{ ok: boolean }> =>
   api.patch('/positions/avg-cost', req).then(r => r.data)
 
+export interface ClosedPosition {
+  symbol: string
+  strategy_name: string | null
+  expiry: string
+  strike: number
+  option_type: string
+  settlement_price: number
+  entry_avg_cost: number | null
+  quantity: number
+  entry_action: string
+  realised_pnl: number | null
+  realised_pnl_pct: number | null
+  settlement_source: 'market' | 'intrinsic' | 'worthless' | null
+  closed_at: string
+  is_auto_settled: boolean
+}
+
+export const getClosedPositions = (): Promise<ClosedPosition[]> =>
+  api.get<ClosedPosition[]>('/positions/closed', { timeout: 30000 }).then(r => r.data)
+
 // ─── Strategy Intelligence ──────────────────────────────────────────────────────
 
 export type GreekSign = 'long' | 'short' | 'flat' | 'dynamic'
