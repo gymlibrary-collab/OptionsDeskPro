@@ -22,11 +22,11 @@
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-07-18 |
+| **Notes** | Approved with two amendments for Gate 3: (1) allow $0.00 closing price on close legs — remove the $0.01 floor for closes only, opens keep the floor; (2) late-sweep settlement of past-expiry legs must fetch the underlying's official close on the expiry date from yfinance daily history and compute intrinsic from that (not the current spot). |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
