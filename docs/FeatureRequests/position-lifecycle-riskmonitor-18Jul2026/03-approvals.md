@@ -34,13 +34,13 @@
 
 | | |
 |---|---|
-| **Branch / PR** | |
-| **Approved by** | |
-| **Date** | |
-| **Key files changed** | |
-| **Notes** | |
+| **Branch / PR** | `claude/modest-davinci-sxz7lv` (commits f14375a frontend, 6cb44bd backend) |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-07-18 |
+| **Key files changed** | `backend/migrations/025_position_lifecycle.sql`, `backend/services/settlement.py`, `backend/routes/positions.py`, `backend/services/user_portfolio.py`, `backend/tests/test_settlement.py`, `frontend/src/api/client.ts`, `frontend/src/components/Positions.tsx`, `frontend/src/components/RiskMonitor.tsx` |
+| **Notes** | Verified independently: backend suite 520 passing (31 new settlement tests), frontend build clean, role-field API seam confirmed end-to-end. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
