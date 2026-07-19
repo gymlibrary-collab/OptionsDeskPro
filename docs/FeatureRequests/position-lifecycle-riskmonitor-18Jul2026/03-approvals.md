@@ -81,9 +81,9 @@
 |---|---|
 | **Document** | `06-release-note.md` |
 | **Deployed to** | Railway |
-| **Deployment date** | |
-| **User Guide updated** | Yes / No / N/A |
-| **Approved by** | |
-| **Date** | |
+| **Deployment date** | 2026-07-19 (merge 47949a7 to main; Railway auto-deploy) |
+| **User Guide updated** | Yes |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-07-19 |
 
-☐ Released
+☑ Released — migration 025 applied to Supabase project `ocdyimweieclwtvnfnwi` and verified (columns + constraint) before merge. Post-deploy smoke test pending: verify an expired position auto-settles into Closed Positions.
