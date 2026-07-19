@@ -64,14 +64,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | PASS / CONDITIONAL PASS / FAIL |
-| **Critical findings** | |
-| **High findings** | |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Overall decision** | PASS WITH RECOMMENDATIONS |
+| **Critical findings** | 0 |
+| **High findings** | 0 |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-07-19 |
+| **Notes** | 1 Medium (M01 event-loop blocking) fixed pre-approval via asyncio.to_thread + 10-per-request settle cap. Low items deferred: close-price cap (L01), explicit column list (L04). |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
