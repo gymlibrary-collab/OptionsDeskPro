@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse, updatePositionAvgCost } from '../api/client'
+import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse, updatePositionAvgCost, getClosedPositions, ClosedPosition } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
 import { useWindowSize } from '../hooks/useWindowSize'
 
@@ -115,15 +115,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
               <span style={{ fontSize: '18px', flexShrink: 0 }}>{icon}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: border, marginBottom: '4px' }}>{headline}</div>
-                <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6, marginBottom: '10px' }}>{detail}</div>
-                <div style={{ background: `${border}11`, border: `1px solid ${border}33`, borderRadius: '6px', padding: '10px 12px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: border, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
-                  <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.8 }}>
-                    <li>Find the row in the table and click the <strong>Close</strong> button on the right.</li>
-                    <li>Review the confirmation: symbol <strong>{a.pos.symbol}</strong> · strike <strong>${fmt(a.pos.strike)}</strong> · action <strong>{a.pos.quantity > 0 ? 'SELL' : 'BUY'}</strong> · qty <strong>{Math.abs(a.pos.quantity)}</strong>.</li>
-                    <li>Click <strong>Confirm Close</strong>. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
-                  </ol>
-                </div>
+                <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6 }}>{detail}</div>
               </div>
             </div>
           </div>
@@ -608,19 +600,22 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [closingPos, setClosingPos] = useState<Position | null>(null)
   const [closeQty, setCloseQty] = useState<number>(1)
+  const [closePrice, setClosePrice] = useState<number>(0)
+  const [closePriceError, setClosePriceError] = useState<string | null>(null)
   const [closeLoading, setCloseLoading] = useState(false)
   const [closeFeedback, setCloseFeedback] = useState<{ success: boolean; msg: string } | null>(null)
   const [stockPrices, setStockPrices] = useState<Record<string, Quote>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const [editSaving, setEditSaving] = useState(false)
+  const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
 
   const greeksCoachingEnabled = entitlements?.features?.greeks_coaching ?? false
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.allSettled([getPositions(), getPortfolio()])
-      .then(([posResult, sumResult]) => {
+    Promise.allSettled([getPositions(), getPortfolio(), getClosedPositions()])
+      .then(([posResult, sumResult, closedResult]) => {
         if (posResult.status === 'fulfilled') {
           setPositions(posResult.value)
           const symbols = [...new Set(posResult.value.map((p: Position) => p.symbol))]
@@ -632,6 +627,7 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
             })
         }
         if (sumResult.status === 'fulfilled') setSummary(sumResult.value)
+        setClosedPositions(closedResult.status === 'fulfilled' ? closedResult.value : [])
         setLastRefresh(new Date())
       })
       .finally(() => setLoading(false))
@@ -647,8 +643,17 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
     return () => clearInterval(id)
   }, [load])
 
+  // Sync closePrice to the current mark whenever the position being closed changes.
+  useEffect(() => {
+    if (closingPos) {
+      setClosePrice(closingPos.current_price)
+      setClosePriceError(null)
+    }
+  }, [closingPos])
+
   const handleConfirmClose = useCallback(async () => {
     if (!closingPos) return
+    if (closePriceError !== null) return
     const maxQty = Math.abs(closingPos.quantity)
     const qty = Math.min(Math.max(1, closeQty), maxQty)
     const isPartial = qty < maxQty
@@ -668,7 +673,7 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
           strike: closingPos.strike,
           action: closeAction,
           quantity: qty,
-          price: closingPos.current_price,
+          price: closePrice,
         }],
       })
       const label = isPartial
@@ -677,12 +682,13 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
       setCloseFeedback({ success: true, msg: label })
       setClosingPos(null)
       load()
-    } catch (e: any) {
-      setCloseFeedback({ success: false, msg: e?.response?.data?.detail || e?.message || 'Close failed' })
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      setCloseFeedback({ success: false, msg: err?.response?.data?.detail || err?.message || 'Close failed' })
     } finally {
       setCloseLoading(false)
     }
-  }, [closingPos, closeQty, load])
+  }, [closingPos, closeQty, closePrice, closePriceError, load])
 
   const handleSaveAvgCost = useCallback(async (pos: Position) => {
     const parsed = parseFloat(editValue)
@@ -789,13 +795,42 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: C.muted }}>Close price (current)</span>
-                <strong style={{ color: C.text }}>${fmt(closingPos.current_price)}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: C.muted }}>Closing price (per contract)</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={closePrice}
+                    onChange={e => {
+                      const raw = e.target.value
+                      const parsed = raw === '' ? 0 : parseFloat(raw)
+                      const val = isNaN(parsed) ? 0 : parsed
+                      setClosePrice(val)
+                      setClosePriceError(val < 0 ? 'Price must be ≥ 0' : null)
+                    }}
+                    style={{
+                      width: '90px',
+                      background: '#1a1d27',
+                      border: `1px solid ${closePriceError ? C.red : C.accent}`,
+                      borderRadius: '4px',
+                      color: C.text,
+                      fontSize: '13px',
+                      padding: '3px 7px',
+                      outline: 'none',
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  />
+                  {closePriceError && (
+                    <span style={{ fontSize: '10px', color: C.red }}>{closePriceError}</span>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: C.muted }}>Est. proceeds / cost</span>
-                <strong style={{ color: C.text }}>${fmt(closingPos.current_price * closeQty * 100)}</strong>
+                <strong style={{ color: C.text }}>${fmt(closePrice * closeQty * 100)}</strong>
               </div>
             </div>
             {closeFeedback && !closeFeedback.success && (
@@ -808,8 +843,8 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
                 style={{ flex: 1, padding: '11px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.surface2, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button onClick={handleConfirmClose} disabled={closeLoading}
-                style={{ flex: 2, padding: '11px', borderRadius: '8px', border: 'none', background: C.red, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', opacity: closeLoading ? 0.6 : 1 }}>
+              <button onClick={handleConfirmClose} disabled={closeLoading || closePriceError !== null}
+                style={{ flex: 2, padding: '11px', borderRadius: '8px', border: 'none', background: C.red, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: (closeLoading || closePriceError !== null) ? 'default' : 'pointer', opacity: (closeLoading || closePriceError !== null) ? 0.6 : 1 }}>
                 {closeLoading ? 'Closing…' : 'Confirm Close'}
               </button>
             </div>
@@ -1065,48 +1100,145 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
         </div>
       )}
 
-      <HowToClose />
+      {!loading && (
+        <ClosedPositionsAccordion positions={closedPositions} />
+      )}
+
     </div>
   )
 }
 
-function HowToClose() {
+function ClosedPositionsAccordion({ positions }: { positions: ClosedPosition[] }) {
+  const { isMobile } = useWindowSize()
   const [open, setOpen] = useState(false)
+
+  function sourceBadge(pos: ClosedPosition) {
+    if (!pos.is_auto_settled || pos.settlement_source == null) return null
+    const configs: Record<string, { label: string; color: string; bg: string; border: string }> = {
+      market:    { label: 'Market',          color: C.blue,  bg: '#0d1a2d', border: `${C.blue}44` },
+      intrinsic: { label: 'Intrinsic',       color: C.amber, bg: '#2d1f0a', border: `${C.amber}44` },
+      worthless: { label: 'Expired Worthless', color: C.muted, bg: C.surface2, border: C.border },
+    }
+    const cfg = configs[pos.settlement_source]
+    if (!cfg) return null
+    return (
+      <span style={{
+        display: 'inline-block', padding: '2px 7px', borderRadius: '4px', fontSize: '10px',
+        fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+        whiteSpace: 'nowrap' as const,
+      }}>
+        {cfg.label}
+      </span>
+    )
+  }
+
+  const thStyle: React.CSSProperties = {
+    padding: '7px 10px', textAlign: 'right' as const, color: C.muted, fontWeight: 600,
+    fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '0.06em',
+    borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' as const, background: C.surface,
+  }
+  const thLeftStyle: React.CSSProperties = { ...thStyle, textAlign: 'left' as const }
+  const tdStyle: React.CSSProperties = {
+    padding: '7px 10px', textAlign: 'right' as const, color: C.text,
+    borderBottom: `1px solid ${C.border}22`, whiteSpace: 'nowrap' as const, fontSize: '12px',
+  }
+  const tdLeftStyle: React.CSSProperties = { ...tdStyle, textAlign: 'left' as const }
+
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
       >
-        <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>📋 How to close a position — step by step</span>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>
+          Closed Positions ({positions.length})
+        </span>
         <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
       </button>
-      {open && (
-        <div style={{ background: '#0f1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div>
-            </div>
-            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div>
-            </div>
-            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div>
-            </div>
-          </div>
-          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Steps to close any position</div>
-            <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 2 }}>
-              <li>Find the row in the table and click the red <strong>Close</strong> button on the far right.</li>
-              <li>Review the confirmation dialog: symbol, strike, type, and the offsetting action (BUY or SELL).</li>
-              <li>Click <strong>Confirm Close</strong>. The position disappears immediately from the table.</li>
-            </ol>
+
+      {open && positions.length === 0 && (
+        <div style={{ background: C.surface2, padding: '24px', textAlign: 'center' as const, color: C.muted, fontSize: '13px' }}>
+          No closed trades in the last 90 days. Positions you close — or that expire and auto-settle — will appear here with their final outcome.
+        </div>
+      )}
+
+      {open && positions.length > 0 && (
+        <div style={{ background: C.surface2, overflowX: 'auto' as const }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: '12px', fontVariantNumeric: 'tabular-nums', minWidth: isMobile ? '600px' : undefined }}>
+            <thead>
+              <tr>
+                <th style={thLeftStyle}>Symbol</th>
+                <th style={thLeftStyle}>Strategy</th>
+                <th style={thStyle}>Expiry</th>
+                <th style={thStyle}>Settlement $</th>
+                <th style={thStyle}>Entry $</th>
+                <th style={thStyle}>P&L $</th>
+                <th style={thStyle}>P&L %</th>
+                <th style={thStyle}>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((pos, i) => {
+                const pnlColor = pos.realised_pnl == null
+                  ? C.muted
+                  : pos.realised_pnl >= 0 ? C.green : C.red
+                const pnlPctColor = pos.realised_pnl_pct == null
+                  ? C.muted
+                  : pos.realised_pnl_pct >= 0 ? C.green : C.red
+                const closedDate = pos.closed_at
+                  ? new Date(pos.closed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+                  : '—'
+                return (
+                  <tr key={i}>
+                    <td style={{ ...tdLeftStyle, fontWeight: 700, color: C.accent }}>
+                      {pos.symbol}
+                    </td>
+                    <td style={tdLeftStyle}>
+                      {pos.strategy_name
+                        ? <span style={{ fontSize: '11px', background: `${C.accent}18`, color: C.accent, border: `1px solid ${C.accent}33`, borderRadius: '4px', padding: '2px 7px', fontWeight: 600 }}>{pos.strategy_name}</span>
+                        : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>
+                      }
+                    </td>
+                    <td style={tdStyle}>{fmtDate(pos.expiry)}</td>
+                    <td style={tdStyle}>${fmt(pos.settlement_price)}</td>
+                    <td style={tdStyle}>
+                      {pos.entry_avg_cost != null ? `$${fmt(pos.entry_avg_cost)}` : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, color: pnlColor, fontWeight: 600 }}>
+                      {pos.realised_pnl == null
+                        ? '—'
+                        : `${pos.realised_pnl >= 0 ? '+' : ''}$${fmt(Math.abs(pos.realised_pnl))}`
+                      }
+                    </td>
+                    <td style={{ ...tdStyle, color: pnlPctColor, fontWeight: 700 }}>
+                      {pos.realised_pnl_pct == null
+                        ? '—'
+                        : `${pos.realised_pnl_pct >= 0 ? '+' : ''}${fmt(Math.abs(pos.realised_pnl_pct))}%`
+                      }
+                    </td>
+                    <td style={{ ...tdStyle, paddingRight: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '5px' }}>
+                        {sourceBadge(pos)}
+                        {!pos.is_auto_settled && (
+                          <span style={{ fontSize: '10px', color: C.muted }}>{closedDate}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div style={{ padding: '8px 14px', fontSize: '10px', color: C.muted, textAlign: 'right' as const }}>
+            Last 90 days · {positions.length} record{positions.length !== 1 ? 's' : ''}
           </div>
         </div>
       )}
     </div>
   )
 }
+

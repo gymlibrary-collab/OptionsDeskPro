@@ -53,11 +53,11 @@ def calculate_greeks(S: float, K: float, T: float, r: float, sigma: float, optio
             rho = -K * T * math.exp(-r * T) * Nd2_neg / 100
 
         return {
-            "delta": round(delta, 4),
-            "gamma": round(gamma, 4),
-            "theta": round(theta, 4),
-            "vega": round(vega, 4),
-            "rho": round(rho, 4),
+            "delta": round(delta, 4) + 0.0,
+            "gamma": round(gamma, 4) + 0.0,
+            "theta": round(theta, 4) + 0.0,
+            "vega": round(vega, 4) + 0.0,
+            "rho": round(rho, 4) + 0.0,
         }
     except Exception:
         return {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0}
@@ -91,14 +91,16 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     "estimated" when a Black-Scholes or lastPrice fallback was applied.
 
     1. Missing quote — yfinance returns 0/NaN bid/ask for illiquid or 0-DTE contracts.
-       Fallback strategy depends on time-to-expiry:
-       - 0-DTE ITM: use lastPrice (it closely tracks intrinsic; stale lastPrice is
-         still directionally correct for ITM options).
-       - 0-DTE OTM: use Black-Scholes with current S (lastPrice is stale from when
-         the option had different moneyness as the stock moved during the day).
-       - Non-0-DTE: try lastPrice, then Black-Scholes.
+       Estimated from lastPrice when its time value is plausible against the
+       Black-Scholes theoretical price, otherwise from Black-Scholes directly.
+       (0-DTE OTM always uses Black-Scholes: lastPrice is stale from when the
+       option had different moneyness as the stock moved during the day.)
     2. Stale quote below intrinsic — deep-ITM contracts that barely trade can
        carry a bid/ask below intrinsic value. We clamp to the intrinsic floor.
+    3. Stale quote above the no-arbitrage ceiling — a call is never worth more
+       than the stock, a put never more than its strike. Illiquid deep-ITM
+       strikes routinely carry prints from when the stock traded higher; a bid
+       at/above the ceiling is treated as broken and re-estimated.
 
     Real, sane quotes are left untouched.
     """
@@ -107,56 +109,53 @@ def fill_quote(contract: dict, S: float, T: float, option_type: str, r: float = 
     ask = float(contract.get("ask", 0.0) or 0.0)
     is_call = option_type.lower() == "call"
     intrinsic = max(0.0, (S - K) if is_call else (K - S))
+    # No-arbitrage ceiling: C <= S, P <= K.
+    ceiling = S if is_call else K
     estimated = False
 
     # Treat any value that rounds to $0.00 as missing — catches tiny yfinance
     # fractional quotes (e.g. 0.001) that are not meaningful displayed prices.
-    if round(bid, 2) <= 0 and round(ask, 2) <= 0:
+    # A bid at/above the no-arbitrage ceiling is equally unusable — a stale
+    # print, not a real market.
+    if round(bid, 2) <= 0 or round(ask, 2) <= 0 or (ceiling > 0 and bid >= ceiling):
         estimated = True
+        last = float(contract.get("lastPrice", 0.0) or 0.0)
+        sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
         if T <= 0:
-            # 0-DTE: yfinance bid/ask are absent; lastPrice can be stale in the
-            # wrong direction when the stock moved and flipped a contract's moneyness.
-            # Split on whether the contract is currently ITM or OTM:
-            # - ITM: lastPrice was from a trade that also saw intrinsic value, so it's
-            #   a reasonable proxy; floor it at intrinsic.
-            # - OTM: lastPrice was set when the contract might have been ITM (stock
-            #   moved against it); BS with current S gives a better estimate.
-            last = float(contract.get("lastPrice", 0.0) or 0.0)
-            if intrinsic > 0.01 and round(last, 2) > 0:
-                mid = max(last, intrinsic)
-                bid = round(mid * 0.975, 2)
-                ask = round(mid * 1.025, 2)
-            else:
-                sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
-                # yfinance returns near-zero IV for 0-DTE (BS inversion unstable as
-                # T→0). Any annualised equity IV below ~20% is unreliably small here.
-                if sigma < 0.20 or sigma > 5.0:
-                    sigma = 0.3
-                theo = black_scholes_price(S, K, 1.0 / 365.0, r, sigma, option_type)
-                bid = round(theo * 0.975, 2)
-                ask = round(theo * 1.025, 2)
+            # yfinance returns near-zero IV for 0-DTE (BS inversion unstable as
+            # T→0). Any annualised equity IV below ~20% is unreliably small here.
+            if sigma < 0.20 or sigma > 5.0:
+                sigma = 0.3
+            theo = black_scholes_price(S, K, 1.0 / 365.0, r, sigma, option_type)
         else:
-            # Non-0-DTE: lastPrice is generally fresh enough relative to S changes.
-            last = float(contract.get("lastPrice", 0.0) or 0.0)
-            if round(last, 2) > 0:
-                mid = max(last, intrinsic)
-                bid = round(mid * 0.975, 2)
-                ask = round(mid * 1.025, 2)
-            else:
-                sigma = float(contract.get("impliedVolatility", 0.0) or 0.0)
-                # Minimum meaningful equity annualised IV is ~5%.
-                if sigma < 0.05 or sigma > 5.0:
-                    sigma = 0.3
-                T_bs = max(T, 1.0 / 365.0)
-                theo = black_scholes_price(S, K, T_bs, r, sigma, option_type)
-                bid = round(theo * 0.975, 2)
-                ask = round(theo * 1.025, 2)
+            # Minimum meaningful equity annualised IV is ~5%.
+            if sigma < 0.05 or sigma > 5.0:
+                sigma = 0.3
+            theo = black_scholes_price(S, K, max(T, 1.0 / 365.0), r, sigma, option_type)
+        # Trust lastPrice only when its time value is in the same regime as the
+        # model's. A relative-price check can't catch stale deep-ITM prints
+        # (e.g. a $10-strike call marked $404 with the stock at $394 is only 5%
+        # off in price but carries $20 of phantom time value vs ~$0.35 fair),
+        # so compare extrinsic value instead.
+        last_ok = round(last, 2) > 0 and (last - intrinsic) <= 3.0 * (theo - intrinsic) + 0.50
+        if T <= 0 and intrinsic <= 0.01:
+            # 0-DTE OTM: lastPrice was set when the contract might have been ITM
+            # (stock moved against it); BS with current S gives a better estimate.
+            last_ok = False
+        mid = max(last, intrinsic) if last_ok else max(theo, intrinsic)
+        bid = round(mid * 0.975, 2)
+        ask = round(mid * 1.025, 2)
 
     # No-arbitrage floor: an option is worth at least its intrinsic value.
     if intrinsic > 0:
         if bid < intrinsic:
             bid = round(intrinsic, 2)
             estimated = True
+    # No-arbitrage ceiling on whatever survived: clamp rather than re-estimate
+    # (only the ask can still exceed it here; broken bids were caught above).
+    if ceiling > 0 and ask > ceiling:
+        ask = round(ceiling, 2)
+        estimated = True
     # Correct inverted spreads on all contracts (including OTM where intrinsic=0).
     if ask < bid:
         ask = bid

@@ -521,8 +521,9 @@ function LegCard({ pos }: { pos: PositionRisk }) {
         fontSize: '12px',
         borderTop: `1px solid ${C.border}`,
         paddingTop: '8px',
+        flexWrap: 'wrap' as const,
       }}>
-        <span>
+        <span style={{ whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
           <span style={{ color: C.muted }}>ENTRY→NOW </span>
           <span style={{ color: C.text }}>${fmt(pos.avg_cost)}</span>
           <span style={{ color: C.muted }}> → </span>
@@ -766,15 +767,23 @@ function DateRail({ dateStr }: { dateStr: string }) {
 
 // ── RiskListRow ───────────────────────────────────────────────────────────────
 
-function RiskListRow({ group, isSelected, onClick, isLast, showDateChip }: {
+function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPrices }: {
   group: StrategyGroup
   isSelected: boolean
   onClick: () => void
   isLast?: boolean
   showDateChip?: boolean
+  stockPrices: Record<string, number>
 }) {
   const nearestDte = Math.min(...group.positions.map(p => p.dte))
   const borderColor = riskColor(group.groupLevel)
+
+  // FR-4: ticker chip logic — only shown when the label is not already the ticker
+  const ticker = group.positions[0]?.symbol
+  const showTicker = ticker && group.label !== ticker
+
+  // FR-2: spot price
+  const spotPrice = ticker ? stockPrices[ticker] : undefined
 
   // S3 — selected rows lift off the list with an accent glow ring + shadow
   const selectedStyle: React.CSSProperties = isSelected
@@ -804,18 +813,27 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip }: {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
-        <span style={{
-          fontSize: '12px',
-          fontWeight: 700,
-          color: isSelected ? '#ffffff' : C.text,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap' as const,
-          flex: 1,
-          minWidth: 0,
-        }}>
-          {group.label}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+          <span style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            color: isSelected ? '#ffffff' : C.text,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap' as const,
+          }}>
+            {group.label}
+          </span>
+          {showTicker && (
+            <span style={{
+              fontSize: '10px', fontWeight: 700, color: C.accent,
+              background: `${C.accent}18`, border: `1px solid ${C.accent}33`,
+              borderRadius: '4px', padding: '1px 5px', flexShrink: 0,
+            }}>
+              {ticker}
+            </span>
+          )}
+        </div>
         <span style={{
           fontSize: '10px',
           fontWeight: 700,
@@ -834,6 +852,11 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip }: {
         <span style={{ fontSize: '11px', color: C.muted }}>
           {nearestDte}d
         </span>
+        {spotPrice != null && (
+          <span style={{ fontSize: '10px', color: C.muted }}>
+            {ticker} ${fmt(spotPrice)}
+          </span>
+        )}
         <span style={{
           fontSize: '11px',
           fontWeight: 700,
@@ -916,7 +939,7 @@ function ActionPlanBox({ group, stockPrices }: { group: StrategyGroup; stockPric
 
 // ── RightPanelHeader ──────────────────────────────────────────────────────────
 
-function RightPanelHeader({ group }: { group: StrategyGroup }) {
+function RightPanelHeader({ group, stockPrices }: { group: StrategyGroup; stockPrices: Record<string, number> }) {
   const nearestExpiry = [...group.positions].sort((a, b) => a.expiry.localeCompare(b.expiry))[0]?.expiry
   const firstIvRank = group.positions.find(p => p.iv_rank != null)?.iv_rank
   const legCount = group.positions.length
@@ -927,10 +950,26 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
 
   const name = group.label
 
+  // FR-4: ticker chip — only when label is not already the ticker symbol
+  const ticker = group.positions[0]?.symbol
+  const showTicker = ticker && group.label !== ticker
+
+  // FR-2: spot price
+  const spotPrice = ticker ? stockPrices[ticker] : undefined
+
   return (
     <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, background: C.surface2 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const, marginBottom: '6px' }}>
         <span style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>{name}</span>
+        {showTicker && (
+          <span style={{
+            fontSize: '10px', fontWeight: 700, color: C.accent,
+            background: `${C.accent}18`, border: `1px solid ${C.accent}33`,
+            borderRadius: '4px', padding: '1px 5px', flexShrink: 0,
+          }}>
+            {ticker}
+          </span>
+        )}
         <span style={{
           fontSize: '10px',
           fontWeight: 700,
@@ -960,6 +999,11 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
         {legCount} leg{legCount !== 1 ? 's' : ''}
         {nearestExpiry && <> · Expiry {fmtDate(nearestExpiry)}</>}
         {firstIvRank != null && <> · IV Rank {fmt(firstIvRank, 0)}</>}
+        {spotPrice != null && (
+          <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>
+            · {ticker} ${fmt(spotPrice)}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -978,7 +1022,7 @@ function RightPanelDetail({ group, stockPrices }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <RightPanelHeader group={group} />
+      <RightPanelHeader group={group} stockPrices={stockPrices} />
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
         <div style={{
@@ -1175,6 +1219,7 @@ export default function RiskMonitor() {
                         isSelected={group.key === selectedGroupKey}
                         onClick={() => setSelectedGroupKey(group.key)}
                         isLast={gi === block.items.length - 1}
+                        stockPrices={stockPrices}
                       />
                     ))}
                   </div>
@@ -1189,6 +1234,7 @@ export default function RiskMonitor() {
                   onClick={() => setSelectedGroupKey(group.key)}
                   isLast={gi === sortedGroups.length - 1}
                   showDateChip
+                  stockPrices={stockPrices}
                 />
               ))
             )}
@@ -1239,6 +1285,7 @@ export default function RiskMonitor() {
                         isSelected={isExpanded}
                         onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
                         isLast={gi === block.items.length - 1 && !isExpanded}
+                        stockPrices={stockPrices}
                       />
                       {isExpanded && (
                         <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
@@ -1265,6 +1312,7 @@ export default function RiskMonitor() {
                   onClick={() => setMobileExpandedKey(isExpanded ? null : group.key)}
                   isLast={gi === sortedGroups.length - 1 && !isExpanded}
                   showDateChip
+                  stockPrices={stockPrices}
                 />
                 {isExpanded && (
                   <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>

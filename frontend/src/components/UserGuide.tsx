@@ -341,7 +341,8 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Left Panel — Position List</div>
           <P>Each row in the left panel represents one strategy group. Compact rows show:</P>
           <Sub>
-            <Term term="Strategy Name">The strategy name (e.g. "Bull Call Spread", "Iron Condor") or the symbol for manually entered positions.</Term>
+            <Term term="Strategy Name + Ticker">The strategy name (e.g. "Bull Call Spread", "Iron Condor") or the symbol for manually entered positions, accompanied by the underlying ticker symbol (e.g. "Bull Call Spread · INTC"). The ticker is displayed as a small visual chip for instant identification without opening the detail panel.</Term>
+            <Term term="Underlying Spot Price">The current stock price of the underlying, displayed next to or below the strategy name (e.g. "$456.78"). Use this to gauge where the underlying is trading relative to your strike.</Term>
             <Term term="Risk Badge">Colour-coded indicator (red / yellow / green) reflecting the <strong>entire group's net P&L</strong>, not the worst single leg. A net-profitable multi-leg strategy never shows red, even if one leg is underwater — it shows green if all legs are healthy, yellow if any leg is stressed. A net-losing group shows red only when the combined loss hits a trigger (≥50% cost basis, ≥100% cost basis, or soonest leg ≤7 DTE).</Term>
             <Term term="DTE">Days to expiration — the nearest expiry in the group.</Term>
             <Term term="P&amp;L">Combined profit or loss across all legs in the group.</Term>
@@ -357,10 +358,10 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <div style={{ fontWeight: 700, color: C.blue, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Right Panel — Full Detail (Desktop) or Inline Expansion (Mobile)</div>
           <P>Click any row to view full detail. The panel displays:</P>
           <Sub>
-            <Term term="Header">Strategy name + group risk badge (red/yellow/green) + combined P&L (green if profitable, red if losing) + entry date banner reading "Trade entered DD Mon YYYY — N days ago".</Term>
+            <Term term="Header">Strategy name + underlying ticker chip (e.g. "Bull Call Spread · INTC") + underlying spot price (e.g. "$456.78") + group risk badge (red/yellow/green) + combined P&L (green if profitable, red if losing) + entry date banner reading "Trade entered DD Mon YYYY — N days ago". The ticker and spot price let you immediately see the underlying's position without scrolling.</Term>
             <Term term="Subheader">Leg count (e.g. "3 legs"), nearest expiry date, and first-leg IV Rank (if available). All on a second line for reference.</Term>
             <Term term="Trade Narrative">Expandable section (collapsed by default) showing the original scanner analysis if the position was created via the scanner. Click to expand and read the profit/loss scenarios and defensive tactic.</Term>
-            <Term term="Leg Cards">One card per position leg in a responsive grid: 1 column on mobile, 2 on tablet, 3+ on desktop. Each card displays: symbol, BUY/SELL and CALL/PUT badges, ×N quantity chip, strike and DTE (e.g. "$490 · 18d left"), three metric tiles (Qty · IV Rank · Cost/Collected), entry→current prices, P&L (green if profitable, red if losing), and a progress bar. SELL legs show "Collected" (premium received); BUY legs show "Cost" (premium paid). IV Rank tile is omitted when unavailable. Card top border is coloured by that leg's individual risk level (red/yellow/green) for per-leg scanning. The card height ensures four legs of an Iron Condor are visible at once on desktop without scrolling.</Term>
+            <Term term="Leg Cards">One card per position leg in a responsive grid: 1 column on mobile, 2 on tablet, 3+ on desktop. Each card displays: symbol, BUY/SELL and CALL/PUT badges, ×N quantity chip, strike and DTE (e.g. "$490 · 18d left"), three metric tiles (Qty · IV Rank · Cost/Collected), entry→current prices (stays on one line at all viewport widths for readability), P&L (green if profitable, red if losing), and a progress bar. SELL legs show "Collected" (premium received); BUY legs show "Cost" (premium paid). IV Rank tile is omitted when unavailable. Card top border is coloured by that leg's individual risk level (red/yellow/green) for per-leg scanning. The card height ensures four legs of an Iron Condor are visible at once on desktop without scrolling.</Term>
             <Term term="Action Plan">Always visible, never collapsed. For losing trades, shows Financial Reality (what you paid/collected vs current cost), Paths Forward (A/B/C options for defense or adjustment), Summary Box (one-sentence call to action), and close instructions (step-by-step to exit). For profitable trades, shows strategy context narrative explaining that the group is working as designed and to monitor for net P&L crossing zero.</Term>
           </Sub>
           <Note color={C.amber}>
@@ -406,6 +407,26 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
           <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Risk Monitor Card</div>
           <P>Each position displays key data as dark pill-shaped boxes in this order: <strong>Days Left · Qty · Entry · Current · Cost · Value · P&amp;L · IV Rank · Bias</strong>. Days Left shows a "d" suffix (e.g. "37d") and turns amber when 21 days or fewer remain, then red when 7 days or fewer. P&amp;L boxes have a subtle green or red border to indicate profit or loss. A progress bar below the pills shows how close you are to expiry.</P>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Closed Positions Section</div>
+          <P>Below the Open Positions table, a collapsible "Closed Positions" section shows the last 90 days of settled trades. When you open the Positions tab, any expired contracts (where the expiry date is in the past) automatically settle at a calculated price and move to this section. The section is collapsed by default and appears only when there are closed trades to show.</P>
+          <Sub>
+            <Term term="Settlement Source Badge">Each closed position displays a small badge indicating how the settlement price was determined: <Label color={C.blue}>Market</Label> (system found a recent last-traded price), <Label color={C.accent}>Intrinsic</Label> (calculated from the underlying stock's official close on the expiry date), or <Label color={C.muted}>Expired Worthless</Label> (contract expired out-of-the-money with no price data available).</Term>
+            <Term term="Realised P&L">Shows the profit or loss on the closed trade ($) and as a percentage (%). Green for profit, red for loss. Cash is automatically adjusted when settlement occurs.</Term>
+          </Sub>
+          <Note color={C.blue}>
+            Only trades settled after this feature was deployed appear here. Closed orders from before the release remain in the Orders tab.
+          </Note>
+        </div>
+
+        <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
+          <div style={{ fontWeight: 700, color: C.accent, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Manually Close a Position</div>
+          <P>Click the <strong>Close</strong> button on any open position. A confirmation modal appears with an editable <strong>"Closing price (per contract)"</strong> field pre-filled with the current mark price. Edit it to any non-negative value (including $0.00) to record the price you actually got, then click <strong>Confirm Close</strong>. The "Est. proceeds / cost" estimate updates as you type so you can see the exact cash impact before confirming.</P>
+          <Note>
+            The editable close price lets you record the actual fill you simulated, not just the app's mark. Use this when the price you entered differs from the current mid-price.
+          </Note>
         </div>
 
         <Note color={C.amber}>

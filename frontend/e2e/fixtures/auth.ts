@@ -51,6 +51,17 @@ async function bypassAuth(
       body: JSON.stringify(entitlements),
     })
   })
+
+  // Default mock for GET /api/positions/closed — prevents real network calls in all tests.
+  // Tests that need closed-position data register their own route AFTER bypassAuth();
+  // Playwright's LIFO ordering means the test-level route is matched first.
+  await page.route(`${API_GLOB}positions/closed`, (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    })
+  })
 }
 
 // Fixture types

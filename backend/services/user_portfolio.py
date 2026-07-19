@@ -326,12 +326,64 @@ async def take_pnl_snapshot(user_id: str):
 
 
 def record_trade(user_id: str, req) -> dict:
-    """Record each leg of a multi-leg strategy trade as individual orders and update positions."""
+    """Record each leg of a multi-leg strategy trade as individual orders and update positions.
+
+    Changes from migration 025:
+    - leg_role is read from leg.role and stored on every new order row.
+    - For close legs (leg.role == 'close') a pre-close position lookup captures
+      avg_cost / entry_action for settlement_metadata (source=None for manual).
+    - Price floor: close legs allow $0.00 (Gate 2 Amendment 1); open legs keep
+      the existing $0.01 floor so zero/negative prices are never stored on entries.
+    """
     sb = get_supabase()
     ensure_portfolio(user_id)
     recorded = 0
     for leg in req.legs:
-        price = float(leg.price) if leg.price > 0 else 0.01
+        leg_role = getattr(leg, "role", None)
+
+        # ── Price floor (Gate 2 Amendment 1) ─────────────────────────────────
+        # Close legs: allow $0.00 (e.g. worthless expiry close).
+        # Open / unspecified legs: floor at $0.01 to prevent zero-cost entries.
+        if leg_role == "close":
+            price = max(float(leg.price), 0.0)
+        else:
+            price = float(leg.price) if leg.price > 0 else 0.01
+
+        # ── Capture settlement_metadata for manual close legs ─────────────────
+        # Must happen BEFORE _update_position() which may delete the position row.
+        settlement_metadata = None
+        if leg_role == "close":
+            try:
+                pos_query = (
+                    sb.table("positions")
+                    .select("avg_cost, entry_action, strategy_key")
+                    .eq("user_id", user_id)
+                    .eq("symbol", req.symbol.upper())
+                    .eq("expiry", req.expiry)
+                    .eq("strike", leg.strike)
+                    .eq("option_type", leg.option_type.lower())
+                    .execute()
+                )
+                if pos_query.data:
+                    req_group = _strategy_group(req.strategy_key)
+                    matched = [
+                        p for p in pos_query.data
+                        if _strategy_group(p.get("strategy_key")) == req_group
+                    ]
+                    if matched:
+                        p = matched[0]
+                        settlement_metadata = {
+                            "source": None,
+                            "entry_avg_cost": float(p.get("avg_cost") or 0),
+                            "entry_action": p.get("entry_action"),
+                        }
+            except Exception as exc:
+                # Non-fatal: order is still recorded; P&L will be null for this leg.
+                import logging as _logging
+                _logging.getLogger(__name__).debug(
+                    "record_trade: settlement_metadata lookup failed: %s", exc
+                )
+
         total_cost = price * leg.quantity * 100
         cash_result = sb.table("portfolios").select("cash").eq("user_id", user_id).single().execute()
         cash = float(cash_result.data["cash"])
@@ -371,6 +423,8 @@ def record_trade(user_id: str, req) -> dict:
             "strategy_name": req.strategy_name,
             "profit_target_pct": req.profit_target_pct,
             "narrative_json": req.narrative_json if (recorded == 0 and req.narrative_json) else None,
+            "leg_role": leg_role,
+            "settlement_metadata": settlement_metadata,
         }).execute()
         recorded += 1
     return {"recorded": recorded, "strategy": req.strategy_name}
