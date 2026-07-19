@@ -262,15 +262,18 @@ test.describe('Suite 1 — Closed Positions accordion (AC1)', () => {
     await expect(authedPage.getByText('Expired Worthless', { exact: true })).toBeVisible()
   })
 
-  test('AC1-5 — accordion hidden when positions/closed returns empty array', async ({ authedPage }) => {
+  test('AC1-5 — accordion shows empty state when positions/closed returns empty array', async ({ authedPage }) => {
     // Override with empty — LIFO means this route wins over the beforeEach override above
     await authedPage.route(`${API}positions/closed`, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }))
     await navigateToPositions(authedPage)
     await expect(authedPage.getByRole('cell', { name: 'AAPL' })).toBeVisible({ timeout: 10000 })
-    // Give the component time to finish loading
-    await authedPage.waitForTimeout(500)
-    await expect(authedPage.getByRole('button', { name: /Closed Positions/i })).not.toBeVisible()
+    // The section is always visible (permanent home for past trades) with a zero count…
+    const accordionButton = authedPage.getByRole('button', { name: /Closed Positions \(0\)/i })
+    await expect(accordionButton).toBeVisible()
+    // …and expanding it shows the empty-state message instead of a table
+    await accordionButton.click()
+    await expect(authedPage.getByText(/No closed trades in the last 90 days/i)).toBeVisible()
   })
 })
 

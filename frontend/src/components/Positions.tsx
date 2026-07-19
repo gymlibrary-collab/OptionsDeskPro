@@ -115,15 +115,7 @@ function AlertBanner({ alerts }: { alerts: Alert[] }) {
               <span style={{ fontSize: '18px', flexShrink: 0 }}>{icon}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: border, marginBottom: '4px' }}>{headline}</div>
-                <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6, marginBottom: '10px' }}>{detail}</div>
-                <div style={{ background: `${border}11`, border: `1px solid ${border}33`, borderRadius: '6px', padding: '10px 12px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: border, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
-                  <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.8 }}>
-                    <li>Find the row in the table and click the <strong>Close</strong> button on the right.</li>
-                    <li>Review the confirmation: symbol <strong>{a.pos.symbol}</strong> · strike <strong>${fmt(a.pos.strike)}</strong> · action <strong>{a.pos.quantity > 0 ? 'SELL' : 'BUY'}</strong> · qty <strong>{Math.abs(a.pos.quantity)}</strong>.</li>
-                    <li>Click <strong>Confirm Close</strong>. Hit <strong>↻ Refresh</strong> above to confirm it's gone.</li>
-                  </ol>
-                </div>
+                <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6 }}>{detail}</div>
               </div>
             </div>
           </div>
@@ -1108,11 +1100,10 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
         </div>
       )}
 
-      {!loading && closedPositions.length > 0 && (
+      {!loading && (
         <ClosedPositionsAccordion positions={closedPositions} />
       )}
 
-      <HowToClose />
     </div>
   )
 }
@@ -1169,7 +1160,13 @@ function ClosedPositionsAccordion({ positions }: { positions: ClosedPosition[] }
         <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
       </button>
 
-      {open && (
+      {open && positions.length === 0 && (
+        <div style={{ background: C.surface2, padding: '24px', textAlign: 'center' as const, color: C.muted, fontSize: '13px' }}>
+          No closed trades in the last 90 days. Positions you close — or that expire and auto-settle — will appear here with their final outcome.
+        </div>
+      )}
+
+      {open && positions.length > 0 && (
         <div style={{ background: C.surface2, overflowX: 'auto' as const }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: '12px', fontVariantNumeric: 'tabular-nums', minWidth: isMobile ? '600px' : undefined }}>
             <thead>
@@ -1245,43 +1242,3 @@ function ClosedPositionsAccordion({ positions }: { positions: ClosedPosition[] }
   )
 }
 
-function HowToClose() {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: C.surface, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-      >
-        <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>📋 How to close a position — step by step</span>
-        <span style={{ color: C.muted, fontSize: '16px' }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ background: '#0f1117', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ background: '#0f2d1a', border: `1px solid ${C.green}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>✅ Take profit when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The <strong>Target</strong> column shows "✅ Close Now" — P&L has hit the strategy's recommended exit level.</div>
-            </div>
-            <div style={{ background: '#2d0f0f', border: `1px solid ${C.red}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>🛑 Cut loss when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>The Target shows "🛑 Stop Loss" — loss has hit the stop level (50% for longs, 2× credit for shorts).</div>
-            </div>
-            <div style={{ background: '#2d1f0a', border: `1px solid ${C.amber}44`, borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>⏰ Time rule when…</div>
-              <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.65 }}>DTE column turns amber (21 days) or red (7 days). Close regardless of P&L — decay accelerates.</div>
-            </div>
-          </div>
-          <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Steps to close any position</div>
-            <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 2 }}>
-              <li>Find the row in the table and click the red <strong>Close</strong> button on the far right.</li>
-              <li>Review the confirmation dialog: symbol, strike, type, and the offsetting action (BUY or SELL).</li>
-              <li>Click <strong>Confirm Close</strong>. The position disappears immediately from the table.</li>
-            </ol>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
