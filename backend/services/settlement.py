@@ -173,9 +173,20 @@ def _get_settlement_price(pos: dict) -> tuple[float, str]:
 
 # ── Auto-settle pass ─────────────────────────────────────────────────────────
 
+# Bound on positions settled in a single request.  Keeps worst-case added
+# latency ~1-2 min even if every yfinance call times out; any remainder is
+# picked up by the next read of positions/portfolio/risk (security review M01).
+_MAX_SETTLE_PER_REQUEST = 10
+
+
 async def auto_settle_expired(user_id: str, user_email: str = "") -> None:
     """
-    Idempotently settle all expired positions for user_id.
+    Idempotently settle expired positions for user_id (capped per request).
+
+    Runs the whole pass in a worker thread via asyncio.to_thread — the
+    settlement price lookups block on yfinance (up to 5 s per tier) and the
+    Supabase client is synchronous, so running inline would stall the event
+    loop for every other user (security review M01).
 
     Concurrency safety: positions are claimed via atomic DELETE WHERE id = ?.
     If two concurrent requests race on the same position row, exactly one
@@ -185,6 +196,12 @@ async def auto_settle_expired(user_id: str, user_email: str = "") -> None:
     Called at the start of GET /api/positions, GET /api/portfolio, and
     GET /api/positions/risk before any existing logic runs.
     """
+    import asyncio
+
+    await asyncio.to_thread(_settle_expired_sync, user_id, user_email)
+
+
+def _settle_expired_sync(user_id: str, user_email: str = "") -> None:
     from services.db import get_supabase  # never at module level (CLAUDE.md)
 
     sb = get_supabase()
@@ -207,10 +224,18 @@ async def auto_settle_expired(user_id: str, user_email: str = "") -> None:
     if not expired_positions:
         return
 
-    logger.info(
-        "auto_settle_expired: found %d expired position(s) for user %s",
-        len(expired_positions), user_id,
-    )
+    if len(expired_positions) > _MAX_SETTLE_PER_REQUEST:
+        logger.info(
+            "auto_settle_expired: %d expired position(s) for user %s — settling "
+            "first %d this request",
+            len(expired_positions), user_id, _MAX_SETTLE_PER_REQUEST,
+        )
+        expired_positions = expired_positions[:_MAX_SETTLE_PER_REQUEST]
+    else:
+        logger.info(
+            "auto_settle_expired: found %d expired position(s) for user %s",
+            len(expired_positions), user_id,
+        )
 
     for pos in expired_positions:
         pos_id = pos.get("id")
