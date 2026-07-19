@@ -778,11 +778,7 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
   const nearestDte = Math.min(...group.positions.map(p => p.dte))
   const borderColor = riskColor(group.groupLevel)
 
-  // FR-4: ticker chip logic — only shown when the label is not already the ticker
   const ticker = group.positions[0]?.symbol
-  const showTicker = ticker && group.label !== ticker
-
-  // FR-2: spot price
   const spotPrice = ticker ? stockPrices[ticker] : undefined
 
   // S3 — selected rows lift off the list with an accent glow ring + shadow
@@ -806,14 +802,32 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
     <div
       onClick={onClick}
       style={{
-        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'stretch',
         cursor: 'pointer',
         transition: 'background 0.15s, box-shadow 0.15s',
         ...selectedStyle,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+      {/* Underlying plate — symbol + spot, sits right after the date rail */}
+      {ticker && (
+        <div style={{
+          flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          gap: '1px', width: '64px', padding: '6px 4px',
+          borderRight: `1px solid ${C.border}`, textAlign: 'center' as const,
+        }}>
+          <span style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? '#ffffff' : C.text }}>
+            {ticker}
+          </span>
+          {spotPrice != null && (
+            <span style={{ fontSize: '10px', fontWeight: 600, color: C.muted, fontVariantNumeric: 'tabular-nums' }}>
+              ${fmt(spotPrice)}
+            </span>
+          )}
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0, padding: '10px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '4px' }}>
           <span style={{
             fontSize: '12px',
             fontWeight: 700,
@@ -821,62 +835,50 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap' as const,
+            flex: 1,
+            minWidth: 0,
           }}>
             {group.label}
           </span>
-          {showTicker && (
-            <span style={{
-              fontSize: '10px', fontWeight: 700, color: C.accent,
-              background: `${C.accent}18`, border: `1px solid ${C.accent}33`,
-              borderRadius: '4px', padding: '1px 5px', flexShrink: 0,
-            }}>
-              {ticker}
-            </span>
-          )}
-        </div>
-        <span style={{
-          fontSize: '10px',
-          fontWeight: 700,
-          color: borderColor,
-          background: riskBg(group.groupLevel),
-          border: `1px solid ${borderColor}44`,
-          padding: '1px 6px',
-          borderRadius: '6px',
-          whiteSpace: 'nowrap' as const,
-          flexShrink: 0,
-        }}>
-          {riskLabel(group.groupLevel)}
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
-        <span style={{ fontSize: '11px', color: C.muted }}>
-          {nearestDte}d
-        </span>
-        {spotPrice != null && (
-          <span style={{ fontSize: '10px', color: C.muted }}>
-            {ticker} ${fmt(spotPrice)}
+          <span style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            color: borderColor,
+            background: riskBg(group.groupLevel),
+            border: `1px solid ${borderColor}44`,
+            padding: '1px 6px',
+            borderRadius: '6px',
+            whiteSpace: 'nowrap' as const,
+            flexShrink: 0,
+          }}>
+            {riskLabel(group.groupLevel)}
           </span>
-        )}
-        <span style={{
-          fontSize: '11px',
-          fontWeight: 700,
-          color: group.combinedPnl >= 0 ? C.green : C.red,
-          marginLeft: 'auto',
-        }}>
-          {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
-        </span>
-      </div>
-      <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.groupLevel} />
-      {showDateChip && group.enteredAt !== '' && (
-        <div style={{
-          marginTop: '5px',
-          fontSize: '10px',
-          color: C.muted,
-          letterSpacing: '0.03em',
-        }}>
-          Entered {fmtChipDate(group.enteredAt)}
         </div>
-      )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+          <span style={{ fontSize: '11px', color: C.muted }}>
+            {nearestDte}d
+          </span>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            color: group.combinedPnl >= 0 ? C.green : C.red,
+            marginLeft: 'auto',
+          }}>
+            {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
+          </span>
+        </div>
+        <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.groupLevel} />
+        {showDateChip && group.enteredAt !== '' && (
+          <div style={{
+            marginTop: '5px',
+            fontSize: '10px',
+            color: C.muted,
+            letterSpacing: '0.03em',
+          }}>
+            Entered {fmtChipDate(group.enteredAt)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1003,59 +1005,31 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
 
 // ── RightPanelDetail ──────────────────────────────────────────────────────────
 
-function TickerPlate({ symbol, spotPrice }: { symbol: string; spotPrice: number | undefined }) {
-  return (
-    <div style={{
-      flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center',
-      gap: '2px', minWidth: '108px', padding: '12px 14px',
-      background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '10px',
-      textAlign: 'center' as const,
-    }}>
-      <span style={{ fontSize: '9px', fontWeight: 600, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
-        Underlying
-      </span>
-      <span style={{ fontSize: '18px', fontWeight: 800, color: C.text }}>{symbol}</span>
-      {spotPrice != null && (
-        <span style={{ fontSize: '14px', fontWeight: 700, color: C.text, fontVariantNumeric: 'tabular-nums' }}>
-          ${fmt(spotPrice)}
-        </span>
-      )}
-    </div>
-  )
-}
-
 function RightPanelDetail({ group, stockPrices }: {
   group: StrategyGroup
   stockPrices: Record<string, number>
 }) {
-  const { isMobile } = useWindowSize()
   const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
   const sortedPositions = [...group.positions].sort(
     (a, b) => riskRank[a.risk_level] - riskRank[b.risk_level]
   )
-  const ticker = group.positions[0]?.symbol
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <RightPanelHeader group={group} />
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
-        {/* Option C layout: ticker plate sits before the leg cards (stacks above on mobile) */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' as const : 'row' as const, alignItems: 'stretch', gap: '12px' }}>
-          {ticker && <TickerPlate symbol={ticker} spotPrice={stockPrices[ticker]} />}
-          <div style={{
-            flex: 1,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '10px',
-          }}>
-            {sortedPositions.map((pos, i) => (
-              <LegCard
-                key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
-                pos={pos}
-              />
-            ))}
-          </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: '10px',
+        }}>
+          {sortedPositions.map((pos, i) => (
+            <LegCard
+              key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+              pos={pos}
+            />
+          ))}
         </div>
         <ActionPlanBox group={group} stockPrices={stockPrices} />
       </div>

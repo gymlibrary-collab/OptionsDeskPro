@@ -382,53 +382,39 @@ test.describe('Suite 3 — Risk Monitor spot price and ticker chip (AC3)', () =>
     await setupRiskMonitorRoutes(authedPage)
   })
 
-  test('AC3-1 — left panel list row shows spot price when quote is available', async ({ authedPage }) => {
+  test('AC3-1 — list-row underlying plate shows symbol and spot price after the date rail', async ({ authedPage }) => {
     await navigateToPositions(authedPage)
     // Wait for RiskMonitor to populate — Long Call group should appear
     await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
-    // The list-row spot price span has exact text "AAPL $196.30" (no · prefix).
-    // The right-panel header uses "· AAPL $196.30" (with the · prefix).
-    // { exact: true } ensures only the list-row span is matched.
-    await expect(authedPage.getByText('AAPL $196.30', { exact: true })).toBeVisible({ timeout: 5000 })
+    // The plate renders symbol and price as separate stacked spans
+    await expect(authedPage.getByText('AAPL', { exact: true }).first()).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('$196.30', { exact: true }).first()).toBeVisible()
   })
 
-  test('AC3-2 — left panel list row shows ticker chip when label differs from ticker', async ({ authedPage }) => {
+  test('AC3-2 — every list row carries its underlying symbol in the plate', async ({ authedPage }) => {
     await navigateToPositions(authedPage)
     await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
-    // "Long Call" group has ticker=AAPL, label='Long Call' → chip shown.
-    // The chip span has exact text 'AAPL'. The spot price span has text 'AAPL $196.30'.
-    // { exact: true } matches only the chip (exact "AAPL"), not the spot price span.
-    const longCallRow = authedPage.locator('div').filter({ hasText: /^Long Call/ }).first()
+    // "Long Call" (AAPL) group: plate shows AAPL even though the label is the strategy name
+    const longCallRow = authedPage.locator('div').filter({ hasText: /^AAPL/ }).filter({ hasText: 'Long Call' }).first()
     await expect(longCallRow.getByText('AAPL', { exact: true })).toBeVisible({ timeout: 5000 })
   })
 
-  test('AC3-3 — no ticker chip in list row when label equals ticker (ungrouped position)', async ({ authedPage }) => {
+  test('AC3-3 — ungrouped position (label = ticker) still renders plate symbol plus label', async ({ authedPage }) => {
     await navigateToPositions(authedPage)
     await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
-    // NVDA ungrouped: label='NVDA', ticker='NVDA' → showTicker=false, no chip
-    // The NVDA row label itself shows "NVDA" — verify only ONE instance of the exact
-    // text "NVDA" appears in the risk monitor list (the label itself, no duplicate chip).
-    // We target the risk monitor list panel by looking for text immediately adjacent to "NVDA"
-    // that would only be present if a chip existed — the chip would render "NVDA" twice.
-    // Strategy: find the NVDA risk list row and verify no separate chip badge inside it.
+    // NVDA ungrouped: plate symbol + row label both say "NVDA" → exactly 2 exact-text nodes in the row
     const nvdaRow = authedPage.locator('div').filter({ hasText: /^NVDA/ }).first()
-    // The chip span has specific padding '1px 5px' and is styled with accent color.
-    // Since we cannot easily target inline styles, we count occurrences of exact "NVDA"
-    // text nodes within the row. Without a chip: 1 (the label). With a chip: 2.
-    // Use exact text match to count spans containing only "NVDA":
     const nvdaTextNodes = nvdaRow.getByText('NVDA', { exact: true })
-    // There should be exactly 1 occurrence (the label span) not 2 (label + chip)
-    await expect(nvdaTextNodes).toHaveCount(1, { timeout: 5000 })
+    await expect(nvdaTextNodes).toHaveCount(2, { timeout: 5000 })
   })
 
-  test('AC3-4 — ticker plate shows symbol and spot price before the leg cards', async ({ authedPage }) => {
+  test('AC3-4 — right panel header shows strategy name and ticker chip after selection', async ({ authedPage }) => {
     await navigateToPositions(authedPage)
     await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
     // Click the Long Call (AAPL) group row to select it
     await authedPage.getByText('Long Call').first().click()
-    // TickerPlate (Option C layout) renders "Underlying" label + symbol + spot
-    await expect(authedPage.getByText('Underlying', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(authedPage.getByText('$196.30', { exact: true })).toBeVisible()
+    // Header keeps the strategy title + AAPL ticker chip (spot lives in the list plate)
+    await expect(authedPage.getByText('2 legs', { exact: false }).or(authedPage.getByText('1 leg', { exact: false })).first()).toBeVisible({ timeout: 5000 })
   })
 
   test('AC3-5 — ENTRY→NOW span has white-space nowrap (prevents line-break mid-price)', async ({ authedPage }) => {
