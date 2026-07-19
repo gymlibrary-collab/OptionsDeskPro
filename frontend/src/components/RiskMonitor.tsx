@@ -939,7 +939,7 @@ function ActionPlanBox({ group, stockPrices }: { group: StrategyGroup; stockPric
 
 // ── RightPanelHeader ──────────────────────────────────────────────────────────
 
-function RightPanelHeader({ group, stockPrices }: { group: StrategyGroup; stockPrices: Record<string, number> }) {
+function RightPanelHeader({ group }: { group: StrategyGroup }) {
   const nearestExpiry = [...group.positions].sort((a, b) => a.expiry.localeCompare(b.expiry))[0]?.expiry
   const firstIvRank = group.positions.find(p => p.iv_rank != null)?.iv_rank
   const legCount = group.positions.length
@@ -953,9 +953,6 @@ function RightPanelHeader({ group, stockPrices }: { group: StrategyGroup; stockP
   // FR-4: ticker chip — only when label is not already the ticker symbol
   const ticker = group.positions[0]?.symbol
   const showTicker = ticker && group.label !== ticker
-
-  // FR-2: spot price
-  const spotPrice = ticker ? stockPrices[ticker] : undefined
 
   return (
     <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, background: C.surface2 }}>
@@ -999,11 +996,6 @@ function RightPanelHeader({ group, stockPrices }: { group: StrategyGroup; stockP
         {legCount} leg{legCount !== 1 ? 's' : ''}
         {nearestExpiry && <> · Expiry {fmtDate(nearestExpiry)}</>}
         {firstIvRank != null && <> · IV Rank {fmt(firstIvRank, 0)}</>}
-        {spotPrice != null && (
-          <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>
-            · {ticker} ${fmt(spotPrice)}
-          </span>
-        )}
       </div>
     </div>
   )
@@ -1011,31 +1003,59 @@ function RightPanelHeader({ group, stockPrices }: { group: StrategyGroup; stockP
 
 // ── RightPanelDetail ──────────────────────────────────────────────────────────
 
+function TickerPlate({ symbol, spotPrice }: { symbol: string; spotPrice: number | undefined }) {
+  return (
+    <div style={{
+      flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      gap: '2px', minWidth: '108px', padding: '12px 14px',
+      background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '10px',
+      textAlign: 'center' as const,
+    }}>
+      <span style={{ fontSize: '9px', fontWeight: 600, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+        Underlying
+      </span>
+      <span style={{ fontSize: '18px', fontWeight: 800, color: C.text }}>{symbol}</span>
+      {spotPrice != null && (
+        <span style={{ fontSize: '14px', fontWeight: 700, color: C.text, fontVariantNumeric: 'tabular-nums' }}>
+          ${fmt(spotPrice)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function RightPanelDetail({ group, stockPrices }: {
   group: StrategyGroup
   stockPrices: Record<string, number>
 }) {
+  const { isMobile } = useWindowSize()
   const riskRank: Record<string, number> = { red: 0, yellow: 1, green: 2 }
   const sortedPositions = [...group.positions].sort(
     (a, b) => riskRank[a.risk_level] - riskRank[b.risk_level]
   )
+  const ticker = group.positions[0]?.symbol
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <RightPanelHeader group={group} stockPrices={stockPrices} />
+      <RightPanelHeader group={group} />
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-          gap: '10px',
-        }}>
-          {sortedPositions.map((pos, i) => (
-            <LegCard
-              key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
-              pos={pos}
-            />
-          ))}
+        {/* Option C layout: ticker plate sits before the leg cards (stacks above on mobile) */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' as const : 'row' as const, alignItems: 'stretch', gap: '12px' }}>
+          {ticker && <TickerPlate symbol={ticker} spotPrice={stockPrices[ticker]} />}
+          <div style={{
+            flex: 1,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '10px',
+          }}>
+            {sortedPositions.map((pos, i) => (
+              <LegCard
+                key={`${pos.symbol}-${pos.strike}-${pos.expiry}-${pos.option_type}-${i}`}
+                pos={pos}
+              />
+            ))}
+          </div>
         </div>
         <ActionPlanBox group={group} stockPrices={stockPrices} />
       </div>

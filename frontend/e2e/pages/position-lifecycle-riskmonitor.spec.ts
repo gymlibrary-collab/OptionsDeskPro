@@ -421,13 +421,14 @@ test.describe('Suite 3 — Risk Monitor spot price and ticker chip (AC3)', () =>
     await expect(nvdaTextNodes).toHaveCount(1, { timeout: 5000 })
   })
 
-  test('AC3-4 — right panel header shows spot price after selecting a group', async ({ authedPage }) => {
+  test('AC3-4 — ticker plate shows symbol and spot price before the leg cards', async ({ authedPage }) => {
     await navigateToPositions(authedPage)
     await expect(authedPage.getByText('Long Call').first()).toBeVisible({ timeout: 10000 })
     // Click the Long Call (AAPL) group row to select it
     await authedPage.getByText('Long Call').first().click()
-    // RightPanelHeader shows spot price as "· AAPL $196.30"
-    await expect(authedPage.getByText(/·\s*AAPL\s*\$196\.30/)).toBeVisible({ timeout: 5000 })
+    // TickerPlate (Option C layout) renders "Underlying" label + symbol + spot
+    await expect(authedPage.getByText('Underlying', { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(authedPage.getByText('$196.30', { exact: true })).toBeVisible()
   })
 
   test('AC3-5 — ENTRY→NOW span has white-space nowrap (prevents line-break mid-price)', async ({ authedPage }) => {
