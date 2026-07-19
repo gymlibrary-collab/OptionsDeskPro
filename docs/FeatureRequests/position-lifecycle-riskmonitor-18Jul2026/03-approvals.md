@@ -49,13 +49,13 @@
 | | |
 |---|---|
 | **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | Yes / No |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Automated tests added** | 16 Playwright E2E + 31 backend pytest |
+| **All AC covered** | Yes |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-07-18 |
+| **Notes** | New spec 16/16; affected existing E2E specs 66/66; backend suite 520/520. Manual items deferred to release: live settlement smoke test, migration 025 application, mobile scroll check. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
