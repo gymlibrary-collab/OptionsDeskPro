@@ -35,7 +35,6 @@ function stopLoss(pos: Position): number {
   return (pos.entry_action ?? (pos.quantity > 0 ? 'buy' : 'sell')) === 'buy' ? -50 : -200
 }
 
-type Alert = { pos: Position; kind: 'profit' | 'stop' | 'dte' }
 
 const C = {
   surface: '#1a1d27',
@@ -84,46 +83,6 @@ const styles = {
   loading: { color: C.muted, fontSize: '13px', padding: '20px 0' },
 }
 
-function AlertBanner({ alerts }: { alerts: Alert[] }) {
-  if (alerts.length === 0) return null
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {alerts.map((a, i) => {
-        const pct = pnlPct(a.pos)
-        const target = profitTarget(a.pos)
-        const stop = stopLoss(a.pos)
-        const stratLabel = a.pos.strategy_name ? `[${a.pos.strategy_name}] ` : ''
-
-        let bg: string, border: string, icon: string, headline: string, detail: string
-        if (a.kind === 'profit') {
-          bg = '#0f2d1a'; border = C.green; icon = '✅'
-          headline = `TAKE PROFIT — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
-          detail = `${stratLabel}P&L is +${fmt(pct)}% — target was +${target}%. Time to close this position.`
-        } else if (a.kind === 'stop') {
-          bg = '#2d0f0f'; border = C.red; icon = '🛑'
-          headline = `STOP LOSS — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
-          detail = `${stratLabel}P&L is ${fmt(pct)}% — stop is ${stop}%. Close immediately to limit further loss.`
-        } else {
-          bg = '#2d1f0a'; border = C.amber; icon = '⏰'
-          headline = `21-DTE CLOSE — ${a.pos.symbol} ${a.pos.strike} ${a.pos.option_type.toUpperCase()}`
-          detail = `${stratLabel}${dte(a.pos.expiry)} days to expiry. Good practice: close at 21 DTE regardless of P&L.`
-        }
-
-        return (
-          <div key={i} style={{ background: bg, border: `1px solid ${border}66`, borderRadius: '10px', padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <span style={{ fontSize: '18px', flexShrink: 0 }}>{icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: border, marginBottom: '4px' }}>{headline}</div>
-                <div style={{ fontSize: '12px', color: C.text, lineHeight: 1.6 }}>{detail}</div>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 function TargetBar({ pos }: { pos: Position }) {
   const pct = pnlPct(pos)
@@ -727,15 +686,6 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
 
-  const alerts: Alert[] = positions.flatMap(pos => {
-    const pct = pnlPct(pos)
-    const list: Alert[] = []
-    if (pct >= profitTarget(pos)) list.push({ pos, kind: 'profit' })
-    else if (pct <= stopLoss(pos)) list.push({ pos, kind: 'stop' })
-    if (dte(pos.expiry) <= 21 && dte(pos.expiry) > 0) list.push({ pos, kind: 'dte' })
-    return list
-  })
-
   return (
     <div style={styles.wrap}>
 
@@ -860,7 +810,6 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
         </div>
       )}
 
-      <AlertBanner alerts={alerts} />
 
       {/* Positions header row: title + Record Trade */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
