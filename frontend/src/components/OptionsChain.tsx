@@ -79,6 +79,9 @@ const styles = {
     borderLeft: `1px solid ${C.border}`,
     borderRight: `1px solid ${C.border}`,
     whiteSpace: 'nowrap' as const,
+    position: 'sticky' as const,
+    left: 0,
+    zIndex: 2,
   },
   strikeITM: {
     padding: '6px 12px',
@@ -90,6 +93,9 @@ const styles = {
     borderLeft: `1px solid #3a3570`,
     borderRight: `1px solid #3a3570`,
     whiteSpace: 'nowrap' as const,
+    position: 'sticky' as const,
+    left: 0,
+    zIndex: 2,
   },
   loading: { color: C.muted, fontSize: '13px', padding: '20px 0' },
   error: { color: C.red, fontSize: '13px', padding: '20px 0' },
@@ -317,6 +323,9 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
                   background: '#252836',
                   fontSize: '11px',
                   color: '#e2e8f0',
+                  position: 'sticky' as const,
+                  left: 0,
+                  zIndex: 3,
                 }}
               >
                 Strike
@@ -336,7 +345,7 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
               {callHeaders.map(h => (
                 <th key={h} style={styles.th()}>{h}</th>
               ))}
-              <th style={styles.th('center')}>—</th>
+              <th style={{ ...styles.th('center'), position: 'sticky' as const, left: 0, zIndex: 3, background: '#1a1d27' }}>—</th>
               {putHeaders.map(h => (
                 <th key={h} style={styles.th()}>{h}</th>
               ))}

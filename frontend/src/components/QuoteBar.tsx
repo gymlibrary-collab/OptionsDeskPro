@@ -66,6 +66,11 @@ const styles = {
     color: '#64748b',
     fontStyle: 'italic',
   },
+  failed: {
+    fontSize: '13px',
+    color: '#ef4444',
+    fontStyle: 'italic',
+  },
   dot: (up: boolean | null) => ({
     width: '8px',
     height: '8px',
@@ -104,7 +109,7 @@ export default function QuoteBar({ symbol }: Props) {
   }, [symbol])
 
   if (loading) return <div style={styles.loading}>Loading {symbol}...</div>
-  if (!quote || quote.price === 0) return <div style={styles.loading}>No data for {symbol}</div>
+  if (!quote || quote.price === 0) return <div style={styles.failed}>No data for {symbol}</div>
 
   const up = quote.change >= 0
 

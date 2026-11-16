@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getOrders, Order, getTradeJournalReview, TradeJournalReview } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
+import { fmtCalDate } from '../lib/format'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -224,7 +225,7 @@ function OrderRow({ order, showAIReview }: { order: Order; showAIReview: boolean
         <td style={{ ...styles.tdLeft, fontWeight: 700, color: C.accent }}>
           {order.symbol}
         </td>
-        <td style={styles.td}>{order.expiry}</td>
+        <td style={styles.td}>{fmtCalDate(order.expiry)}</td>
         <td style={styles.td}>${fmt(order.strike)}</td>
         <td style={styles.td}>
           <span style={styles.badge(order.option_type as 'call' | 'put')}>
@@ -342,7 +343,7 @@ export default function Orders() {
       )}
 
       {orders.length === 0 ? (
-        <div style={styles.empty}>No orders yet. Use the Order Entry panel to place trades.</div>
+        <div style={styles.empty}>No orders yet. Use the <strong>+ Record Trade</strong> button on the Positions tab to record your first trade.</div>
       ) : (
         <div style={styles.tableWrap}>
           <table style={styles.table}>
