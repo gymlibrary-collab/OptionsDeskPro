@@ -62,7 +62,8 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await page.getByPlaceholder(/email address/i).fill('new@example.com')
     await page.getByPlaceholder(/^password$/i).fill('password123')
     await page.getByPlaceholder(/confirm password/i).fill('different456')
-    await page.getByRole('button', { name: /create account/i }).click()
+    // Use type=submit to avoid strict-mode ambiguity with the "Create Account" toggle button
+    await page.locator('button[type="submit"]').click()
 
     await expect(page.getByText(/passwords do not match/i)).toBeVisible({ timeout: 3000 })
   })
@@ -74,7 +75,7 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await page.getByPlaceholder(/email address/i).fill('new@example.com')
     await page.getByPlaceholder(/^password$/i).fill('short')
     await page.getByPlaceholder(/confirm password/i).fill('short')
-    await page.getByRole('button', { name: /create account/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     await expect(page.getByText('Password must be at least 8 characters.')).toBeVisible({ timeout: 3000 })
   })
@@ -94,7 +95,7 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await page.getByPlaceholder(/email address/i).fill('newuser@example.com')
     await page.getByPlaceholder(/^password$/i).fill('securepass1')
     await page.getByPlaceholder(/confirm password/i).fill('securepass1')
-    await page.getByRole('button', { name: /create account/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     // Should show email confirmation message — NOT redirect to dashboard
     await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5000 })
@@ -117,7 +118,7 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await page.getByPlaceholder(/email address/i).fill('admin@example.com')
     await page.getByPlaceholder(/^password$/i).fill('adminpass1')
     await page.getByPlaceholder(/confirm password/i).fill('adminpass1')
-    await page.getByRole('button', { name: /create account/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     await expect(page.getByText(/password login is not available/i)).toBeVisible({ timeout: 5000 })
   })
@@ -143,15 +144,11 @@ baseTest.describe('Forgot-password request form', () => {
 
   baseTest('shows forgot-password form after clicking the link in sign-in mode', async ({ page }) => {
     // Navigate to signin via LoginPage (shown when reset_success is set, or use signup then toggle)
-    // Use signup=1 to show LoginPage, then toggle to signin, then click forgot
+    // Use signup=1 to show LoginPage, confirm it has loaded, then navigate to forgot mode
     await page.goto('http://localhost:5173/?signup=1')
-    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
 
-    // The LoginPage in signup mode shows "Back to Options Compass" or we can directly go to forgot
-    // For this test, verify the forgot link is accessible from signin mode
-    // Switch to signin via "Sign In" button in the bottom link
-    // LoginPage signup mode shows a bottom link to sign in
-    // Actually, navigate directly via ?forgot=1 is cleaner
+    // Navigate via ?forgot=1 to test the forgot form directly
     await page.goto('http://localhost:5173/?forgot=1')
     await expect(page.getByText(/reset your password/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: /send reset link/i })).toBeVisible()
@@ -471,5 +468,284 @@ baseTest.describe('Email verification landing (token_hash + type=signup in URL)'
 
     // Should show the email-verification error banner via loginBanner → LoginPage
     await expect(page.getByText(/email verification failed/i)).toBeVisible({ timeout: 10000 })
+  })
+})
+
+// ─── Banner tone — success vs error (product fix #1) ─────────────────────────
+//
+// LoginPage now accepts bannerTone='success'|'error'.  App.tsx passes
+// bannerTone="error" for the email-verification failure path and omits it
+// (defaults 'success') for the password-reset success path.
+
+baseTest.describe('LoginPage banner tone (product fix #1 — AC4-2)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest('success banner uses role="status" and green colour after password reset', async ({ page }) => {
+    // /?reset_success=1 → App sets authView='signin-banner' → LoginPage with
+    // initialBanner="Password updated. Please sign in." bannerTone defaults to 'success'.
+    await page.route('**/auth/v1/**', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
+    await page.route(`${API}auth/session`, (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
+
+    await page.goto('http://localhost:5173/?reset_success=1')
+
+    const banner = page.getByRole('status')
+    await expect(banner).toBeVisible({ timeout: 10000 })
+    await expect(banner).toContainText(/password updated/i)
+    // Success colour: #22c55e = rgb(34, 197, 94)
+    await expect(banner).toHaveCSS('color', 'rgb(34, 197, 94)')
+  })
+
+  baseTest('error banner uses role="alert" and red colour after email verification failure', async ({ page }) => {
+    // Email verification failure → AuthContext sets loginBanner → App renders LoginPage
+    // with initialBanner={loginBanner} bannerTone="error".
+    await page.route('**/auth/v1/**', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
+    await page.route('**/auth/v1/verify', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'otp_expired', message: 'Token has expired' }),
+      }))
+    await page.route(`${API}auth/session`, (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
+
+    await page.goto('http://localhost:5173/?token_hash=expiredtoken&type=signup')
+
+    const banner = page.getByRole('alert')
+    await expect(banner).toBeVisible({ timeout: 10000 })
+    await expect(banner).toContainText(/email verification failed/i)
+    // Error colour: #ef4444 = rgb(239, 68, 68)
+    await expect(banner).toHaveCSS('color', 'rgb(239, 68, 68)')
+  })
+})
+
+// ─── Mode toggle visible in signup mode (product fix #2) ─────────────────────
+//
+// The Sign In / Create Account toggle is now shown in both signin and signup
+// modes (previously disappeared in signup mode, leaving no way back to sign-in).
+// It is hidden only in forgot mode.
+
+baseTest.describe('LoginPage mode toggle (product fix #2)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest.beforeEach(async ({ page }) => {
+    await loggedOut(page)
+  })
+
+  baseTest('Sign In / Create Account toggle is visible when starting in signup mode', async ({ page }) => {
+    await page.goto('http://localhost:5173/?signup=1')
+    // Both toggle buttons must be visible in signup mode.
+    // exact: true distinguishes the toggle "Create Account" from the submit "Create Account →"
+    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Create Account', exact: true })).toBeVisible()
+  })
+
+  baseTest('clicking Sign In on the toggle navigates back from signup to signin mode', async ({ page }) => {
+    await page.goto('http://localhost:5173/?signup=1')
+    // Confirm password is visible in signup mode
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
+
+    // Click the Sign In toggle — switches to signin mode
+    await page.getByRole('button', { name: 'Sign In' }).click()
+
+    // Confirm password must disappear; email field must remain
+    await expect(page.getByPlaceholder(/confirm password/i)).not.toBeVisible()
+    await expect(page.getByPlaceholder(/email address/i)).toBeVisible()
+  })
+})
+
+// ─── Sign-up confirmation text mentions Forgot password? (AC2-5) ─────────────
+
+baseTest.describe('Sign-up confirmation text (AC2-5)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest.beforeEach(async ({ page }) => {
+    await loggedOut(page)
+  })
+
+  baseTest('confirmation mentions "Forgot password?" for accounts that may already use Google', async ({ page }) => {
+    // AC2-5: the success message after sign-up must tell users who already have a Google
+    // account to use "Forgot password?" to set a password on their existing account.
+    await page.route(`${API}auth/signup`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }))
+
+    await page.goto('http://localhost:5173/?signup=1')
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
+
+    await page.getByPlaceholder(/email address/i).fill('newuser@example.com')
+    await page.getByPlaceholder(/^password$/i).fill('securepass1')
+    await page.getByPlaceholder(/confirm password/i).fill('securepass1')
+    await page.locator('button[type="submit"]').click()
+
+    // Confirmation text must reference "Forgot password?" so existing-Google-account
+    // holders know the right path to set a password.
+    await expect(page.getByText(/forgot password\?/i)).toBeVisible({ timeout: 5000 })
+  })
+})
+
+// ─── Email verification — invite-only refusal (AC2-7) ────────────────────────
+
+baseTest.describe('Email verification — invite-only refusal (AC2-7)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest('shows error banner when verifyOtp succeeds but platform login is refused', async ({ page }) => {
+    // verifyOtp → 200 (token valid), POST /api/auth/login → 403 (invite-only gate).
+    // AuthContext sets loginBanner with the detail and calls supabase.auth.signOut().
+    // App renders LoginPage with bannerTone="error" and role="alert".
+    await page.route('**/auth/v1/**', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
+    await page.route('**/auth/v1/verify', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock-verify-token',
+          refresh_token: 'mock-refresh-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: { id: 'new-user-id', email: 'notinvited@example.com' },
+        }),
+      }))
+    await page.route(`${API}auth/login`, (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'You are not on the invite list.' }),
+      }))
+    await page.route(`${API}auth/session`, (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
+
+    await page.goto('http://localhost:5173/?token_hash=goodtoken&type=signup')
+
+    // Error banner (role=alert) must appear with the refusal message
+    const banner = page.getByRole('alert')
+    await expect(banner).toBeVisible({ timeout: 10000 })
+    await expect(banner).toContainText(/not on the invite list|not authorised/i)
+  })
+})
+
+// ─── URL cleanup ─────────────────────────────────────────────────────────────
+//
+// Spent tokens must be stripped from the URL on mount so a page refresh
+// or a shared link does not replay a one-time token.
+
+baseTest.describe('URL cleanup', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest('reset-password page strips token_hash and type from the URL on mount', async ({ page }) => {
+    await page.route('**/auth/v1/verify', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock-recovery-token',
+          refresh_token: 'mock-refresh-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: { id: 'user-id', email: 'user@example.com' },
+        }),
+      }))
+
+    await page.goto('http://localhost:5173/reset-password?token_hash=validhash&type=recovery')
+    // Wait for the form (verifyOtp complete) — URL is cleaned before the OTP call
+    await expect(page.getByPlaceholder('New password', { exact: true })).toBeVisible({ timeout: 10000 })
+
+    expect(page.url()).not.toContain('token_hash')
+    expect(page.url()).not.toContain('type=recovery')
+  })
+
+  baseTest('email verification strips token_hash and type from the URL after processing', async ({ page }) => {
+    await page.route('**/auth/v1/verify', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'otp_expired', message: 'Token has expired' }),
+      }))
+    await page.route(`${API}auth/session`, (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
+
+    await page.goto('http://localhost:5173/?token_hash=expiredtoken&type=signup')
+    // Wait for error banner — URL is cleaned synchronously before the OTP call
+    await expect(page.getByText(/email verification failed/i)).toBeVisible({ timeout: 10000 })
+
+    expect(page.url()).not.toContain('token_hash')
+    expect(page.url()).not.toContain('type=signup')
+  })
+})
+
+// ─── Sign-in form error messages — PRODUCT BUGS (AC1-2, AC1-3) ───────────────
+//
+// signInWithEmail() in AuthContext does NOT translate HTTP error codes — it lets
+// the raw AxiosError propagate.  LoginPage's catch block reads err?.message which
+// is "Request failed with status code 401" or "...503", not the user-friendly
+// copy the spec requires.
+//
+// By contrast signUpWithEmail() and requestPasswordReset() already translate
+// 401/403/503 to user-friendly messages (the fix pattern is established).
+//
+// These two tests are EXPECTED TO FAIL until signInWithEmail is updated to
+// catch and re-throw with spec-required messages.  They serve as regression
+// guards and bug documentation — do not skip or remove them.
+
+baseTest.describe('Sign-in form error messages — product gap (AC1-2, AC1-3)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } })
+
+  baseTest.beforeEach(async ({ page }) => {
+    await loggedOut(page)
+  })
+
+  baseTest('sign-in with wrong credentials shows "Invalid email or password." (AC1-2) [BUG]', async ({ page }) => {
+    // EXPECTED TO FAIL.
+    // Current behaviour:  form shows "Request failed with status code 401".
+    // Required by AC1-2: form shows "Invalid email or password."
+    // Fix needed:  signInWithEmail should catch status 401 and throw
+    //   new Error('Invalid email or password.')  — same pattern as signUpWithEmail for 403.
+    await page.route(`${API}auth/email-login`, (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Invalid email or password' }),
+      }))
+
+    await page.goto('http://localhost:5173/?signup=1')
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
+
+    // Switch to sign-in mode
+    await page.getByRole('button', { name: 'Sign In' }).click()
+    await expect(page.getByPlaceholder(/confirm password/i)).not.toBeVisible()
+
+    await page.getByPlaceholder(/email address/i).fill('user@example.com')
+    await page.getByPlaceholder(/^password$/i).fill('wrongpassword')
+    await page.locator('button[type="submit"]').click()
+
+    // Spec requires this exact message (AC1-2).  FAILS until signInWithEmail translates 401.
+    await expect(page.getByText('Invalid email or password.')).toBeVisible({ timeout: 5000 })
+  })
+
+  baseTest('sign-in when service is down shows human-readable error message (AC1-3) [BUG]', async ({ page }) => {
+    // EXPECTED TO FAIL.
+    // Current behaviour:  form shows "Request failed with status code 503".
+    // Required by AC1-3: form shows a maintenance / service-unavailable message.
+    // Fix needed:  signInWithEmail should catch status 503 and throw
+    //   new Error('Authentication service unavailable. Please try again shortly.')
+    await page.route(`${API}auth/email-login`, (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Service temporarily unavailable' }),
+      }))
+
+    await page.goto('http://localhost:5173/?signup=1')
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
+
+    await page.getByRole('button', { name: 'Sign In' }).click()
+    await page.getByPlaceholder(/email address/i).fill('user@example.com')
+    await page.getByPlaceholder(/^password$/i).fill('password123')
+    await page.locator('button[type="submit"]').click()
+
+    // Spec requires a service-unavailable message (AC1-3).  FAILS until signInWithEmail translates 503.
+    await expect(page.getByText(/authentication service unavailable/i)).toBeVisible({ timeout: 5000 })
   })
 })

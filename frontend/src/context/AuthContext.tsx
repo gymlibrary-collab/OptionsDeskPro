@@ -204,7 +204,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithEmail = async (email: string, password: string) => {
-    const data = await postEmailLogin(email, password)
+    let data
+    try {
+      data = await postEmailLogin(email, password)
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { detail?: string } } }
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail
+      if (status === 401) throw new Error('Invalid email or password.')
+      // 403 carries the reason: staff/admin must use Google, suspended, or invite-only.
+      if (status === 403) throw new Error(typeof detail === 'string' ? detail : 'Access denied.')
+      if (status === 503) throw new Error(typeof detail === 'string' ? detail : 'Service unavailable. Please try again shortly.')
+      throw new Error('Sign-in failed. Please try again.')
+    }
     if (data.access_token) {
       await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token ?? '' })
     }
