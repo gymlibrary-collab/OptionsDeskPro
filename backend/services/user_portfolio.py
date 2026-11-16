@@ -138,16 +138,21 @@ def _update_position(sb, user_id: str, req, price: float):
             # (delta and qty share the same sign).  Partial closes keep the
             # existing cost basis — the price you're closing at doesn't alter
             # what you originally paid/collected on the remaining contracts.
+            update = {"updated_at": datetime.now(timezone.utc).isoformat()}
             if (delta > 0 and qty > 0) or (delta < 0 and qty < 0):
                 new_avg = (abs(qty) * avg + abs(delta) * price) / abs(new_qty)
+            elif (new_qty > 0) != (qty > 0):
+                # Trade crossed through zero: the old side is fully closed and
+                # the remainder is a brand-new opposite position opened at
+                # this trade's price.
+                new_avg = price
+                update["entry_action"] = req.action.lower()
             else:
                 new_avg = avg   # partial close — basis unchanged
 
-            sb.table("positions").update({
-                "quantity": new_qty,
-                "avg_cost": round(new_avg, 4),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", pos["id"]).execute()
+            update["quantity"] = new_qty
+            update["avg_cost"] = round(new_avg, 4)
+            sb.table("positions").update(update).eq("id", pos["id"]).execute()
     else:
         # No matching position for this strategy group — create a new row.
         sb.table("positions").insert({
