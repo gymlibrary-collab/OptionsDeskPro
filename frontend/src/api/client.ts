@@ -848,6 +848,21 @@ export const postEmailLogin = (email: string, password: string): Promise<{
 export const updatePassword = (password: string): Promise<{ ok: boolean }> =>
   api.post('/auth/update-password', { password }).then(r => r.data)
 
+export interface AuthOkResponse {
+  ok: boolean
+  detail: string
+}
+
+/** Create a new subscriber account with email+password. Returns a neutral 200
+ *  regardless of whether the email already exists (ADR-0017). */
+export const postSignUp = (email: string, password: string): Promise<AuthOkResponse> =>
+  api.post<AuthOkResponse>('/auth/signup', { email, password }).then(r => r.data)
+
+/** Trigger a Supabase password-reset email. Returns a neutral 200 regardless
+ *  of whether the email is registered (no enumeration). */
+export const postResetRequest = (email: string): Promise<AuthOkResponse> =>
+  api.post<AuthOkResponse>('/auth/reset-request', { email }).then(r => r.data)
+
 // ─── Platform (admin) routes ─────────────────────────────────────────────────────────────────────
 
 export interface StaffMember {

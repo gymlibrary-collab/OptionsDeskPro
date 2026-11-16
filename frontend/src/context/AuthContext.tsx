@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, SessionResponse } from '../api/client'
+import api, { Entitlements, getEntitlements, postLogout, getSession, postEmailLogin, postSignUp, postResetRequest, SessionResponse } from '../api/client'
 
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
@@ -24,9 +24,14 @@ interface AuthContextType {
   loading: boolean
   entitlements: Entitlements | null
   pendingLegalAcknowledgment: boolean
+  /** Non-null when AuthContext has a one-time banner to surface on the login page
+   *  (e.g. "Email verification failed or link expired."). Clear after displaying. */
+  loginBanner: string | null
+  clearLoginBanner: () => void
   signInWithGoogle: () => void
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (email: string, password: string) => Promise<void>
+  requestPasswordReset: (email: string) => Promise<void>
   signOut: () => Promise<void>
   refreshEntitlements: () => Promise<void>
   clearLegalAcknowledgmentPending: () => void
@@ -40,9 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingLegalAcknowledgment, setPendingLegalAcknowledgment] = useState(false)
+  // One-time banner to surface on the login page (e.g. email verify failure).
+  const [loginBanner, setLoginBanner] = useState<string | null>(null)
   // Guard against concurrent fetchSession calls (e.g. focus event firing while
   // the initial mount call is still in flight after the OAuth redirect).
   const fetchSessionInFlight = useRef(false)
+  // StrictMode guard: prevents the email-verification verifyOtp call from being
+  // attempted twice (React 18 preserves refs across its simulated unmount/remount).
+  const emailVerifyAttempted = useRef(false)
 
   // Re-trigger the legal gate modal if any API call returns 451.
   // This handles the case where a new legal version is published while the
@@ -120,6 +130,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search)
         }
       }
+
+      // Email-verification auto-login: Supabase redirects to /?token_hash=...&type=signup
+      // (or type=email, depending on template wording).  Exchange the token, then run
+      // _sync_profile via POST /api/auth/login before calling fetchSession so the
+      // user_profiles row exists before we read the session.
+      //
+      // StrictMode guard: emailVerifyAttempted is a ref; React 18 preserves its value
+      // across the simulated unmount/remount, so the second effect invocation is a no-op.
+      if (!emailVerifyAttempted.current) {
+        const qp = new URLSearchParams(window.location.search)
+        const token_hash = qp.get('token_hash')
+        const type = qp.get('type')
+        if (token_hash && (type === 'signup' || type === 'email')) {
+          emailVerifyAttempted.current = true
+          // Clean URL immediately — a refresh or shared link must not retry a spent token.
+          window.history.replaceState(null, '', window.location.pathname)
+          try {
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+              token_hash,
+              type: type as 'signup' | 'email',
+            })
+            if (verifyError) {
+              setLoginBanner('Email verification failed or link expired. Please try signing up again.')
+            } else {
+              // Run _sync_profile via the login endpoint to create user_profiles and
+              // check the whitelist/invite-only gate before reading the session.
+              try {
+                await api.post('/auth/login', {})
+              } catch (loginErr: unknown) {
+                const le = loginErr as { response?: { status?: number; data?: { detail?: string } } }
+                if (le?.response?.status === 403) {
+                  // Invite-only or suspended — stay logged out, surface the message
+                  setLoginBanner(le?.response?.data?.detail || 'Access denied. Contact support.')
+                  await supabase.auth.signOut()
+                  return
+                }
+                // Other errors: continue and let fetchSession determine the state
+              }
+              await fetchSession()
+            }
+          } catch {
+            setLoginBanner('Email verification failed or link expired. Please try signing up again.')
+          }
+          return  // Skip the standard fetchSession below; we either signed in or set a banner
+        }
+      }
+
       await fetchSession()
     })()
     const handleFocus = () => fetchSession(true)
@@ -154,10 +211,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchSession()
   }
 
-  const signUpWithEmail = async (_email: string, _password: string) => {
-    // Email/password sign-up is not yet supported in the backend-auth-proxy flow.
-    // LoginPage currently calls this only on 'signup' mode; throw a user-facing error.
-    throw new Error('Account creation is not yet available. Please use Google sign-in.')
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      await postSignUp(email, password)
+      // Success: LoginPage shows the neutral "check your email" confirmation.
+      // No session is created here — the user must verify their email first.
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { detail?: string } } }
+      if (e?.response?.status === 403) {
+        throw new Error('Password login is not available for this account. Use Google sign-in.')
+      }
+      if (e?.response?.status === 400) {
+        const detail = e?.response?.data?.detail
+        throw new Error(typeof detail === 'string' ? detail : 'Email and password are required.')
+      }
+      if (e?.response?.status === 503) {
+        throw new Error('Authentication service unavailable. Please try again shortly.')
+      }
+      throw new Error('Sign-up failed. Please try again.')
+    }
+  }
+
+  const requestPasswordReset = async (email: string) => {
+    try {
+      await postResetRequest(email)
+      // Success: LoginPage shows the neutral "if an account exists…" confirmation.
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { detail?: string } } }
+      if (e?.response?.status === 403) {
+        throw new Error('Password login is not available for this account. Use Google sign-in.')
+      }
+      if (e?.response?.status === 400) {
+        throw new Error('Please enter your email address.')
+      }
+      if (e?.response?.status === 503) {
+        throw new Error('Authentication service unavailable. Please try again shortly.')
+      }
+      throw new Error('Request failed. Please try again.')
+    }
   }
 
   const signOut = async () => {
@@ -177,6 +268,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPendingLegalAcknowledgment(false)
   }, [])
 
+  const clearLoginBanner = useCallback(() => {
+    setLoginBanner(null)
+  }, [])
+
   const refreshEntitlements = useCallback(async () => {
     await fetchEntitlements()
   }, [fetchEntitlements])
@@ -193,9 +288,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         entitlements,
         pendingLegalAcknowledgment,
+        loginBanner,
+        clearLoginBanner,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        requestPasswordReset,
         signOut,
         refreshEntitlements,
         clearLegalAcknowledgmentPending,
