@@ -10,6 +10,7 @@ interface LoginPageProps {
   onBack?: () => void
   /** One-time success/info banner shown above the form (e.g. after password reset). */
   initialBanner?: string
+  bannerTone?: 'success' | 'error'
 }
 
 const FEATURES = [
@@ -190,7 +191,7 @@ function CompassSVG() {
   )
 }
 
-export default function LoginPage({ initialMode = 'signin', onBack, initialBanner }: LoginPageProps) {
+export default function LoginPage({ initialMode = 'signin', onBack, initialBanner, bannerTone = 'success' }: LoginPageProps) {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, requestPasswordReset, loading } = useAuth()
   const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
@@ -467,7 +468,12 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
 
           {/* Initial banner — shown after a password reset or email-verify failure */}
           {initialBanner && (
-            <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', borderRadius: '10px', padding: '12px', fontSize: '13px', color: '#22c55e', marginBottom: '20px' }}>
+            <div role={bannerTone === 'error' ? 'alert' : 'status'} style={{
+              background: bannerTone === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+              border: `1px solid ${bannerTone === 'error' ? '#ef4444' : '#22c55e'}`,
+              borderRadius: '10px', padding: '12px', fontSize: '13px',
+              color: bannerTone === 'error' ? '#ef4444' : '#22c55e', marginBottom: '20px',
+            }}>
               {initialBanner}
             </div>
           )}
@@ -484,7 +490,7 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
           </div>
 
           {/* Mode toggle — only shown on sign-in; hidden in signup and forgot modes */}
-          {mode === 'signin' && (
+          {mode !== 'forgot' && (
             <div className="lp-toggle-wrap" style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
               {(['signin', 'signup'] as ('signin' | 'signup')[]).map(m => (
                 <button
@@ -541,12 +547,13 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
               {successMsg}
               {mode === 'forgot' && (
                 <div style={{ marginTop: '12px' }}>
-                  <span
+                  <button
+                    type="button"
                     onClick={() => switchMode('signin')}
-                    style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                    style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600, fontSize: '13px', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
                   >
                     Back to sign in
-                  </span>
+                  </button>
                 </div>
               )}
             </div>
@@ -609,22 +616,24 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
               )}
               {mode === 'signin' && (
                 <div style={{ textAlign: 'right', margin: '6px 0 16px' }}>
-                  <span
+                  <button
+                    type="button"
                     onClick={() => switchMode('forgot')}
-                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500 }}
+                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
                   >
                     Forgot password?
-                  </span>
+                  </button>
                 </div>
               )}
               {mode === 'forgot' && (
                 <div style={{ textAlign: 'right', margin: '6px 0 16px' }}>
-                  <span
+                  <button
+                    type="button"
                     onClick={() => switchMode('signin')}
-                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500 }}
+                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
                   >
                     Back to sign in
-                  </span>
+                  </button>
                 </div>
               )}
               {formError && (
@@ -656,7 +665,7 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
           {/* Switch mode — only shown on sign-in panel */}
           {mode === 'signin' && (
             <div className="lp-switch-mode" style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
-              New to Options Compass? <span onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Create a free account</span>
+              New to Options Compass? <button type="button" onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}>Create a free account</button>
             </div>
           )}
 

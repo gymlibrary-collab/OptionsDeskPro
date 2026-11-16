@@ -95,11 +95,11 @@ export default function ResetPasswordPage() {
       try { await supabase.auth.signOut() } catch { /* redirect regardless */ }
       setDone(true)
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number }; message?: string }
+      const e = err as { response?: { status?: number; data?: { detail?: string } }; message?: string }
       if (e?.response?.status === 503) {
         setFormError('Authentication service unavailable. Please try again shortly.')
       } else {
-        setFormError(e?.message || 'Failed to update password. Please try again.')
+        setFormError(e?.response?.data?.detail || 'Failed to update password. Please try again.')
       }
     } finally {
       setSubmitting(false)

@@ -571,6 +571,7 @@ function ClientAppInner() {
         <LoginPage
           initialMode="signin"
           initialBanner={loginBanner}
+          bannerTone="error"
           onBack={() => { clearLoginBanner(); setAuthView('home') }}
         />
       )
