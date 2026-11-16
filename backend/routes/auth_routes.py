@@ -12,7 +12,7 @@ from services.auth_utils import (
     ADMIN_EMAIL,
     _set_auth_cookies,
 )
-from services.db import get_supabase
+from services.db import get_supabase, new_auth_client
 from services import user_portfolio
 from services.activity_logger import log_action, extract_ip
 
@@ -222,7 +222,7 @@ async def auth_google(portal: str = "client"):
     the callback knows which frontend URL to redirect to after authentication.
     """
     try:
-        sb = get_supabase()
+        sb = new_auth_client()
         result = sb.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {"redirect_to": _CALLBACK_URL},
@@ -280,7 +280,7 @@ async def auth_callback(request: Request, code: str, state: str = None):
     No auth required.
     """
     try:
-        sb = get_supabase()
+        sb = new_auth_client()
         code_verifier = request.cookies.get("pkce_code_verifier")
         exchange_params: dict = {"auth_code": code}
         if code_verifier:
@@ -432,7 +432,7 @@ async def email_login(request: Request, body: EmailLoginRequest):
     No auth required (credentials are in the request body).
     """
     try:
-        sb = get_supabase()
+        sb = new_auth_client()
         result = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
     except Exception as exc:
         # Supabase AuthApiError maps to 401
@@ -509,7 +509,7 @@ async def refresh_token(body: RefreshRequest):
     No auth required — the refresh token IS the credential here.
     """
     try:
-        sb = get_supabase()
+        sb = new_auth_client()
         result = sb.auth.refresh_session(body.refresh_token)
         session = result.session if hasattr(result, "session") else result
         if not session or not getattr(session, "access_token", None):
@@ -543,7 +543,7 @@ async def on_logout(request: Request, payload: dict = Depends(verify_token)):
     access_token = request.cookies.get("sb_access_token") or ""
     if access_token:
         try:
-            sb = get_supabase()
+            sb = new_auth_client()
             sb.auth.sign_out(access_token)
         except Exception as exc:
             logger.warning("on_logout: Supabase sign_out failed for user %s: %s", user_id, exc)
