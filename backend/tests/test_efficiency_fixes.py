@@ -571,7 +571,8 @@ class TestAuthCallsUseUnsharedClient:
 
     _MUTATING = re.compile(
         r"sb\.auth\.(sign_in_with_oauth|sign_in_with_password|"
-        r"exchange_code_for_session|refresh_session|sign_out)\b"
+        r"exchange_code_for_session|refresh_session|sign_out|"
+        r"sign_up|reset_password_for_email)\b"
     )
 
     @pytest.mark.parametrize("rel", ["routes/auth_routes.py", "services/auth_utils.py"])

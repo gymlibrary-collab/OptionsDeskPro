@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re as _re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -17,6 +18,95 @@ from services import user_portfolio
 from services.activity_logger import log_action, extract_ip
 
 logger = logging.getLogger(__name__)
+
+# ── Password-auth helpers ─────────────────────────────────────────────────────
+
+_EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validate_email_format(email: str) -> bool:
+    """Return True if the string looks like a plausible email address."""
+    return bool(_EMAIL_RE.match(email))
+
+
+def _is_admin_or_staff_email(email: str) -> bool:
+    """
+    Return True if the (stripped, case-normalised) email belongs to the admin
+    account or any active platform_staff member.
+
+    Fails closed: a DB exception returns True so a privileged address is never
+    accidentally permitted through the password auth paths.
+
+    This is a synchronous function; callers inside async handlers must dispatch
+    it via ``await asyncio.to_thread(_is_admin_or_staff_email, email)``.
+    """
+    normalized = email.strip().lower()
+    # Admin email — no DB round-trip needed
+    if normalized == ADMIN_EMAIL.lower():
+        return True
+    # platform_staff lookup — read-only, shared client is safe here
+    # ilike gives a case-insensitive match; escape its wildcards so "a_b@x.com"
+    # cannot match a staff address "a.b@x.com".
+    pattern = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    try:
+        sb = get_supabase()
+        result = (
+            sb.table("platform_staff")
+            .select("id")
+            .ilike("email", pattern)
+            .eq("is_active", True)
+            .maybe_single()
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as exc:
+        logger.warning(
+            "_is_admin_or_staff_email: DB lookup failed for %r, failing closed: %s",
+            email,
+            exc,
+        )
+        return True  # fail closed
+
+
+def _is_supabase_service_error(exc: Exception) -> bool:
+    """
+    Return True when the exception indicates Supabase Auth is unreachable or
+    has rate-limited the request (both conditions map to HTTP 503).
+
+    Pure API failures — user already registered, bad credentials — are NOT
+    service errors; callers should catch them and swallow (anti-enumeration).
+    """
+    # Network / transport layer
+    type_names = {c.__name__ for c in type(exc).__mro__}
+    if type_names & {
+        "ConnectError",
+        "TimeoutException",
+        "ConnectTimeout",
+        "ReadTimeout",
+        "NetworkError",
+        "TransportError",
+        "RemoteProtocolError",
+        "ConnectionError",
+        "TimeoutError",
+    }:
+        return True
+    # Supabase/GoTrue rate-limit and connectivity messages
+    msg = str(exc).lower()
+    return any(
+        k in msg
+        for k in (
+            "connection refused",
+            "failed to connect",
+            "name or service not known",
+            "unable to connect",
+            "network unreachable",
+            "max retries exceeded",
+            "rate limit exceeded",
+            "too many requests",
+            "over_email_send_rate_limit",
+            "email rate limit exceeded",
+        )
+    )
 
 router = APIRouter()
 
@@ -417,6 +507,109 @@ async def get_session(request: Request, payload: dict = Depends(verify_token)):
     }
 
 
+# ── Subscriber sign-up ───────────────────────────────────────────────────────
+
+class SignUpRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/auth/signup")
+async def signup(body: SignUpRequest):
+    """
+    Create a new subscriber account with email and password.
+
+    Returns a uniform 200 response whether or not the email already exists
+    (ADR-0017 — anti-enumeration).  Admin and active platform_staff emails are
+    refused with 403.  No auth required.
+    """
+    # ── Server-side validation ────────────────────────────────────────────────
+    if not body.email.strip() or not body.password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if not _validate_email_format(body.email.strip()):
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    # ── Admin/staff guard (before the Supabase call) ──────────────────────────
+    if await asyncio.to_thread(_is_admin_or_staff_email, body.email):
+        raise HTTPException(
+            status_code=403,
+            detail="Password login is not available for this account. Use Google sign-in.",
+            headers={"X-Error-Code": "staff_only_google"},
+        )
+
+    # ── Supabase sign-up on a fresh unshared auth client ─────────────────────
+    try:
+        sb = new_auth_client()
+        await asyncio.to_thread(
+            lambda: sb.auth.sign_up({
+                "email": body.email.strip(),
+                "password": body.password,
+                "options": {"email_redirect_to": f"{_FRONTEND_ORIGIN}/"},
+            })
+        )
+    except Exception as exc:
+        if _is_supabase_service_error(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service unavailable. Please try again shortly.",
+            )
+        # Swallow API errors (user already registered, weak password from Supabase, etc.)
+        # — do not confirm or deny whether the address is in use (ADR-0017).
+        logger.info("signup: Supabase error swallowed for %r: %s", body.email, exc)
+
+    return {"ok": True, "detail": "check_email"}
+
+
+# ── Password-reset request ────────────────────────────────────────────────────
+
+class ResetRequestBody(BaseModel):
+    email: str
+
+
+@router.post("/auth/reset-request")
+async def reset_request(body: ResetRequestBody):
+    """
+    Trigger a Supabase password-reset email.
+
+    Returns a uniform 200 response regardless of whether the email is registered
+    (no account enumeration).  Admin and active platform_staff emails are refused
+    with 403.  No auth required.
+    """
+    # ── Server-side validation ────────────────────────────────────────────────
+    if not body.email.strip():
+        raise HTTPException(status_code=400, detail="Please enter your email address.")
+
+    # ── Admin/staff guard (before the Supabase call) ──────────────────────────
+    if await asyncio.to_thread(_is_admin_or_staff_email, body.email):
+        raise HTTPException(
+            status_code=403,
+            detail="Password login is not available for this account. Use Google sign-in.",
+            headers={"X-Error-Code": "staff_only_google"},
+        )
+
+    # ── Supabase reset email on a fresh unshared auth client ──────────────────
+    try:
+        sb = new_auth_client()
+        await asyncio.to_thread(
+            lambda: sb.auth.reset_password_for_email(
+                body.email.strip(),
+                options={"redirect_to": f"{_FRONTEND_ORIGIN}/reset-password"},
+            )
+        )
+    except Exception as exc:
+        if _is_supabase_service_error(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service unavailable. Please try again shortly.",
+            )
+        # Swallow API errors (unknown email, rate limit below 503 threshold, etc.)
+        logger.info("reset_request: Supabase error swallowed for %r: %s", body.email, exc)
+
+    return {"ok": True, "detail": "check_email"}
+
+
 # ── Email/password sign-in ────────────────────────────────────────────────────
 
 class EmailLoginRequest(BaseModel):
@@ -431,6 +624,14 @@ async def email_login(request: Request, body: EmailLoginRequest):
     httpOnly cookies, and returns the session context.
     No auth required (credentials are in the request body).
     """
+    # Admin/staff guard — privileged accounts cannot use password login
+    if await asyncio.to_thread(_is_admin_or_staff_email, body.email):
+        raise HTTPException(
+            status_code=403,
+            detail="Password login is not available for this account. Use Google sign-in.",
+            headers={"X-Error-Code": "staff_only_google"},
+        )
+
     try:
         sb = new_auth_client()
         result = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
@@ -584,9 +785,30 @@ async def update_password(
     body: UpdatePasswordRequest,
     payload: dict = Depends(verify_token),
 ):
-    """Proxy for Supabase password update — keeps supabase-js out of the browser."""
+    """
+    Proxy for Supabase password update — keeps supabase-js out of the browser.
+
+    Called by ResetPasswordPage after the recovery-session token has been
+    exchanged client-side via supabase.auth.verifyOtp().  The recovery session
+    access token arrives via the Authorization: Bearer header (no httpOnly cookie
+    is set during the reset flow); verify_token's Bearer fallback handles this.
+
+    Admin and active platform_staff accounts may not set a password through this
+    endpoint (Story 6).
+    """
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    # Admin/staff guard — the reset flow must not be used to give privileged
+    # accounts a password identity.
+    email = get_user_email(payload)
+    if await asyncio.to_thread(_is_admin_or_staff_email, email):
+        raise HTTPException(
+            status_code=403,
+            detail="Password login is not available for this account. Use Google sign-in.",
+            headers={"X-Error-Code": "staff_only_google"},
+        )
+
     user_id = get_user_id(payload)
     try:
         sb = get_supabase()
