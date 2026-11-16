@@ -22,11 +22,11 @@
 | | |
 |---|---|
 | **Document** | `02-design.md` |
-| **Approved by** | |
-| **Date** | |
-| **Notes** | |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-11-16 |
+| **Notes** | Approved with one amendment: the admin/staff guard fails closed — if the staff lookup errors, password login, sign-up and reset are refused. Dashboard steps were corrected before approval (email templates must be edited to send a token hash; there is no flow-type setting). |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 

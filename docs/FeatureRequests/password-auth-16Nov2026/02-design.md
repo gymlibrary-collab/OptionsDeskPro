@@ -178,7 +178,8 @@ def _is_admin_or_staff_email(email: str) -> bool:
     1. if email == ADMIN_EMAIL: return True          # no DB needed
     2. query platform_staff WHERE email = ? AND is_active = true
     3. return bool(result)
-    4. on DB exception: return False  (fail-open: DB hiccup does not block subscribers)
+    4. on DB exception: return True   (fail-closed, Gate 2 amendment: refuse rather than
+       risk letting a staff email through; subscribers cannot log in without the DB anyway)
 ```
 
 The `ADMIN_EMAIL` check is case-sensitive string comparison (matching the existing
