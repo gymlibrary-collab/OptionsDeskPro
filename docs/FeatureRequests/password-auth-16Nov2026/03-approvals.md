@@ -34,13 +34,13 @@
 
 | | |
 |---|---|
-| **Branch / PR** | |
-| **Approved by** | |
-| **Date** | |
-| **Key files changed** | |
-| **Notes** | |
+| **Branch / PR** | `claude/modest-davinci-sxz7lv` (backend 77f4673, frontend 1554d44) |
+| **Approved by** | leonard.simgt@gmail.com |
+| **Date** | 2026-11-16 |
+| **Key files changed** | `backend/routes/auth_routes.py`, `backend/tests/test_password_auth.py`, `frontend/src/context/AuthContext.tsx`, `frontend/src/components/LoginPage.tsx`, `frontend/src/components/ResetPasswordPage.tsx`, `frontend/src/App.tsx`, `frontend/src/api/client.ts`, `frontend/e2e/pages/password-auth.spec.ts` |
+| **Notes** | Backend 599 tests passing (47 new); frontend build clean; new e2e spec 18/18, all against mocked Supabase. Review fixes: staff lookup escapes ilike wildcards; recovery session signed out after reset. Beyond design: admin/staff guard also added to update-password. For Gate 5: staff emails are distinguishable via the 403 on sign-up/reset-request; non-outage Supabase sign-up errors are swallowed. Pre-existing: login.spec.ts / login-email.spec.ts fail 54 of 57 on main as well. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved &nbsp; ☐ Changes Requested
 
 ---
 
