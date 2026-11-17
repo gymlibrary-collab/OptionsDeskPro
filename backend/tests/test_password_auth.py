@@ -881,4 +881,4 @@ class TestRateLimit:
             r.path for r in ar.router.routes
             if any("rate_limit" in getattr(getattr(d, "dependency", None), "__qualname__", "") for d in getattr(r, "dependencies", []))
         }
-        assert {"/auth/signup", "/auth/reset-request", "/auth/email-login"} <= limited
+        assert {"/auth/signup", "/auth/reset-request", "/auth/email-login", "/auth/update-password"} <= limited

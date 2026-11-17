@@ -823,7 +823,7 @@ class UpdatePasswordRequest(BaseModel):
     current_password: str | None = None
 
 
-@router.post("/auth/update-password")
+@router.post("/auth/update-password", dependencies=[Depends(rate_limit("update-password", 5, 900))])
 async def update_password(
     request: Request,
     body: UpdatePasswordRequest,
