@@ -20,7 +20,10 @@ async def place_order(req: OrderRequest, request: Request, payload: dict = Depen
     if req.option_type.lower() not in ("call", "put"):
         raise HTTPException(status_code=400, detail="option_type must be 'call' or 'put'")
     user_id = get_user_id(payload)
-    result = user_portfolio.place_order(user_id, req)
+    # place_order is synchronous and may block up to ~5 s on a yfinance call
+    # (get_option_price fallback).  Run it on a worker thread so the event loop
+    # stays responsive for all other users.
+    result = await asyncio.to_thread(user_portfolio.place_order, user_id, req)
     if result.status == "filled":
         asyncio.create_task(log_action(
             user_id=user_id,
@@ -58,7 +61,9 @@ async def record_trade(req: TradeRecordRequest, request: Request, payload: dict 
     if not req.legs:
         raise HTTPException(status_code=400, detail="At least one leg required")
     user_id = get_user_id(payload)
-    result = user_portfolio.record_trade(user_id, req)
+    # record_trade is synchronous and does N×2 Supabase round-trips (one read +
+    # one write per leg).  Run it on a worker thread to free the event loop.
+    result = await asyncio.to_thread(user_portfolio.record_trade, user_id, req)
     asyncio.create_task(log_action(
         user_id=user_id,
         user_email=get_user_email(payload),

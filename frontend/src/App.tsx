@@ -21,6 +21,7 @@ import LockedTabPlaceholder from './components/LockedTabPlaceholder'
 import PaymentFailedBanner from './components/PaymentFailedBanner'
 import AdminApp from './components/admin/AdminApp'
 import LegalAcknowledgmentGate from './components/LegalAcknowledgmentGate'
+import ResetPasswordPage from './components/ResetPasswordPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext'
 import { useWindowSize } from './hooks/useWindowSize'
@@ -406,7 +407,7 @@ function Dashboard() {
                   <>
                     <Positions refreshSignal={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} onPositionUpdated={() => setRiskMonitorRefresh(n => n + 1)} />
                     <PnLChart />
-                    <RiskMonitor key={riskMonitorRefresh} />
+                    <RiskMonitor refreshSignal={riskMonitorRefresh} />
                   </>
                 )}
               </div>
@@ -495,8 +496,25 @@ function Dashboard() {
 const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 
 function ClientAppInner() {
-  const { user, profile, loading, pendingLegalAcknowledgment } = useAuth()
-  const [authView, setAuthView] = useState<'home' | 'signin' | 'signup'>('home')
+  const { user, profile, loading, pendingLegalAcknowledgment, loginBanner, clearLoginBanner } = useAuth()
+
+  // Determine initial auth view from URL params (runs once at render time).
+  // The corresponding URL params are cleaned in the useEffect below.
+  const [authView, setAuthView] = useState<'home' | 'signin' | 'signup' | 'signin-banner' | 'forgot'>(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reset_success') === '1') return 'signin-banner'
+    if (params.get('forgot') === '1') return 'forgot'
+    if (params.get('signup') === '1') return 'signup'
+    return 'home'
+  })
+
+  // Clean any URL params that were consumed for routing decisions.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reset_success') || params.get('forgot') || params.get('signup')) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   // Start fetching the chain immediately on mount — runs during the auth loading
   // spinner so data is cached by the time the options chain tab renders.
@@ -507,6 +525,12 @@ function ClientAppInner() {
     getOptionsChain(sym).catch(() => {})
     getQuote(sym).catch(() => {})
   }, [])
+
+  // /reset-password must render before the loading check so the page is immediately
+  // accessible whether or not the user is logged in.
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage />
+  }
 
   if (loading) {
     return (
@@ -521,6 +545,34 @@ function ClientAppInner() {
         <LoginPage
           initialMode="signup"
           onBack={() => setAuthView('home')}
+        />
+      )
+    }
+    if (authView === 'signin-banner') {
+      return (
+        <LoginPage
+          initialMode="signin"
+          initialBanner="Password updated. Please sign in."
+          onBack={() => setAuthView('home')}
+        />
+      )
+    }
+    if (authView === 'forgot') {
+      return (
+        <LoginPage
+          initialMode="forgot"
+          onBack={() => setAuthView('home')}
+        />
+      )
+    }
+    // AuthContext email-verification failure banner
+    if (loginBanner) {
+      return (
+        <LoginPage
+          initialMode="signin"
+          initialBanner={loginBanner}
+          bannerTone="error"
+          onBack={() => { clearLoginBanner(); setAuthView('home') }}
         />
       )
     }

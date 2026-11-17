@@ -228,9 +228,34 @@ def _calculate_rsi(prices: np.ndarray, period: int = 14) -> float:
     return round(100.0 - (100.0 / (1.0 + avg_gain / avg_loss)), 2)
 
 
-# ── Main entry point ──────────────────────────────────────────────────────────
+# ── IV-rank / bias in-process cache ─────────────────────────────────────────
+# get_iv_rank and get_directional_bias are called on every /strategies/analyze
+# request (and potentially in parallel for scanner runs).  Each uncached call
+# downloads 1–3 months of OHLCV history from yfinance (~0.5–2 s).  A 120 s
+# TTL keeps the data fresh while capping yfinance round-trips to once per 2 min
+# per symbol.  Fallback / error results (key "error" present) are never cached
+# so a transient yfinance failure retries on the next request.
+
+_IV_RANK_CACHE: dict[str, dict] = {}  # key → {"ts": float, "data": dict}
+_BIAS_CACHE: dict[str, dict] = {}     # key → {"ts": float, "data": dict}
+_IV_TTL = 120.0  # seconds
+
+
+# ── Main entry points ─────────────────────────────────────────────────────────
 
 def get_iv_rank(symbol: str) -> dict:
+    """Cached wrapper — TTL 120 s.  Delegates to _get_iv_rank on cache miss."""
+    key = symbol.upper()
+    entry = _IV_RANK_CACHE.get(key)
+    if entry and (time.time() - entry["ts"]) < _IV_TTL:
+        return entry["data"]
+    result = _get_iv_rank(symbol)
+    if "error" not in result:
+        _IV_RANK_CACHE[key] = {"ts": time.time(), "data": result}
+    return result
+
+
+def _get_iv_rank(symbol: str) -> dict:
     """
     Calculate IV Rank for a symbol using a four-tier source sequence.
     Returns dict with symbol, current_iv, iv_rank, iv_source, iv_environment,
@@ -361,6 +386,18 @@ def _hardcoded_fallback(symbol: str, error: str) -> dict:
 
 
 def get_directional_bias(symbol: str) -> dict:
+    """Cached wrapper — TTL 120 s.  Delegates to _get_directional_bias on cache miss."""
+    key = symbol.upper()
+    entry = _BIAS_CACHE.get(key)
+    if entry and (time.time() - entry["ts"]) < _IV_TTL:
+        return entry["data"]
+    result = _get_directional_bias(symbol)
+    if "error" not in result:
+        _BIAS_CACHE[key] = {"ts": time.time(), "data": result}
+    return result
+
+
+def _get_directional_bias(symbol: str) -> dict:
     """
     Momentum-based directional bias: SMA20/50 crossover + RSI(14).
     Returns dict with symbol, price, sma20, sma50, rsi14, bias, strength.

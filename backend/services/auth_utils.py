@@ -157,9 +157,9 @@ async def _maybe_refresh(token: str, request: Request) -> dict | None:
         if current_exp is not None and current_exp - time.time() >= 300:
             return None
 
-        from services.db import get_supabase
-        sb = get_supabase()
-        result = sb.auth.refresh_session(refresh_token)
+        from services.db import new_auth_client
+        sb = new_auth_client()
+        result = await asyncio.to_thread(sb.auth.refresh_session, refresh_token)
         session = result.session
         if not session:
             return None
@@ -236,11 +236,12 @@ async def verify_token(request: Request) -> dict:
         request.state.new_access_token = refreshed["access_token"]
         request.state.new_refresh_token = refreshed["refresh_token"]
 
-    # 4. Verify with Supabase
+    # 4. Verify with Supabase — run on a worker thread so the synchronous
+    #    HTTP call does not block the event loop.
     try:
         from services.db import get_supabase
         sb = get_supabase()
-        result = sb.auth.get_user(token)
+        result = await asyncio.to_thread(sb.auth.get_user, token)
         user = result.user
         if not user:
             raise HTTPException(status_code=401, detail="Not authenticated")
@@ -249,10 +250,10 @@ async def verify_token(request: Request) -> dict:
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
-    # 5. Deactivation check — runs on every authenticated request.
+    # 5. Deactivation check — run on a worker thread (may hit DB on cache miss).
     #    Uses a 60 s in-process cache to avoid a DB round-trip per call.
     #    Fail-open: _is_deactivated() returns False on DB error.
-    if _is_deactivated(user.id):
+    if await asyncio.to_thread(_is_deactivated, user.id):
         raise HTTPException(status_code=403, detail="Account suspended")
 
     return {

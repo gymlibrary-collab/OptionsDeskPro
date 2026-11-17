@@ -117,6 +117,7 @@ export default function SettingsPage({ onClose, onUpgradeClick }: Props) {
 // ─── Account Tab ─────────────────────────────────────────────────────────────────────────────────
 
 function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user']; profile: ReturnType<typeof useAuth>['profile'] }) {
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
   const [pwLoading, setPwLoading] = useState(false)
@@ -127,11 +128,12 @@ function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user'
     e.preventDefault()
     setPwError(null)
     setPwSuccess(false)
-    if (newPassword.length < 8) { setPwError('Password must be at least 8 characters.'); return }
+    if (!currentPassword) { setPwError('Enter your current password.'); return }
+    if (newPassword.length < 12) { setPwError('Password must be at least 12 characters.'); return }
     if (newPassword !== confirmPw) { setPwError('Passwords do not match.'); return }
     setPwLoading(true)
     try {
-      await updatePassword(newPassword)
+      await updatePassword(newPassword, currentPassword)
     } catch (e: any) {
       setPwLoading(false)
       setPwError(e?.response?.data?.detail || 'Password update failed. Please try again.')
@@ -139,6 +141,7 @@ function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user'
     }
     setPwLoading(false)
     setPwSuccess(true)
+    setCurrentPassword('')
     setNewPassword('')
     setConfirmPw('')
   }
@@ -155,6 +158,15 @@ function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user'
 
       <Section title="Change Password">
         <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <input
+            type="password"
+            placeholder="Current password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+            disabled={pwLoading}
+            style={inputStyle}
+          />
           <input
             type="password"
             placeholder="New password"

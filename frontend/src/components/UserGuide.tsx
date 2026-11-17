@@ -167,9 +167,6 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Theta (Θ)">Daily time decay — how much value the option loses each day just from time passing. Sellers collect theta; buyers pay it.</Term>
           <Term term="Vega (V)">Sensitivity to implied volatility changes. A vega of 0.10 means the option gains/loses $10 for every 1% change in IV.</Term>
         </Sub>
-        <Note color={C.amber}>
-          <strong>Tip:</strong> Click any row in the chain to pre-fill the Order Entry panel on the right with that contract's details. Adjust action (Buy/Sell) and quantity before submitting.
-        </Note>
       </Section>
 
       {/* ── STRATEGY SCANNER ── */}
@@ -287,9 +284,8 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           Options Compass includes a paper trading system — trades are simulated with real market prices but no
           real money is at risk. Use it to practice strategy execution and track your P&amp;L.
         </P>
-        <P>There are three ways to record a trade:</P>
+        <P>There are two ways to record a trade:</P>
         <Sub>
-          <P><strong>From the Options Chain:</strong> click any row to pre-fill the Order Entry panel (right sidebar on desktop, bottom drawer on mobile).</P>
           <P><strong>From the Scanner:</strong> click <strong>Analyze</strong> on a symbol, review the AI narrative, then click <strong>Record Trade</strong> to log the recommended strategy legs in one step — strategy name, profit target, and narrative are saved automatically.</P>
           <P><strong>Manual entry (Positions tab):</strong> click <strong>+ Record Trade</strong> at the top of the Positions tab to open a quick-entry form. Fill in Symbol, Expiry, Strike, Type, Action, Qty, and Price, then click <strong>Record</strong>. Use this for trades you've already placed in your real broker and want to track here, or for any single-leg position not covered by the scanner flow.</P>
         </Sub>
@@ -431,7 +427,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
 
         <Note color={C.amber}>
           Positions are marked to market using the current mid-price each time you open the Positions tab.
-          Click the tab to trigger a fresh snapshot. Expiry dates are displayed in dd-mm-yyyy format (e.g. 31-07-2026).
+          Click the tab to trigger a fresh snapshot. Expiry dates are displayed as D Mon YYYY (e.g. 31 Jul 2026).
         </Note>
       </Section>
 

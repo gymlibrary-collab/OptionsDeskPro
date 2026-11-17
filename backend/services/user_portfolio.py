@@ -138,16 +138,21 @@ def _update_position(sb, user_id: str, req, price: float):
             # (delta and qty share the same sign).  Partial closes keep the
             # existing cost basis — the price you're closing at doesn't alter
             # what you originally paid/collected on the remaining contracts.
+            update = {"updated_at": datetime.now(timezone.utc).isoformat()}
             if (delta > 0 and qty > 0) or (delta < 0 and qty < 0):
                 new_avg = (abs(qty) * avg + abs(delta) * price) / abs(new_qty)
+            elif (new_qty > 0) != (qty > 0):
+                # Trade crossed through zero: the old side is fully closed and
+                # the remainder is a brand-new opposite position opened at
+                # this trade's price.
+                new_avg = price
+                update["entry_action"] = req.action.lower()
             else:
                 new_avg = avg   # partial close — basis unchanged
 
-            sb.table("positions").update({
-                "quantity": new_qty,
-                "avg_cost": round(new_avg, 4),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", pos["id"]).execute()
+            update["quantity"] = new_qty
+            update["avg_cost"] = round(new_avg, 4)
+            sb.table("positions").update(update).eq("id", pos["id"]).execute()
     else:
         # No matching position for this strategy group — create a new row.
         sb.table("positions").insert({
@@ -334,9 +339,19 @@ def record_trade(user_id: str, req) -> dict:
       avg_cost / entry_action for settlement_metadata (source=None for manual).
     - Price floor: close legs allow $0.00 (Gate 2 Amendment 1); open legs keep
       the existing $0.01 floor so zero/negative prices are never stored on entries.
+
+    Cash optimisation: cash is read once before the leg loop and written once
+    after all legs are processed — down from N reads + N writes to 1 + 1.
+    Per-leg position updates and order inserts are unchanged.
     """
     sb = get_supabase()
     ensure_portfolio(user_id)
+
+    # Read cash once before the leg loop.  ensure_portfolio() above guarantees
+    # the row exists (creates it at $100 000 if missing).
+    cash_row = sb.table("portfolios").select("cash").eq("user_id", user_id).single().execute()
+    cash = float(cash_row.data["cash"])
+
     recorded = 0
     for leg in req.legs:
         leg_role = getattr(leg, "role", None)
@@ -385,16 +400,10 @@ def record_trade(user_id: str, req) -> dict:
                 )
 
         total_cost = price * leg.quantity * 100
-        cash_result = sb.table("portfolios").select("cash").eq("user_id", user_id).single().execute()
-        cash = float(cash_result.data["cash"])
         if leg.action.lower() == "buy":
             cash -= total_cost
         else:
             cash += total_cost
-        sb.table("portfolios").update({
-            "cash": cash,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("user_id", user_id).execute()
 
         order_req = type("R", (), {
             "symbol": req.symbol.upper(),
@@ -427,6 +436,13 @@ def record_trade(user_id: str, req) -> dict:
             "settlement_metadata": settlement_metadata,
         }).execute()
         recorded += 1
+
+    # Write the accumulated cash change once after all legs are processed.
+    sb.table("portfolios").update({
+        "cash": cash,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()
+
     return {"recorded": recorded, "strategy": req.strategy_name}
 
 

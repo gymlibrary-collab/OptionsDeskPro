@@ -3,11 +3,14 @@ import { useAuth } from '../context/AuthContext'
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif"
 
-type Mode = 'signin' | 'signup'
+type Mode = 'signin' | 'signup' | 'forgot'
 
 interface LoginPageProps {
   initialMode?: Mode
   onBack?: () => void
+  /** One-time success/info banner shown above the form (e.g. after password reset). */
+  initialBanner?: string
+  bannerTone?: 'success' | 'error'
 }
 
 const FEATURES = [
@@ -188,8 +191,8 @@ function CompassSVG() {
   )
 }
 
-export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageProps) {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail, loading } = useAuth()
+export default function LoginPage({ initialMode = 'signin', onBack, initialBanner, bannerTone = 'success' }: LoginPageProps) {
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, requestPasswordReset, loading } = useAuth()
   const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -202,14 +205,30 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
     e.preventDefault()
     setFormError(null)
     setSuccessMsg(null)
+
+    if (mode === 'forgot') {
+      if (!email.trim()) { setFormError('Please enter your email address.'); return }
+      setSubmitting(true)
+      try {
+        await requestPasswordReset(email.trim())
+        setSuccessMsg('If an account exists for that address, a reset link has been sent. Check your inbox.')
+      } catch (err: unknown) {
+        const e = err as { message?: string }
+        setFormError(e?.message || 'Request failed. Please try again.')
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
     if (!email.trim() || !password) { setFormError('Email and password are required.'); return }
     if (mode === 'signup' && password !== confirmPassword) { setFormError('Passwords do not match.'); return }
-    if (mode === 'signup' && password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
+    if (mode === 'signup' && password.length < 12) { setFormError('Password must be at least 12 characters.'); return }
     setSubmitting(true)
     try {
       if (mode === 'signup') {
         await signUpWithEmail(email.trim(), password)
-        setSuccessMsg('Account created. Check your email to confirm your address before signing in.')
+        setSuccessMsg('Check your email to verify your address before signing in. If you already have an account with this email (including via Google), use "Forgot password?" to set a password instead.')
       } else {
         await signInWithEmail(email.trim(), password)
       }
@@ -221,7 +240,13 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
     }
   }
 
-  const switchMode = (m: Mode) => { setMode(m); setFormError(null); setSuccessMsg(null) }
+  const switchMode = (m: Mode) => {
+    setMode(m)
+    setFormError(null)
+    setSuccessMsg(null)
+    if (m !== 'signup') setConfirmPassword('')
+    if (m === 'forgot') setPassword('')
+  }
   const busy = loading || submitting
 
   return (
@@ -441,17 +466,33 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
             </button>
           )}
 
+          {/* Initial banner — shown after a password reset or email-verify failure */}
+          {initialBanner && (
+            <div role={bannerTone === 'error' ? 'alert' : 'status'} style={{
+              background: bannerTone === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+              border: `1px solid ${bannerTone === 'error' ? '#ef4444' : '#22c55e'}`,
+              borderRadius: '10px', padding: '12px', fontSize: '13px',
+              color: bannerTone === 'error' ? '#ef4444' : '#22c55e', marginBottom: '20px',
+            }}>
+              {initialBanner}
+            </div>
+          )}
+
           <div className="lp-form-title" style={{ fontSize: '26px', fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.5px', marginBottom: '4px' }}>
-            {mode === 'signup' ? 'Create your account' : 'Welcome back'}
+            {mode === 'signup' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Welcome back'}
           </div>
           <div className="lp-form-sub" style={{ fontSize: '13px', color: '#4b5563', marginBottom: '32px' }}>
-            {mode === 'signup' ? 'Start paper trading in under a minute' : 'Sign in to your Options Compass account'}
+            {mode === 'signup'
+              ? 'Start paper trading in under a minute'
+              : mode === 'forgot'
+              ? 'Enter your email to receive a reset link.'
+              : 'Sign in to your Options Compass account'}
           </div>
 
-          {/* Mode toggle — only shown on sign-in to avoid confusing sign-up users */}
-          {mode === 'signin' && (
+          {/* Mode toggle — only shown on sign-in; hidden in signup and forgot modes */}
+          {mode !== 'forgot' && (
             <div className="lp-toggle-wrap" style={{ display: 'flex', background: '#0d0f1a', border: '1px solid #1e2235', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px', padding: '3px', gap: '3px' }}>
-              {(['signin', 'signup'] as Mode[]).map(m => (
+              {(['signin', 'signup'] as ('signin' | 'signup')[]).map(m => (
                 <button
                   key={m}
                   onClick={() => switchMode(m)}
@@ -504,10 +545,21 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
           {successMsg ? (
             <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', borderRadius: '10px', padding: '12px', fontSize: '13px', color: '#22c55e', marginBottom: '16px' }}>
               {successMsg}
+              {mode === 'forgot' && (
+                <div style={{ marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signin')}
+                    style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600, fontSize: '13px', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
+                  >
+                    Back to sign in
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-              <div style={{ position: 'relative', marginBottom: '12px' }}>
+              <div style={{ position: 'relative', marginBottom: mode === 'forgot' ? '0' : '12px' }}>
                 <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#2d3748', fontSize: '13px', pointerEvents: 'none' }}>✉</span>
                 <input
                   type="email"
@@ -524,23 +576,25 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
                   }}
                 />
               </div>
-              <div style={{ position: 'relative', marginBottom: mode === 'signup' ? '12px' : '0' }}>
-                <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#2d3748', fontSize: '13px', pointerEvents: 'none' }}>🔑</span>
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  disabled={busy}
-                  className="lp-input"
-                  style={{
-                    width: '100%', padding: '12px 14px 12px 40px',
-                    background: '#0d0f1a', border: '1px solid #1e2235',
-                    borderRadius: '10px', color: '#e2e8f0', fontSize: '14px', fontFamily: FONT,
-                    outline: 'none',
-                  }}
-                />
-              </div>
+              {mode !== 'forgot' && (
+                <div style={{ position: 'relative', marginBottom: mode === 'signup' ? '12px' : '0' }}>
+                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#2d3748', fontSize: '13px', pointerEvents: 'none' }}>🔑</span>
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    disabled={busy}
+                    className="lp-input"
+                    style={{
+                      width: '100%', padding: '12px 14px 12px 40px',
+                      background: '#0d0f1a', border: '1px solid #1e2235',
+                      borderRadius: '10px', color: '#e2e8f0', fontSize: '14px', fontFamily: FONT,
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
               {mode === 'signup' && (
                 <div style={{ position: 'relative', marginBottom: '0' }}>
                   <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#2d3748', fontSize: '13px', pointerEvents: 'none' }}>🔑</span>
@@ -562,7 +616,24 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
               )}
               {mode === 'signin' && (
                 <div style={{ textAlign: 'right', margin: '6px 0 16px' }}>
-                  <span style={{ fontSize: '12px', color: '#2d3748', cursor: 'default' }}>Forgot password?</span>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+              {mode === 'forgot' && (
+                <div style={{ textAlign: 'right', margin: '6px 0 16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signin')}
+                    style={{ fontSize: '12px', color: '#7c6af7', cursor: 'pointer', fontWeight: 500, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
+                  >
+                    Back to sign in
+                  </button>
                 </div>
               )}
               {formError && (
@@ -585,8 +656,8 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
                 }}
               >
                 {submitting
-                  ? (mode === 'signup' ? 'Creating account...' : 'Signing in...')
-                  : (mode === 'signup' ? 'Create Account →' : 'Sign In →')}
+                  ? (mode === 'signup' ? 'Creating account...' : mode === 'forgot' ? 'Sending...' : 'Signing in...')
+                  : (mode === 'signup' ? 'Create Account →' : mode === 'forgot' ? 'Send reset link' : 'Sign In →')}
               </button>
             </form>
           )}
@@ -594,7 +665,7 @@ export default function LoginPage({ initialMode = 'signin', onBack }: LoginPageP
           {/* Switch mode — only shown on sign-in panel */}
           {mode === 'signin' && (
             <div className="lp-switch-mode" style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #141727', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>
-              New to Options Compass? <span onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600 }}>Create a free account</span>
+              New to Options Compass? <button type="button" onClick={() => switchMode('signup')} style={{ color: '#7c6af7', cursor: 'pointer', fontWeight: 600, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}>Create a free account</button>
             </div>
           )}
 

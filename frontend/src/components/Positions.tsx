@@ -2,15 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { getPositions, getPortfolio, getQuote, Position, PortfolioSummary, recordTrade, Quote, getGreeksCoaching, GreeksCoachingResponse, updatePositionAvgCost, getClosedPositions, ClosedPosition } from '../api/client'
 import { useEntitlements } from '../context/EntitlementsContext'
 import { useWindowSize } from '../hooks/useWindowSize'
+import { fmtCalDate } from '../lib/format'
 
 function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
-}
-
-function fmtDate(iso: string): string {
-  // yyyy-mm-dd → dd-mm-yyyy
-  const parts = iso.split('-')
-  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
 }
 
 function dte(expiry: string): number {
@@ -927,7 +922,7 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
                     <td style={styles.td}>
                       <span style={styles.typeBadge(pos.option_type as 'call' | 'put')}>{pos.option_type.toUpperCase()}</span>
                     </td>
-                    <td style={styles.td}>{fmtDate(pos.expiry)}</td>
+                    <td style={styles.td}>{fmtCalDate(pos.expiry)}</td>
                     <td style={{ ...styles.td, color: dteColor, fontWeight: daysLeft <= 21 ? 700 : 400 }}>{daysLeft}d</td>
                     <td style={styles.td}>${fmt(pos.strike)}</td>
                     <td style={{ ...styles.td, color: pos.quantity < 0 ? C.red : C.text }}>
@@ -1152,7 +1147,7 @@ function ClosedPositionsAccordion({ positions }: { positions: ClosedPosition[] }
                         : <span style={{ fontSize: '11px', color: C.muted }}>Manual</span>
                       }
                     </td>
-                    <td style={tdStyle}>{fmtDate(pos.expiry)}</td>
+                    <td style={tdStyle}>{fmtCalDate(pos.expiry)}</td>
                     <td style={tdStyle}>${fmt(pos.settlement_price)}</td>
                     <td style={tdStyle}>
                       {pos.entry_avg_cost != null ? `$${fmt(pos.entry_avg_cost)}` : '—'}

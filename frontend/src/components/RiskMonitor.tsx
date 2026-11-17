@@ -23,11 +23,6 @@ function fmt(n: number, d = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
-function fmtDate(iso: string): string {
-  const parts = iso.split('-')
-  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : iso
-}
-
 function fmtFullDate(iso: string): string {
   // "2026-06-25" → "25 Jun 2026"
   const [yyyy, mm, dd] = iso.split('-')
@@ -100,10 +95,8 @@ function CloseInstructions({ pos }: { pos: PositionRisk }) {
     <div style={{ background: '#1a0a0a', border: `1px solid ${C.red}33`, borderRadius: '6px', padding: '10px 12px' }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
       <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.9 }}>
-        <li>Open <strong>Order Entry</strong> (right sidebar on desktop · tap "+ Place Order" on mobile).</li>
-        <li>Enter: Symbol <strong>{pos.symbol}</strong> · Expiry <strong>{fmtDate(pos.expiry)}</strong> · Strike <strong>${fmt(pos.strike, 0)}</strong> · Type <strong>{pos.option_type.toUpperCase()}</strong></li>
-        <li>Set Action to <strong style={{ color: closeAction === 'SELL' ? C.red : C.green }}>{closeAction}</strong> · Quantity <strong>{qty}</strong></li>
-        <li>Confirm the order. This position will disappear once filled.</li>
+        <li>Go to the <strong>Positions</strong> tab, find the row for <strong>{pos.symbol}</strong> ${fmt(pos.strike, 0)} {pos.option_type.toUpperCase()}, and click the <strong style={{ color: C.red }}>Close</strong> button.</li>
+        <li>Confirm the closing price, set quantity to <strong>{qty}</strong> (action: <strong style={{ color: closeAction === 'SELL' ? C.red : C.green }}>{closeAction}</strong>), then click <strong>Confirm Close</strong>.</li>
       </ol>
     </div>
   )
@@ -996,7 +989,7 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
       </div>
       <div style={{ fontSize: '11px', fontWeight: 600, color: '#cbd5e1' }}>
         {legCount} leg{legCount !== 1 ? 's' : ''}
-        {nearestExpiry && <> · Expiry {fmtDate(nearestExpiry)}</>}
+        {nearestExpiry && <> · Expiry {fmtFullDate(nearestExpiry)}</>}
         {firstIvRank != null && <> · IV Rank {fmt(firstIvRank, 0)}</>}
       </div>
     </div>
@@ -1087,7 +1080,7 @@ function SortBar({
 
 // ── Main RiskMonitor ──────────────────────────────────────────────────────────
 
-export default function RiskMonitor() {
+export default function RiskMonitor({ refreshSignal }: { refreshSignal?: number }) {
   const { isMobile } = useWindowSize()
 
   const [data, setData] = useState<PositionRisk[]>([])
@@ -1145,6 +1138,9 @@ export default function RiskMonitor() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (refreshSignal !== undefined && refreshSignal > 0) load(true)
+  }, [load, refreshSignal])
   useEffect(() => {
     const interval = setInterval(() => load(true), REFRESH_MS)
     return () => clearInterval(interval)

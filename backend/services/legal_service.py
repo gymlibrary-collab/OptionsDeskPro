@@ -7,6 +7,7 @@ single Railway instance so an in-process dict is sufficient.
 
 Never call get_supabase() at module level.
 """
+import asyncio
 import logging
 import time
 from typing import Optional
@@ -84,6 +85,10 @@ async def require_legal_acknowledgment(user_id: str, email: str) -> None:
     Fail-open on DB errors: any exception is logged at ERROR level and the
     request is allowed through so a legal-DB hiccup does not lock out users.
     HTTP 451 = "Unavailable For Legal Reasons" (RFC 7725).
+
+    Both get_active_version() (on cache miss) and the legal_acknowledgments lookup
+    are synchronous Supabase calls that block the event loop.  They are moved onto
+    a worker thread via asyncio.to_thread so the event loop stays responsive.
     """
     from fastapi import HTTPException
     from services.auth_utils import ADMIN_EMAIL
@@ -91,13 +96,18 @@ async def require_legal_acknowledgment(user_id: str, email: str) -> None:
     if email == ADMIN_EMAIL:
         return
 
-    try:
+    def _check_sync():
+        """
+        Run the two blocking DB calls on a worker thread.
+        Returns (should_check: bool, ack) where:
+          should_check=False → no active version, nothing to gate on → pass through
+          should_check=True, ack → check ack.data for the acknowledgment row
+        """
         active = get_active_version()
         if not active:
-            return
+            return False, None
 
         version_id = active["id"]
-
         from services.db import get_supabase
         sb = get_supabase()
         ack = (
@@ -108,7 +118,11 @@ async def require_legal_acknowledgment(user_id: str, email: str) -> None:
             .maybe_single()
             .execute()
         )
-        if ack is None or ack.data is None:
+        return True, ack
+
+    try:
+        should_check, ack = await asyncio.to_thread(_check_sync)
+        if should_check and (ack is None or ack.data is None):
             raise HTTPException(
                 status_code=451,
                 detail="Legal acknowledgment required",

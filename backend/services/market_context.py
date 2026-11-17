@@ -3,15 +3,58 @@ Supplementary market context: earnings dates, news headlines, options flow,
 IV term structure/skew, and enhanced technicals (MACD, ATR, volume trend).
 """
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
+# ── In-process TTL cache ──────────────────────────────────────────────────────
+# One /strategies/analyze request fires up to 4 uncached yfinance calls via
+# get_full_market_context (earnings, news, technicals, term structure).  Caching
+# each function independently means subsequent requests for the same symbol
+# within the TTL window are served without touching yfinance.
+#
+# Empty-dict / empty-list results produced by exception handlers are NOT cached
+# so a transient yfinance failure retries on the next request.
+#
+# TTLs: earnings and news change slowly → 15 min; technicals / term structure
+# change more quickly (within a session) → 2 min.
+
+_MKTCTX_CACHE: dict[str, dict] = {}  # key → {"ts": float, "data": any}
+_TTL_SHORT = 120.0   # seconds — technicals, term structure
+_TTL_LONG  = 900.0   # seconds — news, earnings
+
+
+def _ctx_get(key: str, ttl: float):
+    entry = _MKTCTX_CACHE.get(key)
+    if not entry:
+        return None
+    if (time.time() - entry["ts"]) < ttl:
+        return entry["data"]
+    return None
+
+
+def _ctx_set(key: str, data) -> None:
+    _MKTCTX_CACHE[key] = {"ts": time.time(), "data": data}
+
 
 def get_earnings_info(symbol: str) -> dict:
-    """Return next earnings date and days until it."""
+    """Return next earnings date and days until it. TTL-cached for 15 min."""
+    key = f"earnings:{symbol.upper()}"
+    cached = _ctx_get(key, _TTL_LONG)
+    if cached is not None:
+        return cached
+    result = _get_earnings_info(symbol)
+    # Cache genuine results; don't cache the all-None fallback (yfinance error).
+    if result.get("next_earnings") is not None:
+        _ctx_set(key, result)
+    return result
+
+
+def _get_earnings_info(symbol: str) -> dict:
+    """Uncached implementation."""
     try:
         ticker = yf.Ticker(symbol)
         cal = ticker.calendar
@@ -58,7 +101,20 @@ def get_earnings_info(symbol: str) -> dict:
 
 
 def get_news_headlines(symbol: str, max_items: int = 6) -> list:
-    """Return recent news headlines for the symbol."""
+    """Return recent news headlines for the symbol. TTL-cached for 15 min."""
+    key = f"news:{symbol.upper()}"
+    cached = _ctx_get(key, _TTL_LONG)
+    if cached is not None:
+        return cached
+    result = _get_news_headlines(symbol, max_items)
+    # Don't cache an empty list caused by an exception.
+    if result:
+        _ctx_set(key, result)
+    return result
+
+
+def _get_news_headlines(symbol: str, max_items: int = 6) -> list:
+    """Uncached implementation."""
     try:
         ticker = yf.Ticker(symbol)
         news = ticker.news or []
@@ -128,7 +184,20 @@ def get_options_flow(chain: dict) -> dict:
 
 
 def get_enhanced_technicals(symbol: str) -> dict:
-    """Return MACD, ATR, and volume trend from recent price history."""
+    """Return MACD, ATR, and volume trend from recent price history. TTL-cached 2 min."""
+    key = f"technicals:{symbol.upper()}"
+    cached = _ctx_get(key, _TTL_SHORT)
+    if cached is not None:
+        return cached
+    result = _get_enhanced_technicals(symbol)
+    # Don't cache the empty-dict fallback returned on exception.
+    if result:
+        _ctx_set(key, result)
+    return result
+
+
+def _get_enhanced_technicals(symbol: str) -> dict:
+    """Uncached implementation."""
     try:
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period="3mo")
@@ -187,7 +256,20 @@ def get_enhanced_technicals(symbol: str) -> dict:
 
 
 def get_iv_term_structure(symbol: str) -> dict:
-    """Compare front-month and back-month IV; compute put skew."""
+    """Compare front-month and back-month IV; compute put skew. TTL-cached 2 min."""
+    key = f"term_structure:{symbol.upper()}"
+    cached = _ctx_get(key, _TTL_SHORT)
+    if cached is not None:
+        return cached
+    result = _get_iv_term_structure(symbol)
+    # Don't cache the empty-dict fallback returned on exception.
+    if result:
+        _ctx_set(key, result)
+    return result
+
+
+def _get_iv_term_structure(symbol: str) -> dict:
+    """Uncached implementation."""
     try:
         ticker = yf.Ticker(symbol)
         expirations = ticker.options

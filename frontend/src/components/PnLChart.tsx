@@ -60,7 +60,26 @@ export default function PnLChart() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading || data.length === 0) return null
+  if (loading) return (
+    <div style={{ marginTop: 24, background: '#1a1d27', border: '1px solid #2d3148', borderRadius: 8, padding: '16px 8px' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, paddingLeft: 8 }}>
+        Portfolio P&amp;L History
+      </div>
+      <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '40px 0' }}>
+        Loading portfolio history…
+      </div>
+    </div>
+  )
+  if (data.length === 0) return (
+    <div style={{ marginTop: 24, background: '#1a1d27', border: '1px solid #2d3148', borderRadius: 8, padding: '16px 8px' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, paddingLeft: 8 }}>
+        Portfolio P&amp;L History
+      </div>
+      <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '40px 0' }}>
+        No history yet — your P&amp;L chart will appear after your first trade.
+      </div>
+    </div>
+  )
 
   const vals = data.map(d => d.portfolio_value)
   const minVal = Math.min(...vals)

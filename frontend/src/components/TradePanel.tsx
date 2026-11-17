@@ -3,6 +3,7 @@ import {
   TradeStructure, TradeLeg, recordTrade,
   getAISettings, analyzeSymbol, aiStrategyReasoning, aiEnhanceNarrative,
 } from '../api/client'
+import { fmtCalDate } from '../lib/format'
 
 interface Props {
   symbol: string
@@ -224,7 +225,7 @@ export default function TradePanel({ symbol, trade, onRecorded, onClose }: Props
       {/* Quick stats */}
       <div style={{ display: 'flex', gap: '0', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         {[
-          { label: 'Expiry', value: trade.expiry },
+          { label: 'Expiry', value: fmtCalDate(trade.expiry) },
           { label: 'DTE', value: `${daysLeft}d` },
           { label: 'POP', value: trade.pop_estimate != null ? `${trade.pop_estimate}%` : '—' },
         ].map((s, i) => (

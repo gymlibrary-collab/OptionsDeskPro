@@ -1604,6 +1604,15 @@ def build_trade(symbol: str, strategy_key: str, options_chain: dict, spot_price:
         max_profit = abs(net) if net >= 0 else None
         max_loss = None  # theoretically unlimited
 
+    # Covered strategies: `net` excludes the stock leg, so the stock's gain up to
+    # (covered call) or down to (covered put) the short strike must be added back.
+    if strategy_key == "covered_call" and short_strikes:
+        max_profit = round(short_strikes[0] - spot_price + net, 2)
+        breakeven_low = round(spot_price - net, 2)
+    elif strategy_key == "covered_put" and short_strikes:
+        max_profit = round(spot_price - short_strikes[0] + net, 2)
+        breakeven_high = round(spot_price + net, 2)
+
     # PoP estimate: use 1 - abs(delta of short strike) for single-leg, average for multi
     short_legs = [l for l in legs if l["action"] == "sell" and l["option_type"] != "stock"]
     if short_legs:
