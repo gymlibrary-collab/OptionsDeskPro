@@ -80,10 +80,10 @@
 | | |
 |---|---|
 | **Document** | `06-release-note.md` |
-| **Deployed to** | Railway |
-| **Deployment date** | |
-| **User Guide updated** | Yes / No / N/A |
-| **Approved by** | |
-| **Date** | |
+| **Deployed to** | Railway (auto-deploy from `main`) |
+| **Deployment date** | 2026-11-17 — merge commit 58b00db pushed to `main`. Railway deployment itself not observed from this session. |
+| **User Guide updated** | No — in-app help has no section for password sign-up or reset yet |
+| **Approved by** | leonard.simgt@gmail.com ("re-check the fixes, then deploy") |
+| **Date** | 2026-11-17 |
 
-☐ Released
+☑ Merged to main. NOT yet verified live: Supabase email templates and custom SMTP are not configured, and the manual test plan (including the security reviewer's pre-production checks D-07, E-06, G-04 to G-06) has not been run.
