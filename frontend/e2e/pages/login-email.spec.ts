@@ -116,7 +116,7 @@ baseTest.describe('Login page — email/password form', () => {
     await page.getByPlaceholder(/^password$/i).fill('short')
     await page.getByPlaceholder(/confirm password/i).fill('short')
     await page.locator('button[type="submit"]').click()
-    await expect(page.getByText(/at least 8 characters/i)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/at least 12 characters/i)).toBeVisible({ timeout: 5000 })
   })
 
   baseTest('Shows error when email is empty on submit', async ({ page }) => {

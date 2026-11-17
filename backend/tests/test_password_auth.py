@@ -148,7 +148,7 @@ class TestIsAdminOrStaffEmail:
 class TestSignup:
     """POST /api/auth/signup handler tests."""
 
-    def _body(self, email="user@example.com", password="validpass1"):
+    def _body(self, email="user@example.com", password="validpassword1"):
         from routes.auth_routes import SignUpRequest
         return SignUpRequest(email=email, password=password)
 
@@ -181,52 +181,6 @@ class TestSignup:
 
     # ── Admin / staff guard ───────────────────────────────────────────────────
 
-    def test_admin_email_refused_403(self, monkeypatch):
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        # Let the guard run for real against ADMIN_EMAIL (no DB needed)
-        monkeypatch.setattr(ar, "get_supabase", MagicMock())  # should not be reached
-
-        from routes.auth_routes import signup
-        with pytest.raises(HTTPException) as exc_info:
-            _run(signup(self._body(email="leonardsim.sm@gmail.com")))
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.headers["X-Error-Code"] == "staff_only_google"
-
-    def test_admin_email_mixed_case_refused_403(self, monkeypatch):
-        """Guard must normalise email before comparing to ADMIN_EMAIL."""
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        mock_sb = MagicMock()
-        (
-            mock_sb.table.return_value
-            .select.return_value
-            .ilike.return_value
-            .eq.return_value
-            .maybe_single.return_value
-            .execute.return_value
-        ).data = None
-        monkeypatch.setattr(ar, "get_supabase", lambda: mock_sb)
-
-        from routes.auth_routes import signup
-        with pytest.raises(HTTPException) as exc_info:
-            _run(signup(self._body(email="LEONARDSIM.SM@GMAIL.COM")))
-        assert exc_info.value.status_code == 403
-
-    def test_active_staff_email_refused_403(self, monkeypatch):
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: True)
-
-        from routes.auth_routes import signup
-        with pytest.raises(HTTPException) as exc_info:
-            _run(signup(self._body(email="staff@example.com")))
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.headers["X-Error-Code"] == "staff_only_google"
-
     # ── Server-side validation ────────────────────────────────────────────────
 
     def test_empty_email_returns_400(self):
@@ -250,7 +204,7 @@ class TestSignup:
         with pytest.raises(HTTPException) as exc_info:
             _run(signup(self._body(password="short")))
         assert exc_info.value.status_code == 400
-        assert "8" in exc_info.value.detail
+        assert "12" in exc_info.value.detail
 
     def test_malformed_email_returns_400(self):
         from routes.auth_routes import signup
@@ -259,7 +213,7 @@ class TestSignup:
             _run(signup(self._body(email="notanemail")))
         assert exc_info.value.status_code == 400
 
-    def test_exactly_8_char_password_accepted(self, monkeypatch):
+    def test_exactly_12_char_password_accepted(self, monkeypatch):
         """8-character password must NOT trigger the length check."""
         import routes.auth_routes as ar
 
@@ -269,7 +223,7 @@ class TestSignup:
         monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: False)
 
         from routes.auth_routes import signup
-        result = _run(signup(self._body(password="exactly8")))
+        result = _run(signup(self._body(password="exactly12chr")))
         assert result["ok"] is True
 
     # ── 503 on network failure ────────────────────────────────────────────────
@@ -353,50 +307,6 @@ class TestResetRequest:
         assert result == {"ok": True, "detail": "check_email"}
 
     # ── Admin / staff guard ───────────────────────────────────────────────────
-
-    def test_admin_email_refused_403(self, monkeypatch):
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        # Guard runs for real — no DB mock needed for ADMIN_EMAIL
-        monkeypatch.setattr(ar, "get_supabase", MagicMock())
-
-        from routes.auth_routes import reset_request
-        with pytest.raises(HTTPException) as exc_info:
-            _run(reset_request(self._body(email="leonardsim.sm@gmail.com")))
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.headers["X-Error-Code"] == "staff_only_google"
-
-    def test_admin_email_mixed_case_refused_403(self, monkeypatch):
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        mock_sb = MagicMock()
-        (
-            mock_sb.table.return_value
-            .select.return_value
-            .ilike.return_value
-            .eq.return_value
-            .maybe_single.return_value
-            .execute.return_value
-        ).data = None
-        monkeypatch.setattr(ar, "get_supabase", lambda: mock_sb)
-
-        from routes.auth_routes import reset_request
-        with pytest.raises(HTTPException) as exc_info:
-            _run(reset_request(self._body(email="Leonardsim.sm@Gmail.com")))
-        assert exc_info.value.status_code == 403
-
-    def test_staff_email_refused_403(self, monkeypatch):
-        import routes.auth_routes as ar
-        from fastapi import HTTPException
-
-        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: True)
-
-        from routes.auth_routes import reset_request
-        with pytest.raises(HTTPException) as exc_info:
-            _run(reset_request(self._body(email="staff@example.com")))
-        assert exc_info.value.status_code == 403
 
     # ── Server-side validation ────────────────────────────────────────────────
 
@@ -589,7 +499,7 @@ class TestUpdatePasswordGuard:
                 self._payload(),
             ))
         assert exc_info.value.status_code == 400
-        assert "8" in exc_info.value.detail
+        assert "12" in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------
@@ -819,3 +729,156 @@ class TestUpdatePasswordRequiresProof:
             self._call(self._request(bearer="garbage"))
         assert exc.value.status_code == 401
         shared.auth.admin.update_user_by_id.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Security review M01 / L01 follow-ups
+# ---------------------------------------------------------------------------
+
+class TestStaffAddressesGetNeutralResponse:
+    """
+    Sign-up and reset-request must answer a staff/admin address exactly like any
+    other, and must not create an account or send an email for it.
+    """
+
+    NEUTRAL = {"ok": True, "detail": "check_email"}
+
+    @pytest.mark.parametrize("email", [
+        "leonardsim.sm@gmail.com", "LeonardSim.SM@Gmail.com", "  leonardsim.sm@gmail.com  ",
+    ])
+    def test_signup_admin_address_neutral_and_nothing_created(self, monkeypatch, email):
+        import routes.auth_routes as ar
+        from routes.auth_routes import SignUpRequest, signup
+        fresh = MagicMock()
+        monkeypatch.setattr(ar, "new_auth_client", lambda: fresh)
+        result = _run(signup(SignUpRequest(email=email, password="validpassword1")))
+        assert result == self.NEUTRAL
+        fresh.auth.sign_up.assert_not_called()
+
+    def test_signup_staff_address_neutral_and_nothing_created(self, monkeypatch):
+        import routes.auth_routes as ar
+        from routes.auth_routes import SignUpRequest, signup
+        fresh = MagicMock()
+        monkeypatch.setattr(ar, "new_auth_client", lambda: fresh)
+        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: True)
+        result = _run(signup(SignUpRequest(email="staff@example.com", password="validpassword1")))
+        assert result == self.NEUTRAL
+        fresh.auth.sign_up.assert_not_called()
+
+    @pytest.mark.parametrize("email", ["leonardsim.sm@gmail.com", "LEONARDSIM.SM@GMAIL.COM"])
+    def test_reset_request_admin_address_neutral_and_nothing_sent(self, monkeypatch, email):
+        import routes.auth_routes as ar
+        from routes.auth_routes import ResetRequestBody, reset_request
+        fresh = MagicMock()
+        monkeypatch.setattr(ar, "new_auth_client", lambda: fresh)
+        assert _run(reset_request(ResetRequestBody(email=email))) == self.NEUTRAL
+        fresh.auth.reset_password_for_email.assert_not_called()
+
+    def test_reset_request_staff_address_neutral_and_nothing_sent(self, monkeypatch):
+        import routes.auth_routes as ar
+        from routes.auth_routes import ResetRequestBody, reset_request
+        fresh = MagicMock()
+        monkeypatch.setattr(ar, "new_auth_client", lambda: fresh)
+        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: True)
+        assert _run(reset_request(ResetRequestBody(email="staff@example.com"))) == self.NEUTRAL
+        fresh.auth.reset_password_for_email.assert_not_called()
+
+    def test_staff_lookup_failure_still_sends_nothing(self, monkeypatch):
+        """Fail-closed: if the staff lookup errors, treat as staff — neutral answer, no email."""
+        import routes.auth_routes as ar
+        from routes.auth_routes import ResetRequestBody, reset_request
+        broken = MagicMock()
+        broken.table.side_effect = Exception("db down")
+        monkeypatch.setattr(ar, "get_supabase", lambda: broken)
+        fresh = MagicMock()
+        monkeypatch.setattr(ar, "new_auth_client", lambda: fresh)
+        assert _run(reset_request(ResetRequestBody(email="someone@example.com"))) == self.NEUTRAL
+        fresh.auth.reset_password_for_email.assert_not_called()
+
+
+class TestMinimumPasswordLength:
+    def test_signup_rejects_11_characters(self, monkeypatch):
+        import routes.auth_routes as ar
+        from fastapi import HTTPException
+        from routes.auth_routes import SignUpRequest, signup
+        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: False)
+        with pytest.raises(HTTPException) as exc:
+            _run(signup(SignUpRequest(email="user@example.com", password="elevenchars")))
+        assert exc.value.status_code == 400 and "12" in exc.value.detail
+
+    def test_update_password_rejects_11_characters(self):
+        from fastapi import HTTPException
+        from routes.auth_routes import UpdatePasswordRequest, update_password
+        with pytest.raises(HTTPException) as exc:
+            _run(update_password(
+                _mock_request(), UpdatePasswordRequest(password="elevenchars"),
+                {"sub": "u", "email": "user@example.com"},
+            ))
+        assert exc.value.status_code == 400 and "12" in exc.value.detail
+
+
+class TestRateLimit:
+    def _req(self, real_ip=None, xff=None, host="10.0.0.1"):
+        req = MagicMock()
+        headers = {}
+        if real_ip:
+            headers["x-real-ip"] = real_ip
+        if xff:
+            headers["x-forwarded-for"] = xff
+        req.headers = headers
+        req.client = MagicMock(host=host)
+        return req
+
+    def setup_method(self):
+        import services.rate_limit as rl
+        rl._hits.clear()
+
+    def test_blocks_after_limit_with_retry_after(self):
+        from fastapi import HTTPException
+        from services.rate_limit import rate_limit
+        dep = rate_limit("t-block", 3, 60)
+        req = self._req(real_ip="1.2.3.4")
+        for _ in range(3):
+            dep(req)
+        with pytest.raises(HTTPException) as exc:
+            dep(req)
+        assert exc.value.status_code == 429
+        assert int(exc.value.headers["Retry-After"]) >= 1
+
+    def test_clients_are_limited_independently(self):
+        from services.rate_limit import rate_limit
+        dep = rate_limit("t-indep", 1, 60)
+        dep(self._req(real_ip="1.1.1.1"))
+        dep(self._req(real_ip="2.2.2.2"))  # must not raise
+
+    def test_buckets_are_independent(self):
+        from services.rate_limit import rate_limit
+        req = self._req(real_ip="1.1.1.1")
+        rate_limit("t-a", 1, 60)(req)
+        rate_limit("t-b", 1, 60)(req)  # must not raise
+
+    def test_window_expiry_allows_again(self, monkeypatch):
+        import services.rate_limit as rl
+        clock = [1000.0]
+        monkeypatch.setattr(rl.time, "monotonic", lambda: clock[0])
+        dep = rl.rate_limit("t-exp", 1, 60)
+        req = self._req(real_ip="1.1.1.1")
+        dep(req)
+        clock[0] += 61
+        dep(req)  # must not raise
+
+    def test_forged_leftmost_forwarded_for_does_not_dodge_limit(self):
+        from fastapi import HTTPException
+        from services.rate_limit import rate_limit
+        dep = rate_limit("t-xff", 1, 60)
+        dep(self._req(xff="6.6.6.1, 9.9.9.9"))
+        with pytest.raises(HTTPException):
+            dep(self._req(xff="6.6.6.2, 9.9.9.9"))
+
+    def test_auth_routes_are_rate_limited(self):
+        import routes.auth_routes as ar
+        limited = {
+            r.path for r in ar.router.routes
+            if any("rate_limit" in getattr(getattr(d, "dependency", None), "__qualname__", "") for d in getattr(r, "dependencies", []))
+        }
+        assert {"/auth/signup", "/auth/reset-request", "/auth/email-login"} <= limited

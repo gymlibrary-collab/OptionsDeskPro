@@ -212,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const status = e?.response?.status
       const detail = e?.response?.data?.detail
       if (status === 401) throw new Error('Invalid email or password.')
+      if (status === 429) throw new Error('Too many attempts. Please wait a few minutes and try again.')
       // 403 carries the reason: staff/admin must use Google, suspended, or invite-only.
       if (status === 403) throw new Error(typeof detail === 'string' ? detail : 'Access denied.')
       if (status === 503) throw new Error(typeof detail === 'string' ? detail : 'Service unavailable. Please try again shortly.')
@@ -237,6 +238,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const detail = e?.response?.data?.detail
         throw new Error(typeof detail === 'string' ? detail : 'Email and password are required.')
       }
+      if (e?.response?.status === 429) {
+        throw new Error('Too many attempts. Please wait a few minutes and try again.')
+      }
       if (e?.response?.status === 503) {
         throw new Error('Authentication service unavailable. Please try again shortly.')
       }
@@ -255,6 +259,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (e?.response?.status === 400) {
         throw new Error('Please enter your email address.')
+      }
+      if (e?.response?.status === 429) {
+        throw new Error('Too many attempts. Please wait a few minutes and try again.')
       }
       if (e?.response?.status === 503) {
         throw new Error('Authentication service unavailable. Please try again shortly.')

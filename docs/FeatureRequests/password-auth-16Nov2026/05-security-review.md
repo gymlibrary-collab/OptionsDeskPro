@@ -7,9 +7,9 @@
 Supabase client and threaded auth checks (commit `3cb410d`).
 
 **Reviewer's decision: FAIL** — one High finding (H01).
-**Status after remediation:** H01 fixed and L05 fixed (see section 4). M01 and
-M02 await the product owner's decision. M03 needs a manual test against the real
-project. The gate has not been re-reviewed or approved.
+**Status after remediation:** H01, M01, M02, L01 and L05 fixed (see section 4).
+M03 needs a manual test against the real project (E-06). The fixes have not
+been re-reviewed by the security reviewer.
 
 ---
 
@@ -27,7 +27,7 @@ endpoint the same way.
 
 ### Medium
 
-**M01 — Staff emails can be identified** — *OPEN, product decision*
+**M01 — Staff emails can be identified** — *FIXED*
 `/auth/signup` and `/auth/reset-request` answer 403 "use Google sign-in" for the
 admin email and active staff emails, and a neutral 200 for everyone else. An
 outsider can test candidate addresses and learn which belong to staff, then aim
@@ -36,7 +36,7 @@ the same neutral 200, send nothing, and log the attempt. (A response-time
 difference would remain, since the staff check returns before the Supabase
 call.)
 
-**M02 — No backend rate limiting on the public auth endpoints** — *OPEN*
+**M02 — No backend rate limiting on the public auth endpoints** — *FIXED*
 `/auth/signup`, `/auth/reset-request` and `/auth/email-login` rely entirely on
 Supabase's own limits. Password guessing with leaked credential lists spread
 across many IP addresses, and reset-email flooding of a victim, are not slowed
@@ -57,7 +57,7 @@ this has not been tested against this project. Manual test E-06 covers it.
 ### Low
 
 - **L01** — Minimum password length is 8 with no other policy. Recommendation:
-  12, and consider a breached-password check. *Open.*
+  12, and consider a breached-password check. *Fixed (length only).*
 - **L02** — The one-time `token_hash` is in the address bar until the page
   script removes it. Short-lived and single-use; no change needed.
 - **L03** — The guard compares exact addresses, so a plus-addressed variant of a
@@ -121,10 +121,10 @@ this has not been tested against this project. Manual test E-06 covers it.
 |---|---|---|
 | H01 | Fixed 2026-11-17 | `update-password` now requires either (a) a session established from an emailed link within the last 15 minutes, read from the verified token's `amr` claim, or (b) the current password, checked with a sign-in on an unshared client. The Settings "Change Password" form has a "Current password" field. The endpoint also acts on the Bearer token's user when one is sent, so the reset page cannot change a different account's password via a leftover cookie. 10 new backend tests. |
 | L05 | Fixed 2026-11-17 | `email-login` returns 503 for auth-service failures; the sign-in call no longer blocks the event loop. |
-| M01 | Open | Awaiting product decision. |
-| M02 | Open | Awaiting product decision. |
+| M01 | Fixed 2026-11-17 | Owner chose the neutral response. Sign-up and reset-request answer a staff/admin address with the same 200 as anyone else, create and send nothing, and log the attempt. Sign-in and update-password keep the explicit refusal. The small response-time difference noted by the reviewer remains. |
+| M02 | Fixed 2026-11-17 | Owner chose to add it now. In-process per-client limits: sign-in 10 per 15 min, sign-up 5 per hour, reset-request 3 per 15 min; 429 with Retry-After. No CAPTCHA. The client address is taken from X-Real-IP, else the right-most X-Forwarded-For entry; this assumes one trusted proxy in front of the app and is NOT verified against Railway — manual tests G-04 and G-05 check it. Limits are per process and reset on restart. |
 | M03 | Open | Manual test E-06. |
-| L01 | Open | Awaiting product decision. |
+| L01 | Fixed 2026-11-17 | Owner chose 12 characters. Enforced server-side on sign-up and password change/reset, and in all three forms. Existing shorter passwords still sign in. No breached-password check. |
 
 **Not verified against the real project:** the H01 fix assumes Supabase labels a
 session created from the reset link with `amr` method `recovery` (or `otp`). If

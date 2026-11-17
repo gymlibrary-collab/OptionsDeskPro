@@ -64,12 +64,12 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | PASS / CONDITIONAL PASS / FAIL |
-| **Critical findings** | |
-| **High findings** | |
+| **Overall decision** | Reviewer: FAIL (H01). All High and Medium code findings since fixed; not re-reviewed |
+| **Critical findings** | 0 |
+| **High findings** | 1 (H01 — fixed) |
 | **Approved by** | |
 | **Date** | |
-| **Notes** | |
+| **Notes** | Owner decisions 2026-11-17, superseding the spec and design where they differ: staff/admin addresses get the neutral response on sign-up and reset-request (was 403); backend rate limiting added now; minimum password length 12 (was 8). Still open: M03 (manual test E-06), and re-review of the fixes. |
 
 ☐ Approved &nbsp; ☐ Changes Requested
 

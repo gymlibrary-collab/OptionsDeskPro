@@ -129,7 +129,7 @@ function AccountTab({ user, profile }: { user: ReturnType<typeof useAuth>['user'
     setPwError(null)
     setPwSuccess(false)
     if (!currentPassword) { setPwError('Enter your current password.'); return }
-    if (newPassword.length < 8) { setPwError('Password must be at least 8 characters.'); return }
+    if (newPassword.length < 12) { setPwError('Password must be at least 12 characters.'); return }
     if (newPassword !== confirmPw) { setPwError('Passwords do not match.'); return }
     setPwLoading(true)
     try {

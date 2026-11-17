@@ -77,7 +77,7 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await page.getByPlaceholder(/confirm password/i).fill('short')
     await page.locator('button[type="submit"]').click()
 
-    await expect(page.getByText('Password must be at least 8 characters.')).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Password must be at least 12 characters.')).toBeVisible({ timeout: 3000 })
   })
 
   baseTest('shows neutral confirmation on successful sign-up', async ({ page }) => {
@@ -93,8 +93,8 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
 
     await page.getByPlaceholder(/email address/i).fill('newuser@example.com')
-    await page.getByPlaceholder(/^password$/i).fill('securepass1')
-    await page.getByPlaceholder(/confirm password/i).fill('securepass1')
+    await page.getByPlaceholder(/^password$/i).fill('securepassword1')
+    await page.getByPlaceholder(/confirm password/i).fill('securepassword1')
     await page.locator('button[type="submit"]').click()
 
     // Should show email confirmation message — NOT redirect to dashboard
@@ -102,25 +102,25 @@ baseTest.describe('Sign-up form — validation and confirmation', () => {
     await expect(page.getByRole('button', { name: /options chain/i })).not.toBeVisible()
   })
 
-  baseTest('shows staff-guard error on sign-up with admin email', async ({ page }) => {
+  baseTest('shows the rate-limit message when sign-up is throttled (429)', async ({ page }) => {
     await page.route(`${API}auth/signup`, (route) => {
       route.fulfill({
-        status: 403,
+        status: 429,
         contentType: 'application/json',
-        headers: { 'x-error-code': 'staff_only_google' },
-        body: JSON.stringify({ detail: 'Password login is not available for this account.' }),
+        headers: { 'retry-after': '600' },
+        body: JSON.stringify({ detail: 'Too many attempts. Please wait a few minutes and try again.' }),
       })
     })
 
     await page.goto('http://localhost:5173/?signup=1')
     await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
 
-    await page.getByPlaceholder(/email address/i).fill('admin@example.com')
-    await page.getByPlaceholder(/^password$/i).fill('adminpass1')
-    await page.getByPlaceholder(/confirm password/i).fill('adminpass1')
+    await page.getByPlaceholder(/email address/i).fill('new@example.com')
+    await page.getByPlaceholder(/^password$/i).fill('securepassword1')
+    await page.getByPlaceholder(/confirm password/i).fill('securepassword1')
     await page.locator('button[type="submit"]').click()
 
-    await expect(page.getByText(/password login is not available/i)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/too many attempts/i)).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -180,23 +180,23 @@ baseTest.describe('Forgot-password request form', () => {
     await expect(page.getByText(/if an account exists/i)).toBeVisible({ timeout: 5000 })
   })
 
-  baseTest('shows staff-guard error on reset request with admin email', async ({ page }) => {
+  baseTest('shows the rate-limit message when reset requests are throttled (429)', async ({ page }) => {
     await page.route(`${API}auth/reset-request`, (route) => {
       route.fulfill({
-        status: 403,
+        status: 429,
         contentType: 'application/json',
-        headers: { 'x-error-code': 'staff_only_google' },
-        body: JSON.stringify({ detail: 'Password login is not available for this account.' }),
+        headers: { 'retry-after': '600' },
+        body: JSON.stringify({ detail: 'Too many attempts. Please wait a few minutes and try again.' }),
       })
     })
 
     await page.goto('http://localhost:5173/?forgot=1')
     await expect(page.getByRole('button', { name: /send reset link/i })).toBeVisible({ timeout: 10000 })
 
-    await page.getByPlaceholder(/email address/i).fill('admin@example.com')
+    await page.getByPlaceholder(/email address/i).fill('user@example.com')
     await page.getByRole('button', { name: /send reset link/i }).click()
 
-    await expect(page.getByText(/password login is not available/i)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/too many attempts/i)).toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -251,7 +251,7 @@ baseTest.describe('Reset password page — happy path', () => {
     await expect(page.getByText(/passwords do not match/i)).toBeVisible({ timeout: 3000 })
   })
 
-  baseTest('shows validation error for password shorter than 8 characters', async ({ page }) => {
+  baseTest('shows validation error for password shorter than 12 characters', async ({ page }) => {
     await page.route('**/auth/v1/verify', (route) => {
       route.fulfill({
         status: 200,
@@ -273,8 +273,8 @@ baseTest.describe('Reset password page — happy path', () => {
     await page.getByPlaceholder('Confirm new password', { exact: true }).fill('short')
     await page.getByRole('button', { name: /update password/i }).click()
 
-    // Use exact error text to avoid matching the subtitle "Choose a password of at least 8 characters."
-    await expect(page.getByText('Password must be at least 8 characters.')).toBeVisible({ timeout: 3000 })
+    // Use exact error text to avoid matching the subtitle "Choose a password of at least 12 characters."
+    await expect(page.getByText('Password must be at least 12 characters.')).toBeVisible({ timeout: 3000 })
   })
 
   baseTest('redirects to /?reset_success=1 and shows success banner', async ({ page }) => {
@@ -575,8 +575,8 @@ baseTest.describe('Sign-up confirmation text (AC2-5)', () => {
     await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible({ timeout: 10000 })
 
     await page.getByPlaceholder(/email address/i).fill('newuser@example.com')
-    await page.getByPlaceholder(/^password$/i).fill('securepass1')
-    await page.getByPlaceholder(/confirm password/i).fill('securepass1')
+    await page.getByPlaceholder(/^password$/i).fill('securepassword1')
+    await page.getByPlaceholder(/confirm password/i).fill('securepassword1')
     await page.locator('button[type="submit"]').click()
 
     // Confirmation text must reference "Forgot password?" so existing-Google-account

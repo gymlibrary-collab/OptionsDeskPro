@@ -18,12 +18,15 @@ from services.auth_utils import (
     _is_deactivated,
 )
 from services.db import get_supabase, new_auth_client
+from services.rate_limit import rate_limit
 from services import user_portfolio
 from services.activity_logger import log_action, extract_ip
 
 logger = logging.getLogger(__name__)
 
 # ── Password-auth helpers ─────────────────────────────────────────────────────
+
+MIN_PASSWORD_LENGTH = 12
 
 _EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -518,30 +521,29 @@ class SignUpRequest(BaseModel):
     password: str
 
 
-@router.post("/auth/signup")
+@router.post("/auth/signup", dependencies=[Depends(rate_limit("signup", 5, 3600))])
 async def signup(body: SignUpRequest):
     """
     Create a new subscriber account with email and password.
 
     Returns a uniform 200 response whether or not the email already exists
     (ADR-0017 — anti-enumeration).  Admin and active platform_staff emails are
-    refused with 403.  No auth required.
+    answered with the same neutral response and nothing is created.  No auth required.
     """
     # ── Server-side validation ────────────────────────────────────────────────
     if not body.email.strip() or not body.password:
         raise HTTPException(status_code=400, detail="Email and password are required.")
-    if len(body.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if len(body.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
     if not _validate_email_format(body.email.strip()):
         raise HTTPException(status_code=400, detail="Email and password are required.")
 
     # ── Admin/staff guard (before the Supabase call) ──────────────────────────
+    # Answered exactly like any other address so outsiders cannot learn which
+    # emails belong to staff; nothing is created or sent.
     if await asyncio.to_thread(_is_admin_or_staff_email, body.email):
-        raise HTTPException(
-            status_code=403,
-            detail="Password login is not available for this account. Use Google sign-in.",
-            headers={"X-Error-Code": "staff_only_google"},
-        )
+        logger.warning("signup: refused for admin/staff address %r", body.email)
+        return {"ok": True, "detail": "check_email"}
 
     # ── Supabase sign-up on a fresh unshared auth client ─────────────────────
     try:
@@ -572,14 +574,14 @@ class ResetRequestBody(BaseModel):
     email: str
 
 
-@router.post("/auth/reset-request")
+@router.post("/auth/reset-request", dependencies=[Depends(rate_limit("reset-request", 3, 900))])
 async def reset_request(body: ResetRequestBody):
     """
     Trigger a Supabase password-reset email.
 
     Returns a uniform 200 response regardless of whether the email is registered
-    (no account enumeration).  Admin and active platform_staff emails are refused
-    with 403.  No auth required.
+    (no account enumeration).  Admin and active platform_staff emails get the
+    same neutral response and no email is sent.  No auth required.
     """
     # ── Server-side validation ────────────────────────────────────────────────
     if not body.email.strip():
@@ -587,11 +589,8 @@ async def reset_request(body: ResetRequestBody):
 
     # ── Admin/staff guard (before the Supabase call) ──────────────────────────
     if await asyncio.to_thread(_is_admin_or_staff_email, body.email):
-        raise HTTPException(
-            status_code=403,
-            detail="Password login is not available for this account. Use Google sign-in.",
-            headers={"X-Error-Code": "staff_only_google"},
-        )
+        logger.warning("reset-request: refused for admin/staff address %r", body.email)
+        return {"ok": True, "detail": "check_email"}
 
     # ── Supabase reset email on a fresh unshared auth client ──────────────────
     try:
@@ -621,7 +620,7 @@ class EmailLoginRequest(BaseModel):
     password: str
 
 
-@router.post("/auth/email-login")
+@router.post("/auth/email-login", dependencies=[Depends(rate_limit("email-login", 10, 900))])
 async def email_login(request: Request, body: EmailLoginRequest):
     """
     Exchanges email + password for Supabase tokens, runs _sync_profile, sets
@@ -843,8 +842,8 @@ async def update_password(
 
     Admin and active platform_staff accounts may not set a password (Story 6).
     """
-    if len(body.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if len(body.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
 
     # Identify the caller.  The reset page sends its recovery session as a
     # Bearer token; verify_token prefers the cookie, which on a shared browser

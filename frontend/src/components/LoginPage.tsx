@@ -223,7 +223,7 @@ export default function LoginPage({ initialMode = 'signin', onBack, initialBanne
 
     if (!email.trim() || !password) { setFormError('Email and password are required.'); return }
     if (mode === 'signup' && password !== confirmPassword) { setFormError('Passwords do not match.'); return }
-    if (mode === 'signup' && password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
+    if (mode === 'signup' && password.length < 12) { setFormError('Password must be at least 12 characters.'); return }
     setSubmitting(true)
     try {
       if (mode === 'signup') {

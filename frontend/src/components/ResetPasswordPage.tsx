@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
-    if (password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
+    if (password.length < 12) { setFormError('Password must be at least 12 characters.'); return }
     if (password !== confirmPassword) { setFormError('Passwords do not match.'); return }
     setSubmitting(true)
     try {
@@ -216,7 +216,7 @@ export default function ResetPasswordPage() {
           Set new password
         </div>
         <div style={{ color: C.muted, fontSize: '13px', marginBottom: '28px' }}>
-          Choose a password of at least 8 characters.
+          Choose a password of at least 12 characters.
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

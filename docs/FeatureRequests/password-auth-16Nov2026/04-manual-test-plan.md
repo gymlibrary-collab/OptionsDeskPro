@@ -61,9 +61,9 @@ Start signed out, on the login page, "Create Account" selected.
 |---|---|---|---|---|
 | B-01 | Leave everything blank, click "Create Account →" | Red box: "Email and password are required." | Empty-field check is broken | Yes |
 | B-02 | Enter SUBSCRIBER_A, `password1` and `password2` in the two password fields, submit | Red box: "Passwords do not match." | Confirmation check is broken | Yes |
-| B-03 | Enter SUBSCRIBER_A, `abc123` in both fields, submit | Red box: "Password must be at least 8 characters." | Length check is broken | Yes |
-| B-04 | Enter SUBSCRIBER_A, `TestPass01` in both fields, submit | Green box starting "Check your email to verify your address before signing in." You are not logged in | Sign-up call failed | Yes |
-| B-05 | Without clicking the email link, switch to "Sign In" and sign in with SUBSCRIBER_A / `TestPass01` | Red box: "Invalid email or password." | Supabase is not enforcing email verification | Yes |
+| B-03 | Enter SUBSCRIBER_A, `elevenchars` (11 characters) in both fields, submit | Red box: "Password must be at least 12 characters." | Length check is broken | Yes |
+| B-04 | Enter SUBSCRIBER_A, `TestPassword01` in both fields, submit | Green box starting "Check your email to verify your address before signing in." You are not logged in | Sign-up call failed | Yes |
+| B-05 | Without clicking the email link, switch to "Sign In" and sign in with SUBSCRIBER_A / `TestPassword01` | Red box: "Invalid email or password." | Supabase is not enforcing email verification | Yes |
 | B-06 | Open the verification email, click the link | App opens, the `token_hash` disappears from the address bar, and you land logged in (or, with invite-only ON and no whitelist entry, a red access-denied banner) | Templates not edited (A.1), or the link exchange is failing | Yes |
 | B-07 | Sign out. Sign up again with SUBSCRIBER_A | Same green box as B-04; Supabase still lists one user for that email | The app reveals which emails are registered | No |
 
@@ -73,7 +73,7 @@ Start signed out, on the login page, "Create Account" selected.
 |---|---|---|---|---|
 | C-01 | Sign in with SUBSCRIBER_A and a wrong password | "Invalid email or password." | Error mapping is broken | Yes |
 | C-02 | Sign in with `nobody@example.invalid` and any password | Same message as C-01 | The app reveals which emails are registered | No |
-| C-03 | Sign in with SUBSCRIBER_A / `TestPass01` | Dashboard loads | Password login is broken | Yes |
+| C-03 | Sign in with SUBSCRIBER_A / `TestPassword01` | Dashboard loads | Password login is broken | Yes |
 | C-04 | Sign out, click "Continue with Google" with a Google subscriber | Dashboard loads | Google sign-in has regressed | Yes |
 
 ## D. Forgot password
@@ -85,8 +85,8 @@ Start signed out, on the login page, "Create Account" selected.
 | D-03 | Enter SUBSCRIBER_A, submit | Green box: "If an account exists for that address, a reset link has been sent. Check your inbox." | Reset request failed | Yes |
 | D-04 | Repeat with `nobody@example.invalid` | Identical green box, no email | The app reveals which emails are registered | No |
 | D-05 | Open the reset email, click the link | App shows "Set new password" with two password fields | Templates not edited (A.1), or routing/link exchange is failing | Yes |
-| D-06 | Enter `abc` twice, submit; then `newpass1` / `newpass2`, submit | "Password must be at least 8 characters."; then "Passwords do not match." | Reset-form validation is broken | Yes |
-| D-07 | Enter `NewPass99!` twice, submit. Then try signing in with the old password, then the new one | Login page with green banner "Password updated. Please sign in."; old password refused; new password works | Password was not updated, or you were left logged in on the reset link | Yes |
+| D-06 | Enter `elevenchars` twice, submit; then `newpassword1` / `newpassword2`, submit | "Password must be at least 12 characters."; then "Passwords do not match." | Reset-form validation is broken | Yes |
+| D-07 | Enter `NewPassword99!` twice, submit. Then try signing in with the old password, then the new one | Login page with green banner "Password updated. Please sign in."; old password refused; new password works | Password was not updated, or you were left logged in on the reset link | Yes |
 | D-08 | Click the same reset link in the email again | "Link expired" with a "Request a new reset link" link | Used links are not being rejected | Yes |
 | D-09 | Click "Request a new reset link" | Forgot-password form opens | Dead end after an expired link | No |
 
@@ -120,14 +120,16 @@ arrives and then log in as them — stop and do not release.
 
 ## F. Admin and staff stay Google-only
 
-Expected message in every refusal: "Password login is not available for this
-account. Use Google sign-in."
+Sign-in refuses a staff or admin email with "Password login is not available for
+this account. Use Google sign-in." Sign-up and forgot-password deliberately show
+the same neutral message as for anyone else, so outsiders cannot tell which
+addresses are staff — the check there is that **no email arrives**.
 
 | ID | Steps | Expected | If it fails | Blocker |
 |---|---|---|---|---|
 | F-01 | Sign in with the admin email and any password | Refusal message | Admin guard on login missing | Yes |
-| F-02 | Create Account with the admin email | Refusal message | Admin guard on sign-up missing | Yes |
-| F-03 | Forgot password with the admin email | Refusal message (not the neutral green box); no email | Admin guard on reset missing | Yes |
+| F-02 | Create Account with the admin email and a 12+ character password | The normal green "Check your email…" box; **no email arrives**; in Supabase the admin user still shows provider `google` only | Admin guard on sign-up missing | Yes |
+| F-03 | Forgot password with the admin email, then with STAFF_EMAIL | The normal green "If an account exists…" box each time; **no reset email arrives** at either address | Admin/staff guard on reset missing | Yes |
 | F-04 | Sign in with STAFF_EMAIL and any password | Refusal message | Staff lookup is failing | Yes |
 | F-05 | "Continue with Google" as ADMIN | Admin dashboard loads | Admin Google login has regressed | Yes |
 | F-06 | Open the admin portal login | Google button only: no password fields, no "Create Account", no "Forgot password?" | Admin portal picked up the subscriber form | Yes |
@@ -142,6 +144,8 @@ these needs one real pass.
 | G-01 | Google subscriber: sign in, check watchlist and positions load, log out | Works; after logout no data is visible | OAuth callback or logout has regressed | Yes |
 | G-02 | Sign in as SUBSCRIBER_A. In browser DevTools → Application → Cookies delete only `sb_access_token` (leave `sb_refresh_token`), then open the Positions tab | You stay logged in and a new `sb_access_token` appears | Token refresh is broken | Yes |
 | G-03 | Sign in as two different users in two different browsers; use both for a few minutes | Each sees only their own data | Sessions are leaking between users — stop and do not release | Yes |
+| G-04 | Enter a wrong password for SUBSCRIBER_A 11 times in a row | From the 11th attempt: "Too many attempts. Please wait a few minutes and try again." | Rate limiting is not active | Yes |
+| G-05 | Immediately after G-04, on a phone using mobile data (a different network), sign in as SUBSCRIBER_A with the correct password | Sign-in works | The limiter is treating all visitors as one address — it would lock everyone out; stop and do not release | Yes |
 
 ## H. Changing a password while signed in (Settings)
 
