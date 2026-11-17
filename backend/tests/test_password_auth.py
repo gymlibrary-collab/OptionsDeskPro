@@ -214,7 +214,7 @@ class TestSignup:
         assert exc_info.value.status_code == 400
 
     def test_exactly_12_char_password_accepted(self, monkeypatch):
-        """8-character password must NOT trigger the length check."""
+        """A password of exactly the minimum length must NOT trigger the length check."""
         import routes.auth_routes as ar
 
         fresh = MagicMock()

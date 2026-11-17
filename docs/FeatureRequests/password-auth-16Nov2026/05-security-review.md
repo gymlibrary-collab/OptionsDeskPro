@@ -130,3 +130,49 @@ this has not been tested against this project. Manual test E-06 covers it.
 session created from the reset link with `amr` method `recovery` (or `otp`). If
 the real label differs, the reset page will ask for a current password and the
 reset will fail. Manual test D-07 would catch this and is a release blocker.
+
+
+---
+
+## 5. Re-review of the fixes (2026-11-17)
+
+The security reviewer re-examined commits `0680d05`, `d118036` and `ce63aa7`.
+
+**Decision: PASS WITH RECOMMENDATIONS.** No Critical or High findings; none
+introduced by the fixes.
+
+| Original finding | Result |
+|---|---|
+| H01 | Closed for the reported attack: a session token alone can no longer change a password. The reviewer traced every token path (cookie, Bearer, refreshed token, forged Bearer with a valid cookie, lower-case scheme) and found no case where the token whose `amr` is read differs from the token Supabase verified. Residual: whether Supabase keeps the original `amr` timestamp through a token refresh cannot be seen from code (manual test D-07). |
+| M01 | Closed on sign-up and reset-request: identical status, body and headers for staff and non-staff, nothing created or sent. Sign-in still answers a staff address with 403 rather than 401, which remains a (rate-limited) way to tell staff addresses apart — an accepted trade-off. |
+| M02 | Implemented correctly and attached to all four endpoints; thread-safe; memory bounded. Effectiveness depends on the proxy header (below). |
+| L01 | Closed. 12 characters enforced server-side on every path that sets a password. |
+| L05 | Closed. The 503 mapping does not distinguish registered from unregistered emails or right from wrong passwords. |
+
+**New findings**
+
+- **M-NEW-01 (Medium)** — The limiter prefers `X-Real-IP`. If Railway does not
+  overwrite a client-supplied `X-Real-IP`, an attacker can send a different
+  value per request and never be limited. *Follow-up:* Railway's documentation
+  (Public Networking → Specs & Limits → Request Headers) lists `X-Real-IP` "for
+  identifying client's remote IP" among the headers its proxy sets, and does not
+  document `X-Forwarded-For` at all, so `X-Real-IP` is the documented header to
+  use. The documentation does not say whether a client-supplied value is
+  overwritten; manual test G-06 checks this.
+- **L-NEW-01** — `amr` timestamp behaviour across refresh is unverified (D-07).
+- **L-NEW-02** — Because the Supabase anon key is public, a user can request a
+  magic link or OTP from Supabase directly and obtain a fresh `otp`/`magiclink`
+  session, which satisfies the mailbox-proof check without going through the
+  backend's rate-limited reset-request. It still requires receiving the email at
+  the account's address, so it is equivalent to a reset. Accepted.
+- **L-NEW-03** — Limits are per process; more than one backend instance would
+  multiply them.
+- **L-NEW-04** — The current-password check leaves an unused Supabase session
+  that expires on its own. Not reachable by anyone.
+- **I-NEW-01** — Stale test docstring. Fixed.
+- **I-NEW-02** — The activity log records the left-most `X-Forwarded-For` entry
+  while the limiter keys on `X-Real-IP`; the two can differ.
+
+**Reviewer's conditions before production:** manual tests D-07, E-06 and
+G-04/G-05 (now also G-06). These can only be run against a deployed build and
+the real Supabase project. The owner chose to deploy and run them afterwards.

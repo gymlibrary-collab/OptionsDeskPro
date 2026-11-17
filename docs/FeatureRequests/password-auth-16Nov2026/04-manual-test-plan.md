@@ -146,6 +146,7 @@ these needs one real pass.
 | G-03 | Sign in as two different users in two different browsers; use both for a few minutes | Each sees only their own data | Sessions are leaking between users — stop and do not release | Yes |
 | G-04 | Enter a wrong password for SUBSCRIBER_A 11 times in a row | From the 11th attempt: "Too many attempts. Please wait a few minutes and try again." | Rate limiting is not active | Yes |
 | G-05 | Immediately after G-04, on a phone using mobile data (a different network), sign in as SUBSCRIBER_A with the correct password | Sign-in works | The limiter is treating all visitors as one address — it would lock everyone out; stop and do not release | Yes |
+| G-06 | After G-04 has locked you out, run this from a terminal on the same network (replace the URL with your backend address): `curl -s -o /dev/null -w "%{http_code}\n" -X POST https://YOUR-BACKEND/api/auth/email-login -H "Content-Type: application/json" -H "X-Real-IP: 203.0.113.77" -d '{"email":"x@example.com","password":"wrongpassword1"}'` | `429` | If it prints `401`, a visitor can dodge the limit by sending a made-up address header — the limiter gives no protection; tell the developer | Yes |
 
 ## H. Changing a password while signed in (Settings)
 

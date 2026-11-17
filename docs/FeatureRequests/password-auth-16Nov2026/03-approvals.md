@@ -64,14 +64,14 @@
 | | |
 |---|---|
 | **Document** | `05-security-review.md` |
-| **Overall decision** | Reviewer: FAIL (H01). All High and Medium code findings since fixed; not re-reviewed |
+| **Overall decision** | First review: FAIL (H01). Re-review of the fixes 2026-11-17: PASS WITH RECOMMENDATIONS |
 | **Critical findings** | 0 |
 | **High findings** | 1 (H01 — fixed) |
 | **Approved by** | |
 | **Date** | |
-| **Notes** | Owner decisions 2026-11-17, superseding the spec and design where they differ: staff/admin addresses get the neutral response on sign-up and reset-request (was 403); backend rate limiting added now; minimum password length 12 (was 8). Still open: M03 (manual test E-06), and re-review of the fixes. |
+| **Notes** | Owner decisions 2026-11-17, superseding the spec and design where they differ: staff/admin addresses get the neutral response on sign-up and reset-request (was 403); backend rate limiting added now; minimum password length 12 (was 8). Owner instructed on 2026-11-17: "re-check the fixes, then deploy". Re-check done. Reviewer's pre-production conditions (manual tests D-07, E-06, G-04 to G-06) can only be run on a deployed build and remain OPEN; owner chose to deploy and test afterwards. |
 
-☐ Approved &nbsp; ☐ Changes Requested
+☑ Approved (to deploy, with open manual verifications) &nbsp; ☐ Changes Requested
 
 ---
 
