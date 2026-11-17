@@ -272,3 +272,26 @@ receive no verification or reset email until a custom SMTP service is configured
 This supersedes the assumption behind the Gate 1 "built-in sender for now"
 decision and must be resolved before release. Until then, manual tests that need
 an email can only use addresses of Supabase organisation members.
+
+
+## Correction and re-run (2026-11-17)
+
+The addendum above overstated the result. Its "46 passed, 0 failed" was read
+from output that hid the failure summary line. The facts:
+
+- **This environment has Chromium only.** The Firefox and mobile-Safari projects
+  fail at browser launch here, so every e2e result in this report is
+  Chromium-only. Those two projects have not been run for this feature.
+- **One Chromium test was still failing** after the BUG-1/BUG-2 fix: the 503
+  case. The form showed the server's message ("Service temporarily
+  unavailable") while the test demanded the exact phrase "Authentication
+  service unavailable". Showing the server's reason is the intended behaviour
+  (a 503 can also mean maintenance mode), so the test now asserts that the
+  server message is shown and the raw HTTP error is not.
+
+Re-run on Chromium after the Gate 5 fixes: `password-auth`, `login` and
+`login-email` specs **47 passed, 0 failed**; backend **608 passed** (10 new
+tests for the password-change rule). `settings.spec.ts` has one failing test
+(billing invoice list, line 227) that fails identically without these changes
+and passes when run alone — an existing order-dependent test, not caused by
+this feature. The Settings "Change Password" form has no e2e test.

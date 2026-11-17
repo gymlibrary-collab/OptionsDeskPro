@@ -103,6 +103,21 @@ its UID and the total number of users.
 | E-04 | Sign out, "Continue with Google" with the same account | Same dashboard and data | Adding a password broke Google sign-in | Yes |
 | E-05 | Supabase → Authentication → Users → GOOGLE_ACCOUNT | Total user count unchanged; one user for that email with the same UID; providers show both `google` and `email` | A duplicate account was created — stop and do not release | Yes |
 
+### E-06 — Someone else signed up with a subscriber's email first (Blocker)
+
+Needs a Google account (GOOGLE_NEW) that has never used the app.
+
+1. Signed out, use "Create Account" with GOOGLE_NEW's email and the password
+   `AttackerPass1`. Do **not** click the verification email.
+2. Click "Continue with Google" and sign in as GOOGLE_NEW.
+3. Sign out. Try to sign in with GOOGLE_NEW's email and `AttackerPass1`.
+
+Expected: step 2 lands in the app normally; step 3 shows "Invalid email or
+password." In Supabase → Authentication → Users there is one user for that
+email, with provider `google` only.
+If step 3 signs in: a stranger can plant a password on an email before its owner
+arrives and then log in as them — stop and do not release.
+
 ## F. Admin and staff stay Google-only
 
 Expected message in every refusal: "Password login is not available for this
@@ -127,6 +142,15 @@ these needs one real pass.
 | G-01 | Google subscriber: sign in, check watchlist and positions load, log out | Works; after logout no data is visible | OAuth callback or logout has regressed | Yes |
 | G-02 | Sign in as SUBSCRIBER_A. In browser DevTools → Application → Cookies delete only `sb_access_token` (leave `sb_refresh_token`), then open the Positions tab | You stay logged in and a new `sb_access_token` appears | Token refresh is broken | Yes |
 | G-03 | Sign in as two different users in two different browsers; use both for a few minutes | Each sees only their own data | Sessions are leaking between users — stop and do not release | Yes |
+
+## H. Changing a password while signed in (Settings)
+
+| ID | Steps | Expected | If it fails | Blocker |
+|---|---|---|---|---|
+| H-01 | Signed in as SUBSCRIBER_A with a password: Settings → Account → Change Password. Leave "Current password" blank, fill the new password twice, submit | "Enter your current password." | Current-password check missing in the form | Yes |
+| H-02 | Same form, wrong current password | "Current password is incorrect…" and the old password still works | A signed-in session alone can replace the password | Yes |
+| H-03 | Same form, correct current password | "Password updated successfully."; sign out and sign in with the new password | Password change is broken | Yes |
+| H-04 | Signed in with Google on an account that has no password: try the same form with anything as current password | "Current password is incorrect…" with the hint to use "Forgot password?" | A Google session alone can add a password | Yes |
 
 ---
 

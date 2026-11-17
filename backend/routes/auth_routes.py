@@ -1,7 +1,10 @@
 import asyncio
+import base64
+import json
 import logging
 import os
 import re as _re
+import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -12,6 +15,7 @@ from services.auth_utils import (
     get_admin_email,
     ADMIN_EMAIL,
     _set_auth_cookies,
+    _is_deactivated,
 )
 from services.db import get_supabase, new_auth_client
 from services import user_portfolio
@@ -634,9 +638,15 @@ async def email_login(request: Request, body: EmailLoginRequest):
 
     try:
         sb = new_auth_client()
-        result = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
+        result = await asyncio.to_thread(
+            lambda: sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
+        )
     except Exception as exc:
-        # Supabase AuthApiError maps to 401
+        if _is_supabase_service_error(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service unavailable. Please try again shortly.",
+            )
         logger.warning("email_login: Supabase rejected credentials for %s: %s", body.email, exc)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -776,8 +786,43 @@ async def on_logout(request: Request, payload: dict = Depends(verify_token)):
 
 # ── Update password ──────────────────────────────────────────────────────────
 
+# A session counts as proof of mailbox ownership only shortly after the user
+# followed an emailed link.  Supabase records how a session was established in
+# the access token's `amr` claim.
+_MAILBOX_PROOF_METHODS = {"recovery", "otp", "magiclink", "invite"}
+_MAILBOX_PROOF_MAX_AGE_S = 15 * 60
+
+
+def _token_claims(token: str) -> dict:
+    """Decode a JWT payload without verifying it; callers verify the token first."""
+    try:
+        part = token.split(".")[1]
+        part += "=" * (-len(part) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(part))
+        return claims if isinstance(claims, dict) else {}
+    except Exception:
+        return {}
+
+
+def _has_recent_mailbox_proof(claims: dict) -> bool:
+    now = time.time()
+    for entry in claims.get("amr") or []:
+        if not isinstance(entry, dict):
+            continue
+        ts = entry.get("timestamp")
+        if (
+            entry.get("method") in _MAILBOX_PROOF_METHODS
+            and isinstance(ts, (int, float))
+            and 0 <= now - ts <= _MAILBOX_PROOF_MAX_AGE_S
+        ):
+            return True
+    return False
+
+
 class UpdatePasswordRequest(BaseModel):
     password: str
+    current_password: str | None = None
+
 
 @router.post("/auth/update-password")
 async def update_password(
@@ -786,22 +831,46 @@ async def update_password(
     payload: dict = Depends(verify_token),
 ):
     """
-    Proxy for Supabase password update — keeps supabase-js out of the browser.
+    Set a new password for the calling user.
 
-    Called by ResetPasswordPage after the recovery-session token has been
-    exchanged client-side via supabase.auth.verifyOtp().  The recovery session
-    access token arrives via the Authorization: Bearer header (no httpOnly cookie
-    is set during the reset flow); verify_token's Bearer fallback handles this.
+    Two callers:
+      - ResetPasswordPage, right after the emailed recovery link was exchanged.
+        That session proves mailbox ownership, so no current password is asked.
+      - Settings > Change Password, from an ordinary signed-in session.  That
+        must supply the current password: a session token alone (stolen, or
+        left open on a shared computer) must not be enough to take over the
+        account by replacing its password.
 
-    Admin and active platform_staff accounts may not set a password through this
-    endpoint (Story 6).
+    Admin and active platform_staff accounts may not set a password (Story 6).
     """
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
 
-    # Admin/staff guard — the reset flow must not be used to give privileged
-    # accounts a password identity.
-    email = get_user_email(payload)
+    # Identify the caller.  The reset page sends its recovery session as a
+    # Bearer token; verify_token prefers the cookie, which on a shared browser
+    # can belong to a different account, so an explicit Bearer token wins here.
+    auth_header = request.headers.get("Authorization", "")
+    bearer = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+    if bearer:
+        try:
+            result = await asyncio.to_thread(get_supabase().auth.get_user, bearer)
+            user = result.user
+        except Exception:
+            user = None
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        if user.id != get_user_id(payload) and await asyncio.to_thread(_is_deactivated, user.id):
+            raise HTTPException(status_code=403, detail="Account suspended")
+        user_id, email, token = user.id, user.email or "", bearer
+    else:
+        user_id, email = get_user_id(payload), get_user_email(payload)
+        token = (
+            getattr(request.state, "new_access_token", None)
+            or request.cookies.get("sb_access_token")
+            or ""
+        )
+
+    # Admin/staff guard — privileged accounts must never gain a password identity.
     if await asyncio.to_thread(_is_admin_or_staff_email, email):
         raise HTTPException(
             status_code=403,
@@ -809,10 +878,37 @@ async def update_password(
             headers={"X-Error-Code": "staff_only_google"},
         )
 
-    user_id = get_user_id(payload)
+    if not _has_recent_mailbox_proof(_token_claims(token)):
+        if not body.current_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Current password is required.",
+                headers={"X-Error-Code": "current_password_required"},
+            )
+        try:
+            sb = new_auth_client()
+            await asyncio.to_thread(
+                lambda: sb.auth.sign_in_with_password({"email": email, "password": body.current_password})
+            )
+        except Exception as exc:
+            if _is_supabase_service_error(exc):
+                raise HTTPException(
+                    status_code=503,
+                    detail="Authentication service unavailable. Please try again shortly.",
+                )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Current password is incorrect. If you sign in with Google and have "
+                    "not set a password, sign out and use 'Forgot password?'."
+                ),
+                headers={"X-Error-Code": "current_password_invalid"},
+            )
+
     try:
-        sb = get_supabase()
-        sb.auth.admin.update_user_by_id(user_id, {"password": body.password})
+        await asyncio.to_thread(
+            get_supabase().auth.admin.update_user_by_id, user_id, {"password": body.password}
+        )
     except Exception as exc:
         logger.warning("update_password: failed for user %s: %s", user_id, exc)
         raise HTTPException(status_code=400, detail="Password update failed. Please try again.")

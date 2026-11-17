@@ -573,23 +573,6 @@ class TestUpdatePasswordGuard:
             ))
         assert exc_info.value.status_code == 403
 
-    def test_regular_subscriber_can_update_password(self, monkeypatch):
-        import routes.auth_routes as ar
-
-        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: False)
-
-        mock_sb = MagicMock()
-        mock_sb.auth.admin.update_user_by_id.return_value = MagicMock()
-        monkeypatch.setattr(ar, "get_supabase", lambda: mock_sb)
-
-        from routes.auth_routes import update_password
-        result = _run(update_password(
-            _mock_request(),
-            self._body(),
-            self._payload(),
-        ))
-        assert result == {"ok": True}
-
     def test_short_password_returns_400_before_guard(self, monkeypatch):
         """The length check runs before the guard; admin cannot bypass it either."""
         import routes.auth_routes as ar
@@ -689,3 +672,150 @@ class TestNewAuthCallsUseUnsharedClient:
 
     def test_reset_password_for_email_uses_new_auth_client(self):
         self._assert_uses_new_client(self._RESET_PW)
+
+
+# ---------------------------------------------------------------------------
+# update-password: current password or a fresh emailed-link session required
+# ---------------------------------------------------------------------------
+
+def _jwt(amr):
+    """Unsigned JWT-shaped token carrying an amr claim (the endpoint verifies via Supabase)."""
+    import base64
+    import json
+    body = base64.urlsafe_b64encode(json.dumps({"sub": "user-id-1", "amr": amr}).encode()).decode().rstrip("=")
+    return f"h.{body}.s"
+
+
+class TestUpdatePasswordRequiresProof:
+    """
+    Security review H01: a session token alone must not be enough to replace an
+    account's password.  Either the session was just established from an emailed
+    link, or the caller supplies the current password.
+    """
+
+    def _payload(self):
+        return {"sub": "user-id-1", "email": "user@example.com", "user_metadata": {}, "app_metadata": {}}
+
+    def _setup(self, monkeypatch, sign_in_ok=True, bearer_user_id="user-id-1"):
+        import routes.auth_routes as ar
+        monkeypatch.setattr(ar, "_is_admin_or_staff_email", lambda e: False)
+        monkeypatch.setattr(ar, "_is_deactivated", lambda uid: False)
+        shared = MagicMock()
+        shared.auth.get_user.return_value = MagicMock(
+            user=MagicMock(id=bearer_user_id, email="user@example.com")
+        )
+        monkeypatch.setattr(ar, "get_supabase", lambda: shared)
+        auth_client = MagicMock()
+        if not sign_in_ok:
+            auth_client.auth.sign_in_with_password.side_effect = Exception("Invalid login credentials")
+        monkeypatch.setattr(ar, "new_auth_client", lambda: auth_client)
+        return shared, auth_client
+
+    def _request(self, bearer=None, cookie=None):
+        req = MagicMock()
+        req.cookies = {"sb_access_token": cookie} if cookie else {}
+        req.headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+        req.state = type("S", (), {})()
+        return req
+
+    def _call(self, req, password="newpassword123", current=None):
+        from routes.auth_routes import UpdatePasswordRequest, update_password
+        return _run(update_password(
+            req, UpdatePasswordRequest(password=password, current_password=current), self._payload()
+        ))
+
+    def test_ordinary_session_without_current_password_refused(self, monkeypatch):
+        import time
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch)
+        token = _jwt([{"method": "password", "timestamp": time.time()}])
+        with pytest.raises(HTTPException) as exc:
+            self._call(self._request(cookie=token))
+        assert exc.value.status_code == 400
+        assert exc.value.headers["X-Error-Code"] == "current_password_required"
+        shared.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_oauth_session_without_current_password_refused(self, monkeypatch):
+        import time
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch)
+        token = _jwt([{"method": "oauth", "timestamp": time.time()}])
+        with pytest.raises(HTTPException):
+            self._call(self._request(bearer=token))
+        shared.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_wrong_current_password_refused(self, monkeypatch):
+        import time
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch, sign_in_ok=False)
+        token = _jwt([{"method": "password", "timestamp": time.time()}])
+        with pytest.raises(HTTPException) as exc:
+            self._call(self._request(cookie=token), current="wrong-password")
+        assert exc.value.status_code == 403
+        assert exc.value.headers["X-Error-Code"] == "current_password_invalid"
+        shared.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_correct_current_password_allowed(self, monkeypatch):
+        import time
+        shared, auth_client = self._setup(monkeypatch)
+        token = _jwt([{"method": "password", "timestamp": time.time()}])
+        assert self._call(self._request(cookie=token), current="old-password") == {"ok": True}
+        auth_client.auth.sign_in_with_password.assert_called_once_with(
+            {"email": "user@example.com", "password": "old-password"}
+        )
+        shared.auth.admin.update_user_by_id.assert_called_once_with(
+            "user-id-1", {"password": "newpassword123"}
+        )
+        # the check must run on an unshared client, never the service-role one
+        shared.auth.sign_in_with_password.assert_not_called()
+
+    def test_fresh_recovery_session_needs_no_current_password(self, monkeypatch):
+        import time
+        shared, auth_client = self._setup(monkeypatch)
+        token = _jwt([{"method": "recovery", "timestamp": time.time() - 60}])
+        assert self._call(self._request(bearer=token)) == {"ok": True}
+        auth_client.auth.sign_in_with_password.assert_not_called()
+        shared.auth.admin.update_user_by_id.assert_called_once()
+
+    def test_fresh_otp_session_needs_no_current_password(self, monkeypatch):
+        import time
+        shared, _ = self._setup(monkeypatch)
+        token = _jwt([{"method": "otp", "timestamp": time.time() - 60}])
+        assert self._call(self._request(bearer=token)) == {"ok": True}
+
+    def test_stale_recovery_session_refused(self, monkeypatch):
+        import time
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch)
+        token = _jwt([{"method": "recovery", "timestamp": time.time() - 3600}])
+        with pytest.raises(HTTPException) as exc:
+            self._call(self._request(bearer=token))
+        assert exc.value.headers["X-Error-Code"] == "current_password_required"
+        shared.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_malformed_token_treated_as_no_proof(self, monkeypatch):
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch)
+        with pytest.raises(HTTPException):
+            self._call(self._request(cookie="not-a-jwt"))
+        shared.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_bearer_identity_wins_over_cookie_identity(self, monkeypatch):
+        """Reset page on a shared browser: the recovery Bearer user is updated, not the cookie user."""
+        import time
+        shared, _ = self._setup(monkeypatch, bearer_user_id="recovery-user")
+        bearer = _jwt([{"method": "recovery", "timestamp": time.time()}])
+        cookie = _jwt([{"method": "password", "timestamp": time.time()}])
+        assert self._call(self._request(bearer=bearer, cookie=cookie)) == {"ok": True}
+        shared.auth.admin.update_user_by_id.assert_called_once_with(
+            "recovery-user", {"password": "newpassword123"}
+        )
+
+    def test_invalid_bearer_is_unauthenticated(self, monkeypatch):
+        from fastapi import HTTPException
+        shared, _ = self._setup(monkeypatch)
+        shared.auth.get_user.side_effect = Exception("bad jwt")
+        with pytest.raises(HTTPException) as exc:
+            self._call(self._request(bearer="garbage"))
+        assert exc.value.status_code == 401
+        shared.auth.admin.update_user_by_id.assert_not_called()

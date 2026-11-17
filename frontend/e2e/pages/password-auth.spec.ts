@@ -689,19 +689,14 @@ baseTest.describe('URL cleanup', () => {
 // catch and re-throw with spec-required messages.  They serve as regression
 // guards and bug documentation — do not skip or remove them.
 
-baseTest.describe('Sign-in form error messages — product gap (AC1-2, AC1-3)', () => {
+baseTest.describe('Sign-in form error messages (AC1-2, AC1-3)', () => {
   baseTest.use({ storageState: { cookies: [], origins: [] } })
 
   baseTest.beforeEach(async ({ page }) => {
     await loggedOut(page)
   })
 
-  baseTest('sign-in with wrong credentials shows "Invalid email or password." (AC1-2) [BUG]', async ({ page }) => {
-    // EXPECTED TO FAIL.
-    // Current behaviour:  form shows "Request failed with status code 401".
-    // Required by AC1-2: form shows "Invalid email or password."
-    // Fix needed:  signInWithEmail should catch status 401 and throw
-    //   new Error('Invalid email or password.')  — same pattern as signUpWithEmail for 403.
+  baseTest('sign-in with wrong credentials shows "Invalid email or password." (AC1-2)', async ({ page }) => {
     await page.route(`${API}auth/email-login`, (route) =>
       route.fulfill({
         status: 401,
@@ -724,12 +719,9 @@ baseTest.describe('Sign-in form error messages — product gap (AC1-2, AC1-3)', 
     await expect(page.getByText('Invalid email or password.')).toBeVisible({ timeout: 5000 })
   })
 
-  baseTest('sign-in when service is down shows human-readable error message (AC1-3) [BUG]', async ({ page }) => {
-    // EXPECTED TO FAIL.
-    // Current behaviour:  form shows "Request failed with status code 503".
-    // Required by AC1-3: form shows a maintenance / service-unavailable message.
-    // Fix needed:  signInWithEmail should catch status 503 and throw
-    //   new Error('Authentication service unavailable. Please try again shortly.')
+  baseTest('sign-in when service is down shows the server message, not a raw HTTP error (AC1-3)', async ({ page }) => {
+    // A 503 from email-login carries its reason (auth outage or maintenance mode);
+    // the form must show that reason rather than "Request failed with status code 503".
     await page.route(`${API}auth/email-login`, (route) =>
       route.fulfill({
         status: 503,
@@ -745,7 +737,7 @@ baseTest.describe('Sign-in form error messages — product gap (AC1-2, AC1-3)', 
     await page.getByPlaceholder(/^password$/i).fill('password123')
     await page.locator('button[type="submit"]').click()
 
-    // Spec requires a service-unavailable message (AC1-3).  FAILS until signInWithEmail translates 503.
-    await expect(page.getByText(/authentication service unavailable/i)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Service temporarily unavailable')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/Request failed with status code/i)).toHaveCount(0)
   })
 })
