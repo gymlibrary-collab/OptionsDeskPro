@@ -295,3 +295,22 @@ tests for the password-change rule). `settings.spec.ts` has one failing test
 (billing invoice list, line 227) that fails identically without these changes
 and passes when run alone — an existing order-dependent test, not caused by
 this feature. The Settings "Change Password" form has no e2e test.
+
+## Full-suite run before deploy (2026-11-17, Chromium only)
+
+Full Playwright suite on the branch: **583 passed, 73 failed** of 656.
+
+The 13 spec files containing failures were then run against `main`'s code in a
+separate checkout: **72 failed** there, and all 72 are among the branch's 73.
+The one test that failed only on the branch
+(`strategy-comparison-matrix.spec.ts` AC-2.2) passed three times when run alone
+and passed when its file was run on its own, so it is load-sensitive rather than
+broken by this branch. **The branch introduces no new failing browser test.**
+
+The 72 failures that exist on `main` are spread across `backend-auth-proxy`,
+`legal-acknowledgment`, `strategy-methodology`, `ui-regression`, `pricing`,
+`data-accuracy`, `engine-accuracy`, `options-chain`, `security`, `settings`,
+`ai-features` and `strategy-comparison-matrix`. They have not been diagnosed.
+Until they are repaired, those areas have no working browser-test protection.
+
+Backend: 618 passed.
