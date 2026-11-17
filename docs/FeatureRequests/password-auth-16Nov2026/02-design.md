@@ -561,6 +561,15 @@ Authentication → URL Configuration → "Redirect URLs" — add:
 Without these entries, Supabase will reject `redirect_to` parameters that do not
 match the allowlist, and the email links will fail.
 
+**Step 3a — Custom SMTP (REQUIRED before release):**
+Supabase's built-in sender only delivers to addresses that belong to members of
+the project's Supabase organisation; every other address fails with "Email
+address not authorized". Authentication → SMTP settings: enable custom SMTP and
+enter the sending service's host, port, username, password, sender email and
+sender name. Verify the sending domain (SPF/DKIM) with the service. Then raise
+the email rate limit under Authentication → Rate Limits (it defaults to 30 per
+hour once custom SMTP is saved). No code change is involved.
+
 **Step 4 — Email branding (optional):**
 Subject and wording of the two templates can be customised; the link format in Step 2 must be kept.
 Supabase's built-in SMTP is used for now (OQ-4 decision).  The free plan sends from

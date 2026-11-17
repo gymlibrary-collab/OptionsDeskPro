@@ -34,12 +34,16 @@ Tests marked **Blocker** must pass before release.
 | STAFF_EMAIL | An address with an active row in `platform_staff` |
 | ADMIN | The admin Google account |
 
-### A.3 Email rate limit
+### A.3 Email sending
 
-Supabase's built-in sender allows only a few emails per hour per address. If a
-form shows its success message but no email arrives within 5 minutes, you have
-probably hit the limit: wait an hour and retry. Do all SUBSCRIBER_A sign-up
-steps before requesting a reset for the same address.
+Custom SMTP must be configured first (Authentication → SMTP settings). Without
+it, Supabase's built-in sender only delivers to addresses that belong to members
+of your Supabase organisation, so SUBSCRIBER_A would never receive an email.
+
+Sending is rate-limited (30 per hour by default once custom SMTP is saved;
+adjust under Authentication → Rate Limits). If a form shows its success message
+but no email arrives within 5 minutes, check the rate limit and your email
+service's delivery log.
 
 ### A.4 Invite-only mode
 

@@ -11,7 +11,7 @@
 | **Document** | `01-spec.md` |
 | **Approved by** | leonard.simgt@gmail.com |
 | **Date** | 2026-11-16 |
-| **Notes** | Decisions: D-1 Google sign-in kept as an alternative; D-2 subscribers only, admin/staff stay Google-only and are refused password login; OQ-1 self-service sign-up (existing whitelist / invite-only gate still applies at first login); OQ-2 email verification required before first login; OQ-3 sign-up with an existing email returns the same neutral response (no enumeration); OQ-4 Supabase built-in email sender for now; password minimum stays as LoginPage already enforces. |
+| **Notes** | Decisions: D-1 Google sign-in kept as an alternative; D-2 subscribers only, admin/staff stay Google-only and are refused password login; OQ-1 self-service sign-up (existing whitelist / invite-only gate still applies at first login); OQ-2 email verification required before first login; OQ-3 sign-up with an existing email returns the same neutral response (no enumeration); OQ-4 originally Supabase built-in email sender; superseded 2026-11-17: custom SMTP is required before release, because the built-in sender only delivers to members of the Supabase organisation (owner will configure it); password minimum stays as LoginPage already enforces. |
 
 ☑ Approved &nbsp; ☐ Changes Requested
 
@@ -48,12 +48,12 @@
 
 | | |
 |---|---|
-| **Document** | `04-test-report.md` |
-| **Automated tests added** | |
-| **All AC covered** | Yes / No |
+| **Document** | `04-test-report.md`, `04-manual-test-plan.md` |
+| **Automated tests added** | 47 backend pytest; `password-auth.spec.ts` (28 tests); `login.spec.ts` and `login-email.spec.ts` rewritten |
+| **All AC covered** | No — loading state, keyboard-only sign-in and the suspended-account message have no automated test; Story 5 (Google account adds a password) is manual only |
 | **Approved by** | |
 | **Date** | |
-| **Notes** | |
+| **Notes** | Automated portion complete 2026-11-16: backend 599 passing; login/password specs 46 passing, 0 failing. NOT yet approved: the manual test plan has not been run against the real Supabase project, and it depends on the dashboard template changes and custom SMTP. Owner asked on 2026-11-17 for Gate 5 to start in parallel. |
 
 ☐ Approved &nbsp; ☐ Changes Requested
 
