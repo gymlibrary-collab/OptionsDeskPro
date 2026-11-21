@@ -443,22 +443,36 @@ test.describe('US-02: Strategy Scanner shows new column layout', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('US-05: Unauthenticated access is blocked', () => {
-  // AC-5.3: Frontend redirects unauthenticated users to the login page
+  // The app now shows <HomePage> at '/' for unauthenticated visitors rather than showing
+  // <LoginPage> directly.  The auth wall is still in place: the scanner and matrix are never
+  // rendered without a valid session.  "Sign in with Google" lives inside <LoginPage>/
+  // <SignInModal> which requires a click-through from <HomePage>.  The assertions below
+  // verify the security property (no scanner/matrix accessible) and confirm the user
+  // lands on <HomePage> (Sign In nav button visible) rather than asserting the specific
+  // Google button which is one click away.
+
+  // AC-5.3: Frontend blocks unauthenticated users — scanner content not shown
   baseTest('AC-5.3: unauthenticated navigation to Scanner tab shows login page', async ({ page }) => {
-    // Mock Supabase to return 401 (no session)
+    // Mock backend session endpoint so auth resolves quickly without network dependency
+    await page.route('**/api/**auth/session', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
+    )
     await page.route('**/auth/v1/user', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
     )
     await page.goto(BASE_URL)
     await page.waitForLoadState('networkidle')
-    // Should see the login page, not the scanner
-    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible({ timeout: 10000 })
-    // Scanner tab content must not be accessible / visible
+    // <HomePage> shows "Sign In" in the nav — the user can reach the sign-in form from here
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible({ timeout: 10000 })
+    // Scanner tab content must not be accessible / visible — core security assertion
     await expect(page.locator('table, [data-testid="comparison-matrix"]')).not.toBeVisible()
   })
 
   // AC-5.1 & AC-5.2: Verify auth wall is in place (frontend never renders matrix without auth)
   baseTest('AC-5.1: GET /api/strategies/analyze without auth — frontend shows login, not matrix', async ({ page }) => {
+    await page.route('**/api/**auth/session', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
+    )
     await page.route('**/auth/v1/user', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
     )
@@ -469,13 +483,16 @@ test.describe('US-05: Unauthenticated access is blocked', () => {
     await page.goto(BASE_URL)
     await page.waitForLoadState('networkidle')
 
-    // Verify the login page is shown (frontend auth wall is in place)
-    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible({ timeout: 10000 })
-    // The matrix must not render
+    // <HomePage> shows — sign-in entry point is accessible (not stuck on a blank page)
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible({ timeout: 10000 })
+    // The matrix must not render — core security assertion
     await expect(page.locator('table, [data-testid="comparison-matrix"]')).not.toBeVisible()
   })
 
   baseTest('AC-5.2: GET /api/strategies/scan without auth — frontend shows login', async ({ page }) => {
+    await page.route('**/api/**auth/session', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
+    )
     await page.route('**/auth/v1/user', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }),
     )
@@ -486,8 +503,10 @@ test.describe('US-05: Unauthenticated access is blocked', () => {
     await page.goto(BASE_URL)
     await page.waitForLoadState('networkidle')
 
-    // Frontend must show login, not scan results
-    await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible({ timeout: 10000 })
+    // <HomePage> shows — sign-in entry point is accessible
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible({ timeout: 10000 })
+    // Scanner/scan results must not be rendered — core security assertion
+    await expect(page.getByRole('button', { name: /strategy scanner|scan watchlist/i })).not.toBeVisible({ timeout: 3000 })
   })
 })
 

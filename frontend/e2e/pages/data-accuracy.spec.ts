@@ -367,7 +367,13 @@ test.describe('Supporting Data Accuracy', () => {
     // Click "Analyze" button to trigger deep analysis
     await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
 
-    // After deep analysis, the BEARISH strategy "Bear Put Spread" should appear
+    // CategorySection for Bearish Strategies starts collapsed (useState(false)).
+    // The StrategyCard is rendered inside {open && (...)} so it is not in the DOM
+    // until the header is clicked.  Expand the section first.
+    await expect(authedPage.getByText(/bearish strategies/i).first()).toBeVisible({ timeout: 15000 })
+    await authedPage.getByText(/bearish strategies/i).first().click()
+
+    // After expanding the section, the BEARISH strategy "Bear Put Spread" should appear
     await expect(authedPage.getByText(/bear put spread/i).first()).toBeVisible({ timeout: 15000 })
   })
 
@@ -423,8 +429,10 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // Risk Monitor should display the red DTE signal
-    await expect(authedPage.getByText(/2 days to expiry|close or roll immediately/i).first()).toBeVisible({ timeout: 10000 })
+    // RiskMonitor does not render signals[].msg verbatim.  The DTE information
+    // appears as "${dte}d left" in the LegCard sub-line and as
+    // "N days remain before expiry" in DefensiveNarrativeSingle prose.
+    await expect(authedPage.getByText(/2d left|2 days remain/i).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('risk monitor shows red P&L signal for position with pnl_pct=-60', async ({ authedPage }) => {
@@ -438,8 +446,10 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // Risk Monitor should display the red P&L signal
-    await expect(authedPage.getByText(/-60\.0%|cutting losses/i).first()).toBeVisible({ timeout: 10000 })
+    // RiskMonitor does not render signals[].msg verbatim.  P&L is shown via
+    // DefensiveNarrativeSingle: lostPct = abs(pnl_pct) = 60, rendered as
+    // "{fmt(lostPct,0)}% of what you paid" → "60% of what you paid"
+    await expect(authedPage.getByText(/60% of what you paid/i).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('risk monitor card shows HIGH RISK label for red position', async ({ authedPage }) => {

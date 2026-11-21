@@ -44,6 +44,8 @@ import {
   MOCK_STAFF_ME_OWNER,
   MOCK_SUBSCRIBER_LIST,
   MOCK_SUBSCRIBER_DETAIL,
+  MOCK_SESSION_RESPONSE_PENDING_LEGAL,
+  MOCK_SESSION_RESPONSE_LEGAL_ONBOARDING,
 } from '../mock-data'
 
 const API = '**/api/**'
@@ -130,8 +132,8 @@ async function scrollContentToBottom(page: import('@playwright/test').Page) {
 
 test.describe('Re-acknowledgment gate — existing subscriber', () => {
   test.beforeEach(async ({ page }) => {
-    // Wire auth with pending_legal_acknowledgment: true
-    await bypassAuth(page, MOCK_USER, MOCK_LOGIN_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
+    // Wire auth with pending_legal_acknowledgment: true via the session endpoint
+    await bypassAuth(page, MOCK_SESSION_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
     await mockDashboard(page)
     await mockLegalRoutes(page)
     await page.goto('http://localhost:5173/')
@@ -294,8 +296,8 @@ test.describe('Admin email bypasses legal gate', () => {
 
 test.describe('Onboarding — legal_acknowledgment step', () => {
   test.beforeEach(async ({ page }) => {
-    // Wire auth: onboarding not complete, step = legal_acknowledgment
-    await bypassAuth(page, MOCK_USER, MOCK_LOGIN_RESPONSE_LEGAL_ONBOARDING, MOCK_ENTITLEMENTS_PRO)
+    // Wire auth: onboarding not complete, step = legal_acknowledgment via the session endpoint
+    await bypassAuth(page, MOCK_SESSION_RESPONSE_LEGAL_ONBOARDING, MOCK_ENTITLEMENTS_PRO)
     await mockLegalRoutes(page)
     await page.goto('http://localhost:5173/')
     await page.waitForLoadState('networkidle')
@@ -331,7 +333,7 @@ test.describe('Onboarding — legal_acknowledgment step', () => {
   test('step indicator is rendered in the onboarding flow', async ({ page }) => {
     // OnboardingFlow renders numbered step indicators and the "Welcome to OptionsDesk" header.
     await expect(page.getByRole('heading', { name: /risk disclosure.*indemnification agreement/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText(/welcome to optionsdesk/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/welcome to options compass/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('AC1.5: successful acknowledgment during onboarding advances to complete step', async ({ page }) => {
@@ -654,7 +656,7 @@ test.describe('Admin portal — Subscriber legal history', () => {
 test.describe('Re-acknowledgment gate — mobile viewport', () => {
   test('modal is visible and functional on mobile viewport (AC3.1)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await bypassAuth(page, MOCK_USER, MOCK_LOGIN_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
+    await bypassAuth(page, MOCK_SESSION_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
     await mockDashboard(page)
     await mockLegalRoutes(page)
     await page.goto('http://localhost:5173/')
@@ -672,7 +674,7 @@ test.describe('Re-acknowledgment gate — mobile viewport', () => {
 
 test.describe('Legal gate — error state when current-version endpoint fails', () => {
   test('displays error message when GET /api/legal/current-version returns 500', async ({ page }) => {
-    await bypassAuth(page, MOCK_USER, MOCK_LOGIN_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
+    await bypassAuth(page, MOCK_SESSION_RESPONSE_PENDING_LEGAL, MOCK_ENTITLEMENTS_PRO)
     await mockDashboard(page)
     // Override current-version to fail
     await page.route(`${API}legal/current-version`, (r) =>

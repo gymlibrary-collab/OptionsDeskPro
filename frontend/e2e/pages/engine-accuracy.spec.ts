@@ -55,8 +55,13 @@ const IRON_CONDOR_STRATEGY = {
   profit_target_pct: 50,
   fit_score: 0.92,
   trade: {
+    expiry: '2024-03-15',
+    estimated_credit_or_debit: 1.85,
+    risk_type: 'DEFINED',
+    profit_target_pct: 50,
     legs: [
       {
+        role: 'short call',
         action: 'sell',
         option_type: 'call',
         strike: 195,
@@ -70,6 +75,7 @@ const IRON_CONDOR_STRATEGY = {
         mid: 1.25,
       },
       {
+        role: 'long call',
         action: 'buy',
         option_type: 'call',
         strike: 200,
@@ -83,6 +89,7 @@ const IRON_CONDOR_STRATEGY = {
         mid: 0.55,
       },
       {
+        role: 'short put',
         action: 'sell',
         option_type: 'put',
         strike: 175,
@@ -96,6 +103,7 @@ const IRON_CONDOR_STRATEGY = {
         mid: 1.15,
       },
       {
+        role: 'long put',
         action: 'buy',
         option_type: 'put',
         strike: 170,
@@ -366,11 +374,15 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
     await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
-    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
+    // CategorySection for Neutral Strategies starts collapsed — expand it first
+    await expect(authedPage.getByText(/neutral strategies/i).first()).toBeVisible({ timeout: 15000 })
+    await authedPage.getByText(/neutral strategies/i).first().click()
+    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 10000 })
 
-    // DTE target of 45 should be visible on the strategy card
-    // The StrategyDetail component shows dte_target from the response
-    await expect(authedPage.getByText(/45/).first()).toBeVisible({ timeout: 10000 })
+    // DTE target of 45 should be visible on the strategy card header.
+    // StrategyCard renders "Target 50% · 45d" — match the "45d" suffix specifically
+    // to avoid matching the hidden "9:31:45 AM" auto-refresh timestamp on the page.
+    await expect(authedPage.getByText(/45d/).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('trade legs show greek values within plausible financial ranges', async ({ authedPage }) => {
@@ -410,7 +422,14 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
     await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
-    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
+    // CategorySection for Neutral Strategies starts collapsed — expand it first
+    await expect(authedPage.getByText(/neutral strategies/i).first()).toBeVisible({ timeout: 15000 })
+    await authedPage.getByText(/neutral strategies/i).first().click()
+    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 10000 })
+    // StrategyCard also starts collapsed; trade leg details are inside {expanded && ...}
+    // Click the Iron Condor card header (exact match targets the name <span> which
+    // bubbles to the card's onClick handler)
+    await authedPage.getByText(/^iron condor$/i).first().click()
 
     // The legs should show delta values: call legs 0.18, 0.10 and put legs -0.18, -0.10
     // These are within [0,1] for calls and [-1,0] for puts — verified by their presence
@@ -462,10 +481,16 @@ test.describe('Engine Logic & Calculation Accuracy', () => {
     await authedPage.getByRole('button', { name: /scan watchlist/i }).click()
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 15000 })
     await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
-    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 15000 })
+    // CategorySection for Neutral Strategies starts collapsed — expand it first
+    await expect(authedPage.getByText(/neutral strategies/i).first()).toBeVisible({ timeout: 15000 })
+    await authedPage.getByText(/neutral strategies/i).first().click()
+    await expect(authedPage.getByText(/iron condor/i).first()).toBeVisible({ timeout: 10000 })
+    // StrategyCard starts collapsed; TradeCard with max_profit/max_loss is inside
+    // {expanded && ...}.  Click the Iron Condor card header to expand it.
+    await authedPage.getByText(/^iron condor$/i).first().click()
 
     // The trade details show max_profit = 1.85 and max_loss = 3.15
-    // StrategyDetail renders these from the trade object
+    // net_credit=1.85, spread_width=5 → max_loss = 5 - 1.85 = 3.15
     await expect(authedPage.getByText(/1\.85/).first()).toBeVisible({ timeout: 10000 })
     await expect(authedPage.getByText(/3\.15/).first()).toBeVisible({ timeout: 10000 })
   })

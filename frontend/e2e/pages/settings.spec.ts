@@ -227,6 +227,10 @@ test.describe('Settings page — Billing tab', () => {
   test('Invoice list shows rows from mocked /api/billing/invoices (AC8.3)', async ({ authedPage }) => {
     await openSettings(authedPage)
     await authedPage.getByRole('button', { name: /^billing$/i }).click()
+    // BillingTab mounts lazily and fetches asynchronously — wait for the first
+    // "paid" status cell before collecting the full list, otherwise .all() races
+    // the Promise.all([getBillingInvoices(), getPaymentMethod()]) inside load()
+    await expect(authedPage.getByText('paid').first()).toBeVisible({ timeout: 10000 })
     // Two invoices in mock — amount $29.00 and status "paid"
     const paidTexts = await authedPage.getByText('paid').all()
     expect(paidTexts.length).toBeGreaterThanOrEqual(1)

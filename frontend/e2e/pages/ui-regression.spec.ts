@@ -96,6 +96,11 @@ async function setupBaseRoutes(page: import('@playwright/test').Page) {
 // ─── Login page tests (no auth bypass needed) ─────────────────────────────────
 
 baseTest.describe('UI Regression — Login page', () => {
+  // The app now shows <HomePage> at '/' for unauthenticated visitors.  <LoginPage> is only
+  // rendered via URL params: /?signup=1 (signup mode), /?forgot=1 (forgot mode), or
+  // /?reset_success=1 (banner after password reset).  Tests that need to exercise the login
+  // form navigate to /?signup=1.  auth/session is mocked to 401 so auth resolves instantly
+  // without depending on the real backend.
 
   baseTest.beforeEach(async ({ page }) => {
     await page.route('**/auth/v1/user', (route) =>
@@ -104,6 +109,9 @@ baseTest.describe('UI Regression — Login page', () => {
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
     await page.route(/\/public\/config/, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ai_features_enabled: true }) }))
+    // Backend session endpoint — 401 collapses auth loading so the unauthenticated UI renders quickly
+    await page.route('**/api/**auth/session', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
   })
 
   baseTest('mobile: login left marketing panel is hidden at 375x812 viewport', async ({ page }) => {
@@ -119,11 +127,12 @@ baseTest.describe('UI Regression — Login page', () => {
 
   baseTest('mobile: login form panel is visible at 375x812 viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
-    await page.goto('http://localhost:5173/')
+    // Navigate to /?signup=1 to render <LoginPage> — at '/' the app shows <HomePage> instead
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
     // The right-side form panel is always visible — it contains the Google button
-    await expect(page.getByRole('button', { name: /sign in with google|continue with google/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /sign in with google|continue with google|sign up with google/i })).toBeVisible({ timeout: 10000 })
   })
 
   baseTest('login page shows OptionsCompass brand name', async ({ page }) => {
@@ -135,48 +144,49 @@ baseTest.describe('UI Regression — Login page', () => {
   })
 
   baseTest('login page shows Google OAuth button', async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    // /?signup=1 renders <LoginPage> in signup mode — Google button says "Sign up with Google"
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
     await expect(page.getByRole('button', { name: /google/i })).toBeVisible({ timeout: 10000 })
   })
 
   baseTest('login page shows email input field', async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
     await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 10000 })
   })
 
   baseTest('login page shows password input field', async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
-    await expect(page.locator('input[type="password"]')).toBeVisible({ timeout: 10000 })
+    // Signup mode has two password fields; .first() avoids strict-mode violation
+    await expect(page.locator('input[type="password"]').first()).toBeVisible({ timeout: 10000 })
   })
 
   baseTest('sign-in / sign-up toggle switches the form header text', async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    // /?signup=1 renders <LoginPage> in signup mode (shows "Create your account")
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
-    // Default mode is 'signin' — shows "Welcome back"
-    await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 10000 })
+    // Signup mode — shows "Create your account"
+    await expect(page.getByText('Create your account')).toBeVisible({ timeout: 10000 })
 
-    // Click "Create Account" toggle button
-    await page.getByRole('button', { name: /create account/i }).click()
+    // Click "Sign In" toggle button to switch to signin mode
+    await page.getByRole('button', { name: /^sign in$/i }).click()
 
-    // Should now show "Create your account"
-    await expect(page.getByText('Create your account')).toBeVisible({ timeout: 5000 })
+    // Signin mode — shows "Welcome back"
+    await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 5000 })
   })
 
   baseTest('sign-up mode shows confirm password field', async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    // /?signup=1 renders <LoginPage> already in signup mode — no need to click the toggle
+    await page.goto('http://localhost:5173/?signup=1')
     await page.waitForLoadState('networkidle')
 
-    // Switch to sign-up mode
-    await page.getByRole('button', { name: /create account/i }).click()
-
-    // Should show two password fields (password + confirm password)
+    // Signup mode shows two password fields (password + confirm password)
     const passwordInputs = page.locator('input[type="password"]')
     await expect(passwordInputs).toHaveCount(2, { timeout: 5000 })
   })
@@ -354,8 +364,10 @@ test.describe('UI Regression — Colour-coded risk indicators', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // RiskMonitor renders "🟢 OK" for green risk_level
-    await expect(authedPage.getByText(/OK/)).toBeVisible({ timeout: 10000 })
+    // RiskMonitor renders "🟢 OK" for green risk_level.
+    // .first() is required: the badge appears in both the master-list row and the detail
+    // panel simultaneously (strict mode violation without it).
+    await expect(authedPage.getByText(/OK/).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('yellow risk_level position renders WATCH label', async ({ authedPage }) => {
@@ -370,8 +382,10 @@ test.describe('UI Regression — Colour-coded risk indicators', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // RiskMonitor renders "🟡 WATCH" for yellow risk_level
-    await expect(authedPage.getByText(/WATCH/)).toBeVisible({ timeout: 10000 })
+    // RiskMonitor renders "🟡 WATCH" for yellow risk_level.
+    // .first() is required: the badge appears in both the master-list row and the detail
+    // panel simultaneously (strict mode violation without it).
+    await expect(authedPage.getByText(/WATCH/).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('red risk_level position renders HIGH RISK label', async ({ authedPage }) => {
