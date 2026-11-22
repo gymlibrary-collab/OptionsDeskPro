@@ -28,6 +28,7 @@ interface AuthContextType {
    *  (e.g. "Email verification failed or link expired."). Clear after displaying. */
   loginBanner: string | null
   clearLoginBanner: () => void
+  showLoginError: (message: string) => void
   signInWithGoogle: () => void
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (email: string, password: string) => Promise<void>
@@ -287,6 +288,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPendingLegalAcknowledgment(false)
   }, [])
 
+  const showLoginError = useCallback((message: string) => {
+    setLoginBanner(message)
+  }, [])
+
   const clearLoginBanner = useCallback(() => {
     setLoginBanner(null)
   }, [])
@@ -309,6 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         pendingLegalAcknowledgment,
         loginBanner,
         clearLoginBanner,
+        showLoginError,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,

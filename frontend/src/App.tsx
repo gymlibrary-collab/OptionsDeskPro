@@ -495,8 +495,15 @@ function Dashboard() {
 
 const ADMIN_EMAIL = 'leonardsim.sm@gmail.com'
 
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  invite_only: 'Sign-up is by invitation only right now. Ask the administrator to add your email, then try again.',
+  account_suspended: 'This account has been suspended. Contact support if you think this is a mistake.',
+  maintenance: 'Sign-in is temporarily unavailable while we carry out maintenance. Please try again shortly.',
+  callback_failed: 'We could not complete your Google sign-in. Please try again.',
+}
+
 function ClientAppInner() {
-  const { user, profile, loading, pendingLegalAcknowledgment, loginBanner, clearLoginBanner } = useAuth()
+  const { user, profile, loading, pendingLegalAcknowledgment, loginBanner, clearLoginBanner, showLoginError } = useAuth()
 
   // Determine initial auth view from URL params (runs once at render time).
   // The corresponding URL params are cleaned in the useEffect below.
@@ -508,13 +515,19 @@ function ClientAppInner() {
     return 'home'
   })
 
-  // Clean any URL params that were consumed for routing decisions.
+  // Clean any URL params that were consumed for routing decisions, and turn a
+  // backend sign-in refusal (?auth_error=code, set by the Google callback) into
+  // a visible message on the login page.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('reset_success') || params.get('forgot') || params.get('signup')) {
+    const authError = params.get('auth_error')
+    if (authError) {
+      showLoginError(AUTH_ERROR_MESSAGES[authError] ?? AUTH_ERROR_MESSAGES.callback_failed)
+    }
+    if (params.get('reset_success') || params.get('forgot') || params.get('signup') || authError) {
       window.history.replaceState(null, '', window.location.pathname)
     }
-  }, [])
+  }, [showLoginError])
 
   // Start fetching the chain immediately on mount — runs during the auth loading
   // spinner so data is cached by the time the options chain tab renders.

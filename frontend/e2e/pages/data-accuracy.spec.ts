@@ -178,13 +178,13 @@ const MOCK_POSITION_CRITICAL = {
   signals: [
     {
       level: 'red',
-      type: 'DTE',
-      msg: '2 days to expiry — close or roll immediately.',
+      type: 'dte',
+      msg: 'Only 2 day(s) left and you\'re down 60%. With so little time, the premium has almost no chance to recover. Close now to stop the bleeding.',
     },
     {
       level: 'red',
-      type: 'PNL',
-      msg: 'Position is down -60.0% — consider cutting losses.',
+      type: 'pnl',
+      msg: 'You\'re down 60% — more than twice the recommended stop of 25%. Exit immediately. Do not wait for a recovery that may not come.',
     },
   ],
 }
@@ -429,10 +429,10 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // RiskMonitor does not render signals[].msg verbatim.  The DTE information
-    // appears as "${dte}d left" in the LegCard sub-line and as
-    // "N days remain before expiry" in DefensiveNarrativeSingle prose.
-    await expect(authedPage.getByText(/2d left|2 days remain/i).first()).toBeVisible({ timeout: 10000 })
+    // The backend's red DTE message is shown in the Exit signals block.
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.getByText(/only 2 day\(s\) left/i)).toBeVisible({ timeout: 10000 })
+    await expect(signals.getByText('ACT NOW')).toHaveCount(2)  // DTE and P&L are both red
   })
 
   test('risk monitor shows red P&L signal for position with pnl_pct=-60', async ({ authedPage }) => {
@@ -446,10 +446,9 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // RiskMonitor does not render signals[].msg verbatim.  P&L is shown via
-    // DefensiveNarrativeSingle: lostPct = abs(pnl_pct) = 60, rendered as
-    // "{fmt(lostPct,0)}% of what you paid" → "60% of what you paid"
-    await expect(authedPage.getByText(/60% of what you paid/i).first()).toBeVisible({ timeout: 10000 })
+    // The backend's red P&L message is shown in the Exit signals block.
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.getByText(/more than twice the recommended stop/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('risk monitor card shows HIGH RISK label for red position', async ({ authedPage }) => {

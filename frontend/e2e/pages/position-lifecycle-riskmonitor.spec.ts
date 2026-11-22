@@ -432,3 +432,68 @@ test.describe('Suite 3 — Risk Monitor spot price and ticker chip (AC3)', () =>
     expect(whiteSpace).toBe('nowrap')
   })
 })
+
+
+// ─── Suite 4: Exit signals in Risk Monitor ───────────────────────────────────
+
+const rmLeg = (overrides: Record<string, unknown>) => ({
+  ...MOCK_RM_AAPL_LONG_CALL,
+  strategy_key: 'bull_call_spread_aapl',
+  strategy_name: 'Bull Call Spread',
+  signals: [],
+  ...overrides,
+})
+
+const DTE_MSG = '7 days to expiry. Time decay (theta) is eating into your premium quickly. If you haven\'t hit your target yet, decide whether to hold or take what you have.'
+
+test.describe('Suite 4 — Exit signals (Risk Monitor)', () => {
+
+  test('multi-leg trade: shared time warning shown once, loss warning tagged with its leg, most urgent first', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    await authedPage.route(`${API}positions/risk`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          rmLeg({
+            strike: 200, option_type: 'call', risk_level: 'red', dte: 7,
+            signals: [
+              { level: 'yellow', type: 'dte', msg: DTE_MSG },
+              { level: 'red', type: 'pnl', msg: 'You\'ve hit your stop-loss at -50% (currently down 62%). Exit here.' },
+            ],
+          }),
+          rmLeg({
+            strike: 210, option_type: 'call', risk_level: 'yellow', dte: 7,
+            signals: [
+              { level: 'yellow', type: 'dte', msg: DTE_MSG },
+              { level: 'green', type: 'pnl', msg: 'Almost there — you\'re at 40% of your 50% target.' },
+            ],
+          }),
+        ]),
+      }))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals).toBeVisible({ timeout: 10000 })
+    // identical time-decay message from both legs appears once
+    await expect(signals.getByText(/7 days to expiry/i)).toHaveCount(1)
+    // per-leg messages carry their leg
+    await expect(signals.getByText(/\$200 CALL: You've hit your stop-loss/i)).toBeVisible()
+    await expect(signals.getByText(/\$210 CALL: Almost there/i)).toBeVisible()
+    // most urgent first: the first row is the red one
+    await expect(signals.locator('li').first()).toContainText('ACT NOW')
+    await expect(signals.locator('li').first()).toContainText('stop-loss')
+    await expect(signals.locator('li')).toHaveCount(3)
+  })
+
+  test('no exit signals block when the trade has no signals', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    await authedPage.route(`${API}positions/risk`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([rmLeg({ signals: [] })]) }))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+    await expect(authedPage.getByText(/Trade entered/i).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByLabel('Exit signals')).toHaveCount(0)
+  })
+})

@@ -725,35 +725,39 @@ baseTest.describe('Auth error query params on login page', () => {
   })
 
   /**
-   * GET /api/auth/callback redirects with /?auth_error=<code> on failure.
-   * The frontend must render without crashing for every code.
-   *
-   * The /?auth_error= param is not consumed anywhere in the app (login.spec.ts confirms
-   * this explicitly).  The page renders <HomePage> (not <LoginPage>) and the user can
-   * reach the sign-in form via the "Sign In" nav button.  The test verifies:
-   *   (1) the page does not crash — <HomePage> renders with a sign-in entry point
-   *   (2) the dashboard is not shown
+   * GET /api/auth/callback redirects with /?auth_error=<code> when a Google
+   * sign-in is refused.  The login page must say why, and the address bar must
+   * be cleaned so a refresh does not repeat the message.
    */
-  for (const [code, label] of [
-    ['invite_only', 'invite only'],
-    ['account_suspended', 'account suspended'],
-    ['callback_failed', 'callback failed'],
-    ['maintenance', 'maintenance mode'],
-    ['unknown_error_code', 'unknown code'],
+  for (const [code, message] of [
+    ['invite_only', /by invitation only/i],
+    ['account_suspended', /account has been suspended/i],
+    ['maintenance', /temporarily unavailable while we carry out maintenance/i],
+    ['callback_failed', /could not complete your google sign-in/i],
+    ['unknown_error_code', /could not complete your google sign-in/i],
   ] as const) {
-    baseTest(`auth_error=${code}: page renders without crash (${label})`, async ({ page }) => {
+    baseTest(`auth_error=${code}: login page explains the refusal`, async ({ page }) => {
       await page.goto(`${BASE_URL}/?auth_error=${code}`)
-      await page.waitForLoadState('networkidle')
 
-      // <HomePage> renders with a "Sign In" nav button — no crash, user can still sign in
-      await expect(
-        page.getByRole('button', { name: /^sign in$/i }).first(),
-      ).toBeVisible({ timeout: 10000 })
+      const banner = page.getByRole('alert').filter({ hasText: message })
+      await expect(banner).toBeVisible({ timeout: 10000 })
 
+      // The Google button is still there so the user can try again
+      await expect(page.getByRole('button', { name: /continue with google|sign in with google/i })).toBeVisible()
       // Dashboard must not be accessible
       await expect(page.getByRole('button', { name: /options chain/i })).not.toBeVisible({ timeout: 3000 })
+      // The parameter is consumed
+      await expect.poll(() => page.url()).not.toContain('auth_error')
     })
   }
+
+  baseTest('auth_error banner is cleared when the user goes back to the home page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/?auth_error=invite_only`)
+    await expect(page.getByRole('alert').filter({ hasText: /by invitation only/i })).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: /back to options compass/i }).click()
+    await expect(page.getByRole('alert').filter({ hasText: /by invitation only/i })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible()
+  })
 })
 
 // ─── Mobile viewport ──────────────────────────────────────────────────────────
