@@ -46,9 +46,10 @@ test.describe('Options Chain tab', () => {
   test('shows a quote bar with the ticker symbol', async ({ authedPage }) => {
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
-    // Default symbol is SPY — appears in the symbol input field
+    // After the watchlist mock resolves, the app sets the symbol to the first watchlist entry.
+    // MOCK_WATCHLIST has symbols: ['AAPL', 'MSFT', 'TSLA'], so the input shows 'AAPL'.
     const symbolInput = authedPage.locator('input[placeholder="Symbol"]')
-    await expect(symbolInput).toHaveValue('SPY', { timeout: 10000 })
+    await expect(symbolInput).toHaveValue('AAPL', { timeout: 10000 })
   })
 
   test('shows delta column in options chain', async ({ authedPage }) => {
@@ -91,8 +92,9 @@ test.describe('Options Chain tab', () => {
     await authedPage.setViewportSize({ width: 390, height: 844 })
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
-    // The symbol input should show the default symbol SPY
+    // After the watchlist mock resolves, the app sets the symbol to the first watchlist entry.
+    // MOCK_WATCHLIST has symbols: ['AAPL', 'MSFT', 'TSLA'], so the input shows 'AAPL'.
     const symbolInput = authedPage.locator('input[placeholder="Symbol"]')
-    await expect(symbolInput).toHaveValue('SPY', { timeout: 10000 })
+    await expect(symbolInput).toHaveValue('AAPL', { timeout: 10000 })
   })
 })

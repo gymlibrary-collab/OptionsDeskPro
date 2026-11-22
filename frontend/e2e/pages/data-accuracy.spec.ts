@@ -178,13 +178,13 @@ const MOCK_POSITION_CRITICAL = {
   signals: [
     {
       level: 'red',
-      type: 'DTE',
-      msg: '2 days to expiry — close or roll immediately.',
+      type: 'dte',
+      msg: 'Only 2 day(s) left and you\'re down 60%. With so little time, the premium has almost no chance to recover. Close now to stop the bleeding.',
     },
     {
       level: 'red',
-      type: 'PNL',
-      msg: 'Position is down -60.0% — consider cutting losses.',
+      type: 'pnl',
+      msg: 'You\'re down 60% — more than twice the recommended stop of 25%. Exit immediately. Do not wait for a recovery that may not come.',
     },
   ],
 }
@@ -367,7 +367,13 @@ test.describe('Supporting Data Accuracy', () => {
     // Click "Analyze" button to trigger deep analysis
     await authedPage.getByRole('button', { name: /^analyze$/i }).first().click()
 
-    // After deep analysis, the BEARISH strategy "Bear Put Spread" should appear
+    // CategorySection for Bearish Strategies starts collapsed (useState(false)).
+    // The StrategyCard is rendered inside {open && (...)} so it is not in the DOM
+    // until the header is clicked.  Expand the section first.
+    await expect(authedPage.getByText(/bearish strategies/i).first()).toBeVisible({ timeout: 15000 })
+    await authedPage.getByText(/bearish strategies/i).first().click()
+
+    // After expanding the section, the BEARISH strategy "Bear Put Spread" should appear
     await expect(authedPage.getByText(/bear put spread/i).first()).toBeVisible({ timeout: 15000 })
   })
 
@@ -423,8 +429,10 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // Risk Monitor should display the red DTE signal
-    await expect(authedPage.getByText(/2 days to expiry|close or roll immediately/i).first()).toBeVisible({ timeout: 10000 })
+    // The backend's red DTE message is shown in the Exit signals block.
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.getByText(/only 2 day\(s\) left/i)).toBeVisible({ timeout: 10000 })
+    await expect(signals.getByText('ACT NOW')).toHaveCount(2)  // DTE and P&L are both red
   })
 
   test('risk monitor shows red P&L signal for position with pnl_pct=-60', async ({ authedPage }) => {
@@ -438,8 +446,9 @@ test.describe('Supporting Data Accuracy', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // Risk Monitor should display the red P&L signal
-    await expect(authedPage.getByText(/-60\.0%|cutting losses/i).first()).toBeVisible({ timeout: 10000 })
+    // The backend's red P&L message is shown in the Exit signals block.
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.getByText(/more than twice the recommended stop/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('risk monitor card shows HIGH RISK label for red position', async ({ authedPage }) => {

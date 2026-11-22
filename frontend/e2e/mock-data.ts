@@ -273,6 +273,12 @@ export const MOCK_ENTITLEMENTS_PRO = {
     trading_desk: true,
     positions: true,
     risk_monitor: false,
+    // AI feature flags — required for AISettings to unlock individual feature rows
+    ai_narrative: true,
+    ai_chat: true,
+    ai_risk_summary: true,
+    ai_strategy_reasoning: true,
+    ai_earnings_awareness: true,
   },
   current_period_end: '2026-07-12T00:00:00Z',
   cancel_at_period_end: false,
@@ -315,6 +321,7 @@ export const MOCK_ENTITLEMENTS_CANCEL_SCHEDULED = {
 
 /** Public pricing plans from GET /api/public/pricing */
 export const MOCK_PUBLIC_PRICING = {
+  billing_active: true,
   plans: [
     {
       tier_key: 'free',
@@ -654,6 +661,23 @@ export const MOCK_SESSION_RESPONSE_ADMIN = {
   email: MOCK_ADMIN_USER.email,
   role: 'admin',
   is_admin: true,
+}
+
+/** GET /api/auth/session response for a user who has completed onboarding but has
+ *  a pending legal acknowledgment (triggers LegalAcknowledgmentGate overlay). */
+export const MOCK_SESSION_RESPONSE_PENDING_LEGAL = {
+  ...MOCK_SESSION_RESPONSE,
+  pending_legal_acknowledgment: true,
+}
+
+/** GET /api/auth/session response for a new user at the legal_acknowledgment
+ *  onboarding step (triggers OnboardingFlow with initialStep='legal_acknowledgment'). */
+export const MOCK_SESSION_RESPONSE_LEGAL_ONBOARDING = {
+  ...MOCK_SESSION_RESPONSE,
+  email: 'newuser@example.com',
+  onboarding_completed: false,
+  onboarding_step: 'legal_acknowledgment',
+  pending_legal_acknowledgment: false,
 }
 
 // ─── Strategy Comparison Matrix mock data (PRD-01) ───────────────────────────

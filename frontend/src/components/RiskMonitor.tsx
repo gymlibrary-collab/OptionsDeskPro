@@ -998,6 +998,68 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
 
 // ── RightPanelDetail ──────────────────────────────────────────────────────────
 
+// ── Exit signals ──────────────────────────────────────────────────────────────
+
+interface SignalLine { key: string; level: 'green' | 'yellow' | 'red'; text: string }
+
+const LEVEL_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+
+/**
+ * The backend sends take-profit / stop-loss / time-decay / IV-shift messages per
+ * position.  Time and IV messages are identical across the legs of one trade, so
+ * they are shown once; profit/loss messages differ per leg, so on a multi-leg
+ * trade each is prefixed with its leg.
+ */
+function buildSignalLines(group: StrategyGroup): SignalLine[] {
+  const multiLeg = group.positions.length > 1
+  const seen = new Set<string>()
+  const lines: SignalLine[] = []
+  for (const pos of group.positions) {
+    for (const sig of pos.signals ?? []) {
+      const perLeg = sig.type === 'pnl' && multiLeg
+      const dedupeKey = perLeg
+        ? `${pos.strike}-${pos.option_type}-${sig.type}-${sig.msg}`
+        : `${sig.type}-${sig.msg}`
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
+      const prefix = perLeg ? `$${fmt(pos.strike, 0)} ${pos.option_type.toUpperCase()}: ` : ''
+      lines.push({ key: dedupeKey, level: sig.level, text: prefix + sig.msg })
+    }
+  }
+  return lines.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
+}
+
+const SIGNAL_TAG: Record<string, string> = { red: 'ACT NOW', yellow: 'WATCH', green: 'ON TRACK' }
+
+function ExitSignals({ group }: { group: StrategyGroup }) {
+  const lines = buildSignalLines(group)
+  if (lines.length === 0) return null
+  return (
+    <div
+      aria-label="Exit signals"
+      style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 14px' }}
+    >
+      <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+        Exit signals
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {lines.map(l => (
+          <li key={l.key} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <span style={{
+              flexShrink: 0, minWidth: '64px', textAlign: 'center', fontSize: '10px', fontWeight: 700,
+              color: riskColor(l.level), background: riskBg(l.level),
+              border: `1px solid ${riskColor(l.level)}44`, borderRadius: '6px', padding: '2px 6px',
+            }}>
+              {SIGNAL_TAG[l.level]}
+            </span>
+            <span style={{ fontSize: '12px', color: C.text, lineHeight: 1.5 }}>{l.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function RightPanelDetail({ group, stockPrices }: {
   group: StrategyGroup
   stockPrices: Record<string, number>
@@ -1011,6 +1073,7 @@ function RightPanelDetail({ group, stockPrices }: {
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <RightPanelHeader group={group} />
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <ExitSignals group={group} />
         {group.narrative && <TradeNarrativeSection narrative={group.narrative} />}
         <div style={{
           display: 'grid',

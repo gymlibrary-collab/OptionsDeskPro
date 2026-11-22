@@ -107,7 +107,9 @@ test.describe('US-01: Google Sign-In via Backend Redirect', () => {
       if (req.isNavigationRequest()) navigationTargets.push(req.url())
     })
 
-    await page.goto(BASE_URL)
+    // Navigate to /?signup=1 to render <LoginPage> — at '/' the app shows <HomePage> and
+    // the Google button is not directly visible (it is inside <LoginPage>/<SignInModal>).
+    await page.goto(`${BASE_URL}/?signup=1`)
     await page.waitForLoadState('networkidle')
 
     const googleBtn = page.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first()
@@ -254,8 +256,12 @@ test.describe('US-02: Session Loaded on Mount from GET /api/auth/session', () =>
     await page.goto(BASE_URL)
     await page.waitForLoadState('networkidle')
 
+    // 401 on /api/auth/session → setUser(null) → app shows <HomePage> (the default unauthenticated
+    // view).  <HomePage> has "Sign In" / "Sign Up Free" nav buttons; the Google button lives one
+    // click away inside <SignInModal>.  Assert the sign-in entry point is visible and the
+    // dashboard is gone.
     await expect(
-      page.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first(),
+      page.getByRole('button', { name: /^sign in$/i }).first(),
     ).toBeVisible({ timeout: 10000 })
 
     await expect(page.getByRole('button', { name: /options chain/i })).not.toBeVisible({ timeout: 3000 })
@@ -318,10 +324,14 @@ test.describe('US-03: Session Restores on Window Focus', () => {
 
     await authedPage.evaluate(() => window.dispatchEvent(new Event('focus')))
 
-    // setUser(null) in fetchSession() → login page renders
+    // setUser(null) in fetchSession() → <HomePage> renders (the default unauthenticated view).
+    // <HomePage> has "Sign In" / "Sign Up Free" nav buttons; the Google button is one click away.
     await expect(
-      authedPage.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first(),
+      authedPage.getByRole('button', { name: /^sign in$/i }).first(),
     ).toBeVisible({ timeout: 8000 })
+
+    // Dashboard must no longer be accessible
+    await expect(authedPage.getByRole('button', { name: /options chain/i })).not.toBeVisible({ timeout: 5000 })
   })
 })
 
@@ -370,12 +380,15 @@ test.describe('US-04: Sign-Out Clears State', () => {
     await expect(signOutBtn.first()).toBeVisible({ timeout: 5000 })
     await signOutBtn.first().click()
 
-    expect(logoutCalled).toBe(true)
-
-    // setUser(null) → login page renders without any Supabase call
+    // Wait for the UI to transition before checking logoutCalled.
+    // AuthContext.signOut() awaits postLogout() before calling setUser(null), so when the
+    // <HomePage> "Sign In" button is visible, the logout network request has already been made.
     await expect(
-      authedPage.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first(),
+      authedPage.getByRole('button', { name: /^sign in$/i }).first(),
     ).toBeVisible({ timeout: 8000 })
+
+    // Now safe to assert synchronously — postLogout() has completed
+    expect(logoutCalled).toBe(true)
   })
 
   /**
@@ -421,8 +434,9 @@ test.describe('US-04: Sign-Out Clears State', () => {
     await authedPage.route(`${API}auth/session`, (r) =>
       r.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
 
+    // After sign-out, <HomePage> is shown — verify the user has a sign-in entry point
     await expect(
-      authedPage.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first(),
+      authedPage.getByRole('button', { name: /^sign in$/i }).first(),
     ).toBeVisible({ timeout: 8000 })
   })
 })
@@ -711,25 +725,39 @@ baseTest.describe('Auth error query params on login page', () => {
   })
 
   /**
-   * GET /api/auth/callback redirects with /?auth_error=<code> on failure.
-   * The frontend must render the login page without crashing for every code.
+   * GET /api/auth/callback redirects with /?auth_error=<code> when a Google
+   * sign-in is refused.  The login page must say why, and the address bar must
+   * be cleaned so a refresh does not repeat the message.
    */
-  for (const [code, label] of [
-    ['invite_only', 'invite only'],
-    ['account_suspended', 'account suspended'],
-    ['callback_failed', 'callback failed'],
-    ['maintenance', 'maintenance mode'],
-    ['unknown_error_code', 'unknown code'],
+  for (const [code, message] of [
+    ['invite_only', /by invitation only/i],
+    ['account_suspended', /account has been suspended/i],
+    ['maintenance', /temporarily unavailable while we carry out maintenance/i],
+    ['callback_failed', /could not complete your google sign-in/i],
+    ['unknown_error_code', /could not complete your google sign-in/i],
   ] as const) {
-    baseTest(`auth_error=${code}: login page renders without crash (${label})`, async ({ page }) => {
+    baseTest(`auth_error=${code}: login page explains the refusal`, async ({ page }) => {
       await page.goto(`${BASE_URL}/?auth_error=${code}`)
-      await page.waitForLoadState('networkidle')
 
-      await expect(
-        page.getByRole('button', { name: /continue with google|sign in with google|sign up with google/i }).first(),
-      ).toBeVisible({ timeout: 10000 })
+      const banner = page.getByRole('alert').filter({ hasText: message })
+      await expect(banner).toBeVisible({ timeout: 10000 })
+
+      // The Google button is still there so the user can try again
+      await expect(page.getByRole('button', { name: /continue with google|sign in with google/i })).toBeVisible()
+      // Dashboard must not be accessible
+      await expect(page.getByRole('button', { name: /options chain/i })).not.toBeVisible({ timeout: 3000 })
+      // The parameter is consumed
+      await expect.poll(() => page.url()).not.toContain('auth_error')
     })
   }
+
+  baseTest('auth_error banner is cleared when the user goes back to the home page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/?auth_error=invite_only`)
+    await expect(page.getByRole('alert').filter({ hasText: /by invitation only/i })).toBeVisible({ timeout: 10000 })
+    await page.getByRole('button', { name: /back to options compass/i }).click()
+    await expect(page.getByRole('alert').filter({ hasText: /by invitation only/i })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible()
+  })
 })
 
 // ─── Mobile viewport ──────────────────────────────────────────────────────────
@@ -741,7 +769,10 @@ baseTest.describe('Mobile viewport: auth screens', () => {
     await page.route(`${API}auth/session`, (r) =>
       r.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
 
-    await page.goto(BASE_URL)
+    // Navigate to /?signup=1 to render <LoginPage> — at '/' the app shows <HomePage>.
+    // This verifies the actual login form (with its Google button and email/password fields)
+    // renders correctly at a mobile viewport width.
+    await page.goto(`${BASE_URL}/?signup=1`)
     await page.waitForLoadState('networkidle')
 
     await expect(

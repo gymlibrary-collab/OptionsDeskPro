@@ -116,20 +116,28 @@ test.describe('Security & Vulnerability', () => {
   })
 
   test('unauthenticated navigation shows the login page, not the dashboard', async ({ page }) => {
-    // This test uses the plain page fixture (no auth bypass) to simulate logged-out state
+    // This test uses the plain page fixture (no auth bypass) to simulate logged-out state.
+    // The app now shows <HomePage> at '/' for unauthenticated visitors; the sign-in form
+    // is reached via URL param or the "Sign In" nav button. The security property being
+    // tested is that the DASHBOARD is not reachable without auth — not which exact page shows.
     await page.route('**/auth/v1/user', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
     await page.route('**/auth/v1/token**', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'not authenticated' }) }))
+    // Backend session endpoint — 401 collapses auth loading so the unauthenticated UI renders quickly
+    await page.route('**/api/**auth/session', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'Not authenticated' }) }))
 
-    // Navigate directly to the app (it uses hash routing, no deep link routes)
+    // Navigate directly to the app
     await page.goto('http://localhost:5173/')
     await page.waitForLoadState('networkidle')
 
-    // Should show the login page — the Google sign-in button is the definitive marker
-    await expect(page.getByRole('button', { name: /sign in with google|continue with google/i })).toBeVisible({ timeout: 10000 })
+    // Unauthenticated visitors land on <HomePage> which has "Sign In" / "Sign Up Free" nav buttons.
+    // The Google sign-in button lives inside <LoginPage> / <SignInModal>, reached via the Sign In
+    // button click — it is not directly visible on the homepage.
+    await expect(page.getByRole('button', { name: /^sign in$/i }).first()).toBeVisible({ timeout: 10000 })
 
-    // The dashboard-specific tabs must not be visible
+    // The dashboard-specific tabs must not be visible — this is the core security assertion
     await expect(page.getByRole('button', { name: /options chain/i })).not.toBeVisible({ timeout: 3000 })
   })
 
