@@ -233,7 +233,17 @@ export default function OptionsChain({ symbol, onDataSource }: Props) {
   }
 
   if (loading) return <div style={styles.loading}>Loading options chain for {symbol}...</div>
-  if (error) return <div style={styles.error}>Error: {error}</div>
+  if (error) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '12px', padding: '20px 0' }}>
+      <div style={styles.error}>We couldn't load the options chain for {symbol}.</div>
+      <button
+        onClick={() => fetchChain(selectedExpiry || undefined)}
+        style={{ background: 'transparent', border: '1px solid #3a3f5c', borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer' }}
+      >
+        Retry
+      </button>
+    </div>
+  )
   if (!data || (!data.calls.length && !data.puts.length)) {
     return <div style={styles.nodata}>No options data available for {symbol}</div>
   }

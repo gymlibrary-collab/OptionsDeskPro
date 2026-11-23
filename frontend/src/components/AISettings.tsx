@@ -32,14 +32,14 @@ const FEATURES: {
     key: 'chat_enabled',
     entitlementKey: 'ai_chat',
     label: 'Portfolio Chat',
-    description: 'Ask plain-English questions about your open positions. Claude answers using your real portfolio data — P&L, strikes, expiry, and strategy context.',
+    description: 'Ask plain-English questions about your open positions. The AI answers using your real portfolio data — P&L, strikes, expiry, and strategy context.',
     badge: 'Chat',
   },
   {
     key: 'risk_summary_enabled',
     entitlementKey: 'ai_risk_summary',
     label: 'AI Risk Summary',
-    description: 'One-paragraph portfolio health overview from Claude — most urgent action needed, things to watch, and a concrete recommendation. Appears in the Risk Monitor.',
+    description: 'One-paragraph portfolio health overview from the AI — most urgent action needed, things to watch, and a concrete recommendation. Appears in the Risk Monitor.',
   },
   {
     key: 'strategy_reasoning_enabled',
@@ -71,7 +71,7 @@ const PLAN_FEATURES: {
   {
     entitlementKey: 'trade_journal',
     label: 'Trade Journal AI Review',
-    description: 'After closing a trade, submit it for a post-mortem: entry consistency, rule adherence, and behavioural patterns graded A–D. Triggered per-trade from the Orders tab.',
+    description: 'After closing a trade, submit it for a post-mortem: entry consistency, rule adherence, and behavioural patterns graded A–D.',
   },
   {
     entitlementKey: 'roll_advisor',

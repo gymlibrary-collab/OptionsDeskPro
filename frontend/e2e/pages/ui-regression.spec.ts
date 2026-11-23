@@ -22,7 +22,7 @@ import {
   MOCK_AI_SETTINGS,
   MOCK_OPTIONS_CHAIN,
   MOCK_PNL_HISTORY,
-  MOCK_ENTITLEMENTS_PRO,
+  MOCK_ENTITLEMENTS_ENTERPRISE,
   MOCK_POSITION,
   MOCK_POSITION_RISK,
 } from '../mock-data'
@@ -82,7 +82,7 @@ async function setupBaseRoutes(page: import('@playwright/test').Page) {
   await page.route(`${API}ai/settings`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) }))
   await page.route(`${API}auth/entitlements`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_PRO) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_ENTERPRISE) }))
   await page.route(`${API}options/chain/**`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_OPTIONS_CHAIN) }))
   await page.route(`${API}auth/pnl-history`, (route) =>
@@ -305,7 +305,8 @@ test.describe('UI Regression — Loading and error states', () => {
     await authedPage.waitForLoadState('networkidle')
 
     // OptionsChain shows the Axios error message when the endpoint fails
-    await expect(authedPage.getByText(/error|request failed|500/i).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/couldn't load the options chain/i)).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByRole('button', { name: /retry/i })).toBeVisible()
   })
 
   test('options chain does not show a blank panel when endpoint fails (error message instead)', async ({ authedPage }) => {
@@ -317,7 +318,7 @@ test.describe('UI Regression — Loading and error states', () => {
     await authedPage.waitForLoadState('networkidle')
 
     // The error text must be visible — a blank panel with no text would fail this assertion
-    await expect(authedPage.getByText(/error|request failed|5\d\d/i).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/couldn't load the options chain/i)).toBeVisible({ timeout: 10000 })
   })
 
   test('positions tab shows meaningful empty state when no positions exist', async ({ authedPage }) => {
@@ -400,8 +401,8 @@ test.describe('UI Regression — Colour-coded risk indicators', () => {
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
 
-    // RiskMonitor renders "🔴 HIGH RISK" for red risk_level
-    await expect(authedPage.getByText(/HIGH RISK/)).toBeVisible({ timeout: 10000 })
+    // RiskMonitor renders "🔴 HIGH RISK" in the list row and panel header (master-detail layout)
+    await expect(authedPage.getByText(/HIGH RISK/).first()).toBeVisible({ timeout: 10000 })
   })
 
   test('all three risk levels render visually distinct labels simultaneously', async ({ authedPage }) => {

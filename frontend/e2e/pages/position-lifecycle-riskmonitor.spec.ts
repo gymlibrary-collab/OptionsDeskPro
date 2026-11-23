@@ -240,10 +240,10 @@ test.describe('Suite 1 — Closed Positions accordion (AC1)', () => {
 
     // P&L values: INTC positive, MSFT and QQQ negative.
     // The component uses: `${realised_pnl >= 0 ? '+' : ''}$${fmt(Math.abs(pnl))}`
-    // Positive → "+$100.00", Negative → "$160.00" (no minus sign; red color signals loss).
+    // Positive → "+$100.00", Negative → "-$160.00" (sign shown as well as the red colour).
     await expect(authedPage.getByText('+$100.00', { exact: true })).toBeVisible()
-    // MSFT realised_pnl = -160.00 → display '$160.00' (exact, no minus prefix)
-    await expect(authedPage.getByText('$160.00', { exact: true })).toBeVisible()
+    // MSFT realised_pnl = -160.00 → display '-$160.00'
+    await expect(authedPage.getByText('-$160.00', { exact: true })).toBeVisible()
   })
 
   test('AC1-4 — expanding accordion shows correct source badges', async ({ authedPage }) => {
@@ -446,45 +446,127 @@ const rmLeg = (overrides: Record<string, unknown>) => ({
 
 const DTE_MSG = '7 days to expiry. Time decay (theta) is eating into your premium quickly. If you haven\'t hit your target yet, decide whether to hold or take what you have.'
 
+const routeRisk = async (page: import('@playwright/test').Page, body: unknown[]) =>
+  page.route(`${API}positions/risk`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }))
+
+// Spread legs: long 200C costs $420, short 210C $150 → combined cost basis $570.
+const spreadLegs = (
+  longPnl: number, shortPnl: number, extra: Record<string, unknown> = {}, longSignals: unknown[] = [], shortSignals: unknown[] = [],
+) => [
+  rmLeg({ strike: 200, option_type: 'call', avg_cost: 4.20, pnl: longPnl, risk_level: 'yellow', dte: 30, signals: longSignals, ...extra }),
+  rmLeg({ strike: 210, option_type: 'call', avg_cost: 1.50, pnl: shortPnl, risk_level: 'green', dte: 30, entry_action: 'sell', signals: shortSignals, ...extra }),
+]
+
 test.describe('Suite 4 — Exit signals (Risk Monitor)', () => {
 
-  test('multi-leg trade: shared time warning shown once, loss warning tagged with its leg, most urgent first', async ({ authedPage }) => {
+  test('multi-leg trade: per-leg P&L signals are dropped and replaced by ONE trade-level stop line', async ({ authedPage }) => {
     await setupRiskMonitorRoutes(authedPage)
-    await authedPage.route(`${API}positions/risk`, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          rmLeg({
-            strike: 200, option_type: 'call', risk_level: 'red', dte: 7,
-            signals: [
-              { level: 'yellow', type: 'dte', msg: DTE_MSG },
-              { level: 'red', type: 'pnl', msg: 'You\'ve hit your stop-loss at -50% (currently down 62%). Exit here.' },
-            ],
-          }),
-          rmLeg({
-            strike: 210, option_type: 'call', risk_level: 'yellow', dte: 7,
-            signals: [
-              { level: 'yellow', type: 'dte', msg: DTE_MSG },
-              { level: 'green', type: 'pnl', msg: 'Almost there — you\'re at 40% of your 50% target.' },
-            ],
-          }),
-        ]),
-      }))
+    // combined -$400 on $570 basis = -70% → at/past the -50% trade stop
+    await routeRisk(authedPage, spreadLegs(-300, -100, { dte: 7 },
+      [
+        { level: 'yellow', type: 'dte', code: 'dte_7', msg: DTE_MSG },
+        { level: 'red', type: 'pnl', code: 'stop_hit', msg: 'You\'ve hit your stop-loss at -50% (currently down 119%). Exit immediately.' },
+      ],
+      [
+        { level: 'yellow', type: 'dte', code: 'dte_7', msg: DTE_MSG },
+        { level: 'green', type: 'pnl', code: 'profit_target_hit', msg: 'Profit target hit! You\'re up 80% vs your 50% goal. Close this trade and bank the profit.' },
+      ]))
     await navigateToPositions(authedPage)
     await authedPage.getByText('Bull Call Spread').first().click()
 
     const signals = authedPage.getByLabel('Exit signals')
     await expect(signals).toBeVisible({ timeout: 10000 })
-    // identical time-decay message from both legs appears once
+    // shared time warning appears once
     await expect(signals.getByText(/7 days to expiry/i)).toHaveCount(1)
-    // per-leg messages carry their leg
-    await expect(signals.getByText(/\$200 CALL: You've hit your stop-loss/i)).toBeVisible()
-    await expect(signals.getByText(/\$210 CALL: Almost there/i)).toBeVisible()
-    // most urgent first: the first row is the red one
-    await expect(signals.locator('li').first()).toContainText('ACT NOW')
-    await expect(signals.locator('li').first()).toContainText('stop-loss')
-    await expect(signals.locator('li')).toHaveCount(3)
+    // per-leg P&L judgements are gone — no leg prefixes, no stop-loss/target messages
+    await expect(signals.getByText(/\$200 CALL|\$210 CALL/)).toHaveCount(0)
+    await expect(signals.getByText(/stop-loss|Profit target hit/i)).toHaveCount(0)
+    await expect(signals.getByText('TARGET HIT')).toHaveCount(0)
+    // exactly one trade-level P&L line, most urgent first
+    const first = signals.locator('li').first()
+    await expect(first).toContainText('ACT NOW')
+    await expect(first).toContainText('Trade is down 70% overall')
+    await expect(first).toContainText('Close the whole trade, not a single leg')
+    // time line (WATCH) + trade-level stop (ACT NOW) + expiry-with-loss (ACT NOW is suppressed when stop line exists)
+    await expect(signals.locator('li')).toHaveCount(2)
+  })
+
+  test('multi-leg trade at target: trade-level TARGET HIT line, green', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    // combined +$300 on $570 = +52.6% ≥ 50% target
+    await routeRisk(authedPage, spreadLegs(200, 100, { profit_target_pct: 50 },
+      [{ level: 'green', type: 'pnl', code: 'profit_target_hit', msg: 'Profit target hit! You\'re up 90%. Close this trade and bank the profit.' }]))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.locator('li')).toHaveCount(1, { timeout: 10000 })
+    await expect(signals.locator('li').first()).toContainText('TARGET HIT')
+    await expect(signals.locator('li').first()).toContainText('Trade is up 53% overall')
+    await expect(signals.locator('li').first()).toContainText('Consider closing all legs')
+    await expect(signals.getByText('ON TRACK')).toHaveCount(0)
+  })
+
+  test('single-leg: tag follows the signal code — target hit reads TARGET HIT, near target stays ON TRACK', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    await routeRisk(authedPage, [
+      rmLeg({ strategy_key: 'long_call', strategy_name: 'Long Call', signals: [
+        { level: 'green', type: 'pnl', code: 'profit_target_hit', msg: 'Profit target hit! You\'re up 60% vs your 50% goal. Close this trade and bank the profit.' },
+        { level: 'green', type: 'pnl', code: 'profit_near', msg: 'Almost there — you\'re at 40% of your 50% target.' },
+        { level: 'yellow', type: 'pnl', code: 'stop_near', msg: 'Getting close to the stop.' },
+        { level: 'red', type: 'pnl', code: 'stop_2x', msg: 'More than twice the stop.' },
+        { level: 'green', type: 'pnl', msg: 'No code: falls back to the level tag.' },
+      ] }),
+    ])
+    await navigateToPositions(authedPage)
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals).toBeVisible({ timeout: 10000 })
+    const row = (text: RegExp) => signals.locator('li', { hasText: text })
+    await expect(row(/Profit target hit/)).toContainText('TARGET HIT')
+    await expect(row(/Profit target hit/)).not.toContainText('ON TRACK')
+    await expect(row(/Almost there/)).toContainText('ON TRACK')
+    await expect(row(/Getting close to the stop/)).toContainText('WATCH')
+    await expect(row(/More than twice/)).toContainText('ACT NOW')
+    await expect(row(/No code/)).toContainText('ON TRACK')
+  })
+
+  test('badge is never milder than the signals: net-profitable spread with an expiring-today signal shows HIGH RISK in row and header', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    // net +$100 → base group level is yellow (a leg is yellow); the red expiry signal must win
+    await routeRisk(authedPage, spreadLegs(60, 40, { dte: 0 },
+      [{ level: 'red', type: 'dte', code: 'expiry_today', msg: 'This contract expires TODAY. Do not let it expire.' }],
+      [{ level: 'red', type: 'dte', code: 'expiry_today', msg: 'This contract expires TODAY. Do not let it expire.' }]))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.locator('li').first()).toContainText('ACT NOW', { timeout: 10000 })
+    // exactly the list-row badge and the panel-header badge (legs are not red; exact match skips the 'High Risk' stat chip)
+    await expect(authedPage.getByText('🔴 HIGH RISK', { exact: true })).toHaveCount(2)
+    await expect(authedPage.getByText('🟡 WATCH', { exact: true })).toHaveCount(0)
+  })
+
+  test('badge/tag agreement: a net-losing spread inside 7 days gets a red trade-level line and a HIGH RISK badge', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    // -$100 on $570 = -17.5% (above the stop) but only 5 days left → red per group rule
+    await routeRisk(authedPage, spreadLegs(-60, -40, { dte: 5 },
+      [{ level: 'yellow', type: 'dte', code: 'dte_7', msg: DTE_MSG }]))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.locator('li').first()).toContainText('ACT NOW', { timeout: 10000 })
+    await expect(signals.locator('li').first()).toContainText('down 18% overall')
+    await expect(authedPage.getByText('🔴 HIGH RISK', { exact: true })).toHaveCount(2)
+  })
+
+  test('net-profitable spread with only WATCH lines keeps a WATCH badge (not escalated)', async ({ authedPage }) => {
+    await setupRiskMonitorRoutes(authedPage)
+    await routeRisk(authedPage, spreadLegs(40, 20, { dte: 7 },
+      [{ level: 'yellow', type: 'dte', code: 'dte_7', msg: DTE_MSG }]))
+    await navigateToPositions(authedPage)
+    await authedPage.getByText('Bull Call Spread').first().click()
+    await expect(authedPage.getByLabel('Exit signals').locator('li').first()).toContainText('WATCH', { timeout: 10000 })
+    await expect(authedPage.getByText('🟡 WATCH', { exact: true })).toHaveCount(2)
+    await expect(authedPage.getByText('🔴 HIGH RISK', { exact: true })).toHaveCount(0)
   })
 
   test('no exit signals block when the trade has no signals', async ({ authedPage }) => {
@@ -496,4 +578,28 @@ test.describe('Suite 4 — Exit signals (Risk Monitor)', () => {
     await expect(authedPage.getByText(/Trade entered/i).first()).toBeVisible({ timeout: 10000 })
     await expect(authedPage.getByLabel('Exit signals')).toHaveCount(0)
   })
+
+  test('unrelated trades of the same strategy type are separate trades, not one multi-leg group', async ({ authedPage }) => {
+    // strategy_key is the strategy TYPE, so two long calls on different underlyings share it.
+    await setupRiskMonitorRoutes(authedPage)
+    await routeRisk(authedPage, [
+      rmLeg({ symbol: 'AAPL', strategy_key: 'long_call', strategy_name: 'Long Call', risk_level: 'red',
+        signals: [{ level: 'red', type: 'pnl', code: 'stop_hit', msg: 'You\'ve hit your stop-loss at -50% (currently down 62%). Exit here.' }] }),
+      rmLeg({ symbol: 'MSFT', strategy_key: 'long_call', strategy_name: 'Long Call', risk_level: 'green', pnl: 300,
+        signals: [{ level: 'green', type: 'pnl', code: 'profit_target_hit', msg: 'Profit target hit! You\'re up 70% vs your 50% goal. Close this trade and bank the profit.' }] }),
+    ])
+    await navigateToPositions(authedPage)
+
+    // two separate trades in the list (one per underlying), each with its own plain message
+    await expect(authedPage.getByText('AAPL', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText('MSFT', { exact: true }).first()).toBeVisible()
+
+    await authedPage.getByText('MSFT', { exact: true }).first().click()
+    const signals = authedPage.getByLabel('Exit signals')
+    await expect(signals.getByText(/Profit target hit/i)).toBeVisible()
+    await expect(signals.locator('li')).toHaveCount(1)
+    await expect(signals).not.toContainText(/stop-loss/i)           // the AAPL trade's message
+    await expect(signals).not.toContainText(/Close the whole trade/i) // no merged multi-leg line
+  })
 })
+
