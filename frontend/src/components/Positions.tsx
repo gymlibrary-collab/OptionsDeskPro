@@ -79,12 +79,31 @@ const styles = {
 }
 
 
-function TargetBar({ pos }: { pos: Position }) {
+function TargetBar({ pos, isSpreadLeg }: { pos: Position; isSpreadLeg?: boolean }) {
   const pct = pnlPct(pos)
   const target = profitTarget(pos)
   const stop = stopLoss(pos)
   const hitProfit = pct >= target
   const hitStop = pct <= stop
+
+  // For a leg of a multi-leg spread, suppress Close Now / Stop Loss signals —
+  // closing one leg alone can leave a naked short on the other leg.
+  if (isSpreadLeg) {
+    const pctColor = pct >= 0 ? C.green : C.red
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', minWidth: '100px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: pctColor }}>
+          {pct >= 0 ? '+' : ''}{fmt(pct)}%
+        </div>
+        <div
+          style={{ fontSize: '10px', color: C.muted, whiteSpace: 'nowrap' as const }}
+          title="One leg of a multi-leg spread — judge the whole trade together before closing"
+        >
+          leg of a spread
+        </div>
+      </div>
+    )
+  }
 
   const progress = hitProfit ? 1 : Math.max(0, Math.min(pct / target, 1))
   const barColor = hitProfit ? C.green : hitStop ? C.red : pct > 0 ? C.accent : C.red
@@ -563,13 +582,18 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
   const [editValue, setEditValue] = useState<string>('')
   const [editSaving, setEditSaving] = useState(false)
   const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const greeksCoachingEnabled = entitlements?.features?.greeks_coaching ?? false
 
   const load = useCallback(() => {
     setLoading(true)
+    setLoadError(null)
     Promise.allSettled([getPositions(), getPortfolio(), getClosedPositions()])
       .then(([posResult, sumResult, closedResult]) => {
+        if (posResult.status === 'rejected' || sumResult.status === 'rejected') {
+          setLoadError("We couldn't load your positions. Your account is unaffected.")
+        }
         if (posResult.status === 'fulfilled') {
           setPositions(posResult.value)
           const symbols = [...new Set(posResult.value.map((p: Position) => p.symbol))]
@@ -680,6 +704,19 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
 
   const totalPnl = positions.reduce((acc, p) => acc + p.pnl, 0)
   const totalDelta = positions.reduce((acc, p) => acc + p.delta * p.quantity * 100, 0)
+
+  // strategy_key is the strategy TYPE ("long_call", "iron_condor"), shared by every
+  // trade of that type, so a spread's legs are identified by type + underlying.
+  // A position is a spread leg when more than one open position shares that pair.
+  const spreadId = (p: Position) =>
+    p.strategy_key && p.strategy_key !== 'manual' && p.strategy_key !== 'manual_close'
+      ? `${p.strategy_key}|${p.symbol}`
+      : null
+  const spreadKeyCounts = positions.reduce((acc, p) => {
+    const k = spreadId(p)
+    if (k) acc[k] = (acc[k] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   return (
     <div style={styles.wrap}>
@@ -814,53 +851,76 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
         <RecordTradeForm onSuccess={() => { load(); onTradeRecorded?.() }} />
       </div>
 
-      {/* Summary cards + refresh */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={styles.summaryRow}>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Cash Balance</span>
-            <span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Positions Value</span>
-            <span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Total Value</span>
-            <span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Unrealized P&L</span>
-            <span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>
-              {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
-            </span>
-          </div>
-          <div style={styles.card}>
-            <span style={styles.cardLabel}>Net Delta</span>
-            <span style={styles.cardValue}>{fmt(totalDelta, 1)}</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', marginLeft: 'auto' }}>
+      {/* Load error banner */}
+      {loadError && (
+        <div style={{
+          padding: '12px 16px', borderRadius: '8px',
+          background: '#2d1515', border: `1px solid ${C.red}66`,
+          color: C.red, fontSize: '13px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          flexWrap: 'wrap' as const,
+        }}>
+          <span>{loadError}</span>
           <button
             onClick={load}
             disabled={loading}
-            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+            style={{ background: 'transparent', border: `1px solid ${C.red}66`, borderRadius: '6px', color: C.red, padding: '5px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
           >
-            {loading ? 'Refreshing…' : '↻ Refresh'}
+            {loading ? 'Retrying…' : 'Retry'}
           </button>
-          <span style={{ fontSize: '10px', color: C.muted }}>Auto-refreshes every 2 min · Last: {lastRefresh.toLocaleTimeString()}</span>
         </div>
-      </div>
+      )}
+
+      {/* Summary cards + refresh — hidden when load failed */}
+      {!loadError && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={styles.summaryRow}>
+            <div style={styles.card}>
+              <span style={styles.cardLabel}>Cash Balance</span>
+              <span style={styles.cardValue}>${fmt(summary?.cash ?? 0)}</span>
+            </div>
+            <div style={styles.card}>
+              <span style={styles.cardLabel}>Positions Value</span>
+              <span style={styles.cardValue}>${fmt(summary?.positions_value ?? 0)}</span>
+            </div>
+            <div style={styles.card}>
+              <span style={styles.cardLabel}>Total Value</span>
+              <span style={styles.cardValue}>${fmt(summary?.total_value ?? 0)}</span>
+            </div>
+            <div style={styles.card}>
+              <span style={styles.cardLabel}>Unrealized P&L</span>
+              <span style={{ ...styles.cardValue, color: totalPnl >= 0 ? C.green : C.red }}>
+                {totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}
+              </span>
+            </div>
+            <div style={styles.card}>
+              <span style={styles.cardLabel}>Net Delta</span>
+              <span style={styles.cardValue}>{fmt(totalDelta, 1)}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', marginLeft: 'auto' }}>
+            <button
+              onClick={load}
+              disabled={loading}
+              style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', color: C.muted, padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              {loading ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            <span style={{ fontSize: '10px', color: C.muted }}>Auto-refreshes every 2 min · Last: {lastRefresh.toLocaleTimeString()}</span>
+          </div>
+        </div>
+      )}
 
       {/* E6 — Portfolio Greeks strip (always visible when positions exist, coaching gated) */}
-      {positions.length > 0 && <PortfolioGreeksStrip entitledToCoaching={greeksCoachingEnabled} />}
+      {!loadError && positions.length > 0 && <PortfolioGreeksStrip entitledToCoaching={greeksCoachingEnabled} />}
 
-      {/* Positions table */}
-      {positions.length === 0 ? (
+      {/* Positions table — hidden when load failed (error banner shows instead) */}
+      {!loadError && positions.length === 0 && (
         <div style={styles.empty}>
           {loading ? 'Loading positions…' : 'No open positions. Run a strategy scan and place a paper trade to start monitoring.'}
         </div>
-      ) : (
+      )}
+      {!loadError && positions.length > 0 && (
         <div style={styles.tableWrap}>
           <table style={styles.table}>
             <thead>
@@ -1019,7 +1079,7 @@ export default function Positions({ onTradeRecorded, onPositionUpdated, refreshS
                     <td style={{ ...styles.td, color: pnlColor, fontWeight: 700 }}>
                       {pct >= 0 ? '+' : ''}{fmt(pct)}%
                     </td>
-                    <td style={styles.td}><TargetBar pos={pos} /></td>
+                    <td style={styles.td}><TargetBar pos={pos} isSpreadLeg={(() => { const k = spreadId(pos); return !!k && (spreadKeyCounts[k] ?? 0) > 1 })()} /></td>
                     <td style={styles.td}>{fmt(pos.delta, 3)}</td>
                     <td style={{ ...styles.td, padding: '6px 8px' }}>
                       <button
@@ -1155,13 +1215,13 @@ function ClosedPositionsAccordion({ positions }: { positions: ClosedPosition[] }
                     <td style={{ ...tdStyle, color: pnlColor, fontWeight: 600 }}>
                       {pos.realised_pnl == null
                         ? '—'
-                        : `${pos.realised_pnl >= 0 ? '+' : ''}$${fmt(Math.abs(pos.realised_pnl))}`
+                        : `${pos.realised_pnl >= 0 ? '+' : '-'}$${fmt(Math.abs(pos.realised_pnl))}`
                       }
                     </td>
                     <td style={{ ...tdStyle, color: pnlPctColor, fontWeight: 700 }}>
                       {pos.realised_pnl_pct == null
                         ? '—'
-                        : `${pos.realised_pnl_pct >= 0 ? '+' : ''}${fmt(Math.abs(pos.realised_pnl_pct))}%`
+                        : `${pos.realised_pnl_pct >= 0 ? '+' : '-'}${fmt(Math.abs(pos.realised_pnl_pct))}%`
                       }
                     </td>
                     <td style={{ ...tdStyle, paddingRight: '14px' }}>

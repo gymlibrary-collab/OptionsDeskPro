@@ -93,16 +93,35 @@ test.describe('Positions tab', () => {
     await expect(emptyState).toBeVisible({ timeout: 10000 })
   })
 
-  test('shows error state when positions endpoint fails', async ({ authedPage }) => {
+  test('shows error banner when positions endpoint fails (not empty-account state)', async ({ authedPage }) => {
     await authedPage.route(`${API}positions`, (route) => {
       route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Error' }) })
     })
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
     await authedPage.getByRole('button', { name: /^positions$/i }).click()
-    // When positions endpoint fails, no position rows should be visible
-    // The component renders an error or empty state — verify no AAPL position rows appear
+    // Error banner must appear
+    await expect(authedPage.getByText(/couldn't load your positions/i)).toBeVisible({ timeout: 10000 })
+    // Retry button must appear
+    await expect(authedPage.getByRole('button', { name: /retry/i })).toBeVisible({ timeout: 10000 })
+    // No AAPL position row (the data failed to load)
     await expect(authedPage.getByRole('cell', { name: 'AAPL' })).not.toBeVisible({ timeout: 10000 })
+    // No "$0.00" summary cards (suppress when load failed)
+    await expect(authedPage.getByText('$0.00').first()).not.toBeVisible({ timeout: 5000 })
+    // "No open positions" empty-state text must NOT appear
+    await expect(authedPage.getByText(/no open positions/i)).not.toBeVisible({ timeout: 5000 })
+  })
+
+  test('shows error banner when portfolio endpoint fails (not empty-account state)', async ({ authedPage }) => {
+    await authedPage.route(`${API}portfolio`, (route) => {
+      route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Error' }) })
+    })
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await authedPage.getByRole('button', { name: /^positions$/i }).click()
+    await expect(authedPage.getByText(/couldn't load your positions/i)).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByRole('button', { name: /retry/i })).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/no open positions/i)).not.toBeVisible({ timeout: 5000 })
   })
 
   test('renders positions on mobile viewport', async ({ authedPage }) => {
@@ -115,5 +134,82 @@ test.describe('Positions tab', () => {
       await posTab.click()
     }
     await expect(authedPage.getByText('AAPL').first()).toBeVisible({ timeout: 10000 })
+  })
+
+  test('single-leg position shows Close Now when profit target hit', async ({ authedPage }) => {
+    // A single-leg position that has hit its profit target should show "Close Now"
+    const profitablePosition = {
+      ...MOCK_POSITION,
+      strategy_key: 'long_call',   // non-manual, but only one position with this key
+      pnl: 420,
+      current_price: 8.4,
+      avg_cost: 4.2,
+      profit_target_pct: 50,       // 100% gain — clearly above 50% target
+    }
+    await authedPage.route(`${API}positions`, (route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([profitablePosition]) })
+    })
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await authedPage.getByRole('button', { name: /^positions$/i }).click()
+    await expect(authedPage.getByText(/close now/i)).toBeVisible({ timeout: 10000 })
+  })
+
+  test('multi-leg spread position suppresses Close Now and shows leg hint', async ({ authedPage }) => {
+    // Two positions sharing the same strategy_key form a spread — neither leg should show Close Now
+    const legA = {
+      ...MOCK_POSITION,
+      id: 'pos-leg-a',
+      strategy_key: 'bull_call_spread',
+      strike: 185,
+      pnl: 420,
+      current_price: 8.4,
+      avg_cost: 4.2,
+      profit_target_pct: 50,       // clearly profitable
+    }
+    const legB = {
+      ...MOCK_POSITION,
+      id: 'pos-leg-b',
+      strategy_key: 'bull_call_spread',
+      strike: 190,
+      quantity: -1,
+      pnl: -150,
+      current_price: 3.0,
+      avg_cost: 1.5,
+      profit_target_pct: 50,
+    }
+    await authedPage.route(`${API}positions`, (route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([legA, legB]) })
+    })
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await authedPage.getByRole('button', { name: /^positions$/i }).click()
+
+    // "Close Now" must NOT appear — these are spread legs
+    await expect(authedPage.getByText(/close now/i)).not.toBeVisible({ timeout: 10000 })
+    // "leg of a spread" hint must appear
+    await expect(authedPage.getByText(/leg of a spread/i).first()).toBeVisible({ timeout: 10000 })
+  })
+
+  test('two unrelated trades of the same strategy type are not treated as spread legs', async ({ authedPage }) => {
+    // strategy_key is the strategy TYPE, shared across trades: long calls on different
+    // underlyings must each keep their own Close Now guidance.
+    const callA = {
+      ...MOCK_POSITION, id: 'pos-a', symbol: 'AAPL', strategy_key: 'long_call',
+      pnl: 420, current_price: 8.4, avg_cost: 4.2, profit_target_pct: 50,
+    }
+    const callB = {
+      ...MOCK_POSITION, id: 'pos-b', symbol: 'MSFT', strategy_key: 'long_call',
+      pnl: 400, current_price: 10, avg_cost: 5, profit_target_pct: 50,
+    }
+    await authedPage.route(`${API}positions`, (route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([callA, callB]) })
+    })
+    await authedPage.goto('http://localhost:5173/')
+    await authedPage.waitForLoadState('networkidle')
+    await authedPage.getByRole('button', { name: /^positions$/i }).click()
+
+    await expect(authedPage.getByText(/close now/i).first()).toBeVisible({ timeout: 10000 })
+    await expect(authedPage.getByText(/leg of a spread/i)).toHaveCount(0)
   })
 })

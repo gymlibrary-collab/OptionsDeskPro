@@ -71,3 +71,36 @@ def compute_entitlements(user_id: str) -> dict:
         "pending_tier_key":     pending_tier_key,
         "payment_failed":       payment_failed,
     }
+
+
+# ── Feature gate (FastAPI dependency factory) ────────────────────────────────
+
+def require_feature(feature_key: str, required_plan: str = "Enterprise"):
+    """
+    Build a FastAPI dependency that rejects with HTTP 403 (+ ``X-Error-Code:
+    feature_locked``) unless ``compute_entitlements(user).features[feature_key]``
+    is truthy.
+
+    It uses exactly the same entitlement computation as GET /api/auth/entitlements
+    (admin_override_tier_key > payment degradation > subscription tier), so any
+    override mechanism behaves as it does for every other feature. No separate
+    admin/staff bypass exists in compute_entitlements and none is added here.
+
+    Returns the verified token payload so a route may depend on it directly.
+    """
+    import asyncio
+    from fastapi import Depends, HTTPException
+    from services.auth_utils import verify_token, get_user_id
+
+    async def _dep(payload: dict = Depends(verify_token)) -> dict:
+        user_id = get_user_id(payload)
+        ent = await asyncio.to_thread(compute_entitlements, user_id)
+        if not (ent.get("features") or {}).get(feature_key, False):
+            raise HTTPException(
+                status_code=403,
+                detail=f"This feature is available on the {required_plan} plan.",
+                headers={"X-Error-Code": "feature_locked"},
+            )
+        return payload
+
+    return _dep

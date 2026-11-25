@@ -58,7 +58,6 @@ options/
 │           ├── TradePanel.tsx       Trade structure display + order entry
 │           ├── TradingDesk.tsx      Reddit buzz feeds + trading intelligence
 │           ├── OrderEntry.tsx       Paper trade form (sidebar/drawer)
-│           ├── Orders.tsx           Order history table
 │           ├── Positions.tsx        Open positions + portfolio summary
 │           ├── RiskMonitor.tsx      Master-Detail split (desktop) / accordion (mobile); group-based risk badges; sortable (newest/risk/P&L)
 │           ├── PnLChart.tsx         90-day portfolio value chart

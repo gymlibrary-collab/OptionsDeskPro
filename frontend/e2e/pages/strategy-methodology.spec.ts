@@ -85,7 +85,10 @@ test.describe('Suite 1 — Methodology tab navigation', () => {
   test('methodology tab content does not render an upgrade prompt', async ({ authedPage }) => {
     await authedPage.getByRole('button', { name: /methodology/i }).click()
     // LockedTabPlaceholder always renders an upgrade / unlock prompt
-    await expect(authedPage.getByText(/upgrade/i)).not.toBeVisible({ timeout: 5000 })
+    // Other tabs stay mounted but hidden (the Risk Monitor's locked card has an
+    // Upgrade button), so only visible matches count.
+    await expect(authedPage.getByRole('heading', { name: /the engine behind the recommendations/i })).toBeVisible()
+    await expect(authedPage.getByText(/upgrade/i).filter({ visible: true })).toHaveCount(0, { timeout: 5000 })
   })
 })
 

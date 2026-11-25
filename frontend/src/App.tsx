@@ -252,31 +252,35 @@ function Dashboard() {
       {/* Header */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: isMobile ? '8px 12px' : '10px 20px', flexShrink: 0 }}>
         {isMobile ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Row 1: desk switcher + account actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                 {deskBtn('options', 'Options')}
                 {tradingDeskEnabled && deskBtn('trading', 'Trading')}
               </div>
-              {activeDesk === 'options' && <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', flexShrink: 0 }}>
+                {profilePicUrl
+                  ? <img src={profilePicUrl} alt="avatar" style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${C.accent}` }} />
+                  : <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{initials}</div>
+                }
+                <button onClick={() => setShowSettings(true)} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '0 10px', fontSize: '12px', cursor: 'pointer', height: '32px', minWidth: '64px' }}>Settings</button>
+                <button onClick={signOut} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '0 10px', fontSize: '12px', cursor: 'pointer', height: '32px', whiteSpace: 'nowrap' as const }}>Sign out</button>
+              </div>
+            </div>
+            {/* Row 2: ticker input + Go (options desk only) */}
+            {activeDesk === 'options' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
-                  style={{ flex: 1, background: C.input, border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.text, padding: '6px 10px', fontSize: '14px', textTransform: 'uppercase', outline: 'none' }}
+                  style={{ flex: 1, background: C.input, border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.text, padding: '0 10px', fontSize: '14px', textTransform: 'uppercase', outline: 'none', height: '36px' }}
                   value={inputSymbol}
                   onChange={e => { setInputSymbol(e.target.value.toUpperCase()); handleInputChange(e.target.value) }}
                   onKeyDown={handleKeyDown}
                   placeholder="Symbol"
                 />
-                <button onClick={handleSearch} style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Go</button>
-              </>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
-                {profilePicUrl
-                  ? <img src={profilePicUrl} alt="avatar" style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${C.accent}` }} />
-                  : <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>{initials}</div>
-                }
-                <button onClick={() => setShowSettings(true)} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>Settings</button>
-                <button onClick={signOut} style={{ background: 'transparent', border: `1px solid #3a3f5c`, borderRadius: '6px', color: C.muted, padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>Out</button>
+                <button onClick={handleSearch} style={{ background: C.accent, border: 'none', borderRadius: '6px', color: '#fff', padding: '0 16px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', flexShrink: 0, height: '36px' }}>Go</button>
               </div>
-            </div>
+            )}
             {activeDesk === 'options' && <QuoteBar symbol={symbol} />}
           </div>
         ) : (
@@ -407,7 +411,7 @@ function Dashboard() {
                   <>
                     <Positions refreshSignal={positionsRefresh} onTradeRecorded={() => setPositionsRefresh(n => n + 1)} onPositionUpdated={() => setRiskMonitorRefresh(n => n + 1)} />
                     <PnLChart />
-                    <RiskMonitor refreshSignal={riskMonitorRefresh} />
+                    <RiskMonitor refreshSignal={riskMonitorRefresh} onUpgradeClick={handleUpgradeClick} />
                   </>
                 )}
               </div>

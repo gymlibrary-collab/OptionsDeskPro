@@ -397,7 +397,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           <Term term="Delta">The position's net directional exposure. A delta of +50 means you gain ~$50 if the stock rises $1.</Term>
         </Sub>
         <P>
-          The <strong>Orders</strong> tab shows your full trade history with entry prices, quantities, and status.
+          Your full history of closed trades is in the <strong>Closed Positions</strong> section at the bottom of the Positions tab.
         </P>
 
         <div style={{ background: C.surface2, borderRadius: '8px', padding: '12px 14px', marginBottom: '10px' }}>
@@ -413,7 +413,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
             <Term term="Realised P&L">Shows the profit or loss on the closed trade ($) and as a percentage (%). Green for profit, red for loss. Cash is automatically adjusted when settlement occurs.</Term>
           </Sub>
           <Note color={C.blue}>
-            Only trades settled after this feature was deployed appear here. Closed orders from before the release remain in the Orders tab.
+            Only trades settled after this feature was deployed appear here.
           </Note>
         </div>
 
@@ -481,7 +481,7 @@ export default function UserGuide({ isAdmin, userRole }: Props) {
           Options Compass uses two secure sign-in methods: <strong>Google OAuth</strong> and <strong>email/password</strong>.
         </P>
         <Sub>
-          <P><strong>Google sign-in:</strong> Click "Sign in with Google" on the login page. You will be redirected to Google's login (or skip this step if you are already logged in to Google). Approve the permission prompt, and you will be returned to OptionDesk. Session established — no password to remember.</P>
+          <P><strong>Google sign-in:</strong> Click "Sign in with Google" on the login page. You will be redirected to Google's login (or skip this step if you are already logged in to Google). Approve the permission prompt, and you will be returned to Options Compass. Session established — no password to remember.</P>
           <P><strong>Email/password sign-in:</strong> Toggle to "Email & Password" on the login page. Enter your email and password. If you do not have an account yet, click "Create an account" instead. Session established — you can use any password you choose.</P>
         </Sub>
         <Note color={C.blue}>

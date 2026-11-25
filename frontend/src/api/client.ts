@@ -114,10 +114,18 @@ export interface PortfolioSummary {
   total_pnl: number
 }
 
+export type RiskSignalCode =
+  | 'profit_target_hit' | 'profit_near'
+  | 'stop_hit' | 'stop_2x' | 'stop_near'
+  | 'expiry_today' | 'dte_3' | 'dte_7' | 'dte_21'
+  | 'iv_shift' | 'bias_against' | 'bias_shift' | 'healthy'
+
 export interface RiskSignal {
   level: 'green' | 'yellow' | 'red'
   type: string
   msg: string
+  /** Stable machine-readable id (optional: older backends omit it). */
+  code?: RiskSignalCode | string
 }
 
 export interface PositionRisk {

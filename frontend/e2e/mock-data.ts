@@ -286,6 +286,15 @@ export const MOCK_ENTITLEMENTS_PRO = {
   payment_failed: false,
 }
 
+/** Enterprise-tier entitlements — the only tier with risk_monitor enabled */
+export const MOCK_ENTITLEMENTS_ENTERPRISE = {
+  ...MOCK_ENTITLEMENTS_PRO,
+  effective_tier: 'enterprise',
+  stripe_tier: 'enterprise',
+  max_symbols: null,
+  features: { ...MOCK_ENTITLEMENTS_PRO.features, risk_monitor: true },
+}
+
 /** Free-tier entitlements — positions and trading_desk locked */
 export const MOCK_ENTITLEMENTS_FREE = {
   effective_tier: 'free',

@@ -78,14 +78,18 @@ test.describe('Options Chain tab', () => {
     await expect(authedPage.getByText(/calls/i).first()).toBeVisible({ timeout: 15000 })
   })
 
-  test('shows an error state when the chain endpoint fails', async ({ authedPage }) => {
+  test('shows a plain-English error when the chain endpoint fails', async ({ authedPage }) => {
     await authedPage.route(`${API}options/chain/**`, (route) => {
       route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Internal error' }) })
     })
     await authedPage.goto('http://localhost:5173/')
     await authedPage.waitForLoadState('networkidle')
-    // OptionsChain shows "Error: Request failed with status code 500" in the chain content area
-    await expect(authedPage.getByText(/request failed with status code 500/i)).toBeVisible({ timeout: 10000 })
+    // OptionsChain now shows a friendly message instead of the raw error string
+    await expect(authedPage.getByText(/couldn't load the options chain/i)).toBeVisible({ timeout: 10000 })
+    // Raw error message must NOT appear
+    await expect(authedPage.getByText(/request failed with status code/i)).not.toBeVisible({ timeout: 5000 })
+    // A Retry button must be present
+    await expect(authedPage.getByRole('button', { name: /retry/i })).toBeVisible({ timeout: 10000 })
   })
 
   test('renders on mobile viewport', async ({ authedPage }) => {

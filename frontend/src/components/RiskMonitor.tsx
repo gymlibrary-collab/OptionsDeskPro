@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { getPositionsRisk, PositionRisk, getAISettings, aiRiskSummary, getQuote } from '../api/client'
 import { useWindowSize } from '../hooks/useWindowSize'
+import { useEntitlements } from '../context/EntitlementsContext'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -95,7 +96,7 @@ function CloseInstructions({ pos }: { pos: PositionRisk }) {
     <div style={{ background: '#1a0a0a', border: `1px solid ${C.red}33`, borderRadius: '6px', padding: '10px 12px' }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: C.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>How to close this position</div>
       <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: C.text, lineHeight: 1.9 }}>
-        <li>Go to the <strong>Positions</strong> tab, find the row for <strong>{pos.symbol}</strong> ${fmt(pos.strike, 0)} {pos.option_type.toUpperCase()}, and click the <strong style={{ color: C.red }}>Close</strong> button.</li>
+        <li>In the <strong>Open Positions</strong> table above, find the row for <strong>{pos.symbol}</strong> ${fmt(pos.strike, 0)} {pos.option_type.toUpperCase()}, and click the <strong style={{ color: C.red }}>Close</strong> button.</li>
         <li>Confirm the closing price, set quantity to <strong>{qty}</strong> (action: <strong style={{ color: closeAction === 'SELL' ? C.red : C.green }}>{closeAction}</strong>), then click <strong>Confirm Close</strong>.</li>
       </ol>
     </div>
@@ -239,7 +240,7 @@ function DefensiveNarrativeSingle({ pos, stockPrice }: { pos: PositionRisk; stoc
         </p>
         <p style={{ margin: '0' }}>
           Standard 50% stop rule: your exit trigger is <strong>${fmt(stopLevel, 0)}</strong> in losses.
-          You are <strong style={{ color: atOrPastStop ? C.red : C.yellow }}>{atOrPastStop ? 'at or past' : 'approaching'}</strong> that level.
+          You are <strong style={{ color: atOrPastStop ? C.red : C.yellow }}>{atOrPastStop ? 'at or past' : 'approaching'}</strong> that level.{' '}
           {pos.dte} day{pos.dte !== 1 ? 's' : ''} remain before expiry.
         </p>
       </NarrativeBox>
@@ -579,8 +580,10 @@ interface StrategyGroup {
   worstLevel: 'green' | 'yellow' | 'red'   // RETAINED — kept for potential future use
   combinedPnl: number
   worstLegPnlPct: number    // Math.min(...positions.map(p => p.pnl_pct)) — RETAINED
-  groupLevel: 'green' | 'yellow' | 'red'   // group-aware badge level
+  groupLevel: 'green' | 'yellow' | 'red'   // group-aware BASE level (before exit signals are considered)
   groupPnlPct: number                        // combined P&L as % of combined cost basis
+  signalLines: SignalLine[]                  // exit-signal lines shown for this group (single source for the panel)
+  displayLevel: 'green' | 'yellow' | 'red'   // max(groupLevel, worst signalLine) — drives every badge, border and sort
 }
 
 // ── Sort types and pure sort function ─────────────────────────────────────────
@@ -604,7 +607,7 @@ function sortGroups(groups: StrategyGroup[], mode: SortMode): StrategyGroup[] {
   if (mode === 'newest') return groups
   if (mode === 'risk') {
     return [...groups].sort((a, b) => {
-      const rankDiff = riskRank[a.groupLevel] - riskRank[b.groupLevel]
+      const rankDiff = riskRank[a.displayLevel] - riskRank[b.displayLevel]
       if (rankDiff !== 0) return rankDiff
       if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
       return enteredAtTiebreak(a, b)
@@ -615,6 +618,115 @@ function sortGroups(groups: StrategyGroup[], mode: SortMode): StrategyGroup[] {
     if (a.combinedPnl !== b.combinedPnl) return a.combinedPnl - b.combinedPnl
     return enteredAtTiebreak(a, b)
   })
+}
+
+// ── Signal derivation (single source for exit-signal lines and badge level) ──
+
+type RiskLevel = 'green' | 'yellow' | 'red'
+interface SignalLine { key: string; level: RiskLevel; tag: string; text: string }
+
+/** Group P&L at or below this (% of combined cost) is red — the trade-level stop. */
+const GROUP_STOP_PCT = -50
+/** Group P&L at or below this (but above the stop) gets a WATCH line. */
+const GROUP_NEAR_STOP_PCT = -25
+/** A net-losing group whose nearest expiry is this close is red. */
+const GROUP_EXPIRY_DTE = 7
+
+const LEVEL_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2 }
+const LEVEL_TAG: Record<RiskLevel, string> = { red: 'ACT NOW', yellow: 'WATCH', green: 'ON TRACK' }
+
+function worstOf(...levels: RiskLevel[]): RiskLevel {
+  return levels.reduce<RiskLevel>((w, l) => (LEVEL_ORDER[l] < LEVEL_ORDER[w] ? l : w), 'green')
+}
+
+/** Tag text for a backend signal. Keyed by stable `code`; falls back to the level. */
+function signalTag(code: string | undefined, level: RiskLevel): string {
+  switch (code) {
+    case 'profit_target_hit': return 'TARGET HIT'
+    case 'profit_near': return 'ON TRACK'
+    case 'stop_hit':
+    case 'stop_2x':
+    case 'expiry_today': return 'ACT NOW'
+    case 'stop_near': return 'WATCH'
+    default: return LEVEL_TAG[level]
+  }
+}
+
+/** A spread/condor/butterfly: several legs sharing a real (non-manual) strategy key. */
+function isMultiLegTrade(g: Pick<StrategyGroup, 'key' | 'positions'>): boolean {
+  return g.positions.length > 1 && !g.key.startsWith('_ungrouped_') && g.key !== 'manual'
+}
+
+/**
+ * Single-leg groups: the backend's per-position signals, tagged by code.
+ * Multi-leg trades: per-leg P&L signals (and the per-leg "down X%" expiry message)
+ * are dropped — closing one leg of a spread can leave a naked short — and replaced
+ * by trade-level lines computed from the group's combined P&L with the same
+ * thresholds the group badge uses. Time/IV messages that do not depend on one
+ * leg's P&L are shown once.
+ */
+function buildSignalLines(
+  g: Pick<StrategyGroup, 'key' | 'positions' | 'combinedPnl' | 'groupPnlPct'>,
+): SignalLine[] {
+  const multi = isMultiLegTrade(g)
+  const seen = new Set<string>()
+  const lines: SignalLine[] = []
+  const add = (key: string, level: RiskLevel, tag: string, text: string) => {
+    if (seen.has(key)) return
+    seen.add(key)
+    lines.push({ key, level, tag, text })
+  }
+
+  let hasLegDte3 = false
+  for (const pos of g.positions) {
+    for (const sig of pos.signals ?? []) {
+      if (multi) {
+        if (sig.type === 'pnl') continue
+        if (sig.code === 'dte_3') { hasLegDte3 = true; continue }
+      }
+      const perLeg = sig.type === 'pnl' && g.positions.length > 1
+      const prefix = perLeg ? `$${fmt(pos.strike, 0)} ${pos.option_type.toUpperCase()}: ` : ''
+      const dedupeKey = perLeg
+        ? `${pos.strike}-${pos.option_type}-${sig.type}-${sig.msg}`
+        : `${sig.type}-${sig.msg}`
+      add(dedupeKey, sig.level, signalTag(sig.code, sig.level), prefix + sig.msg)
+    }
+  }
+
+  if (multi) {
+    const pnl = g.combinedPnl
+    const pct = g.groupPnlPct
+    const abs = fmt(Math.abs(pct), 0)
+    const target = g.positions.find(p => p.profit_target_pct > 0)?.profit_target_pct ?? 50
+    const minDte = Math.min(...g.positions.map(p => p.dte))
+    const dayWord = `${minDte} day${minDte !== 1 ? 's' : ''}`
+
+    let stopLine = false
+    if (pnl < 0 && pct <= GROUP_STOP_PCT) {
+      stopLine = true
+      add('trade-stop', 'red', 'ACT NOW',
+        `Trade is down ${abs}% overall — at or past the stop. Close the whole trade, not a single leg.`)
+    } else if (pnl > 0 && pct >= target) {
+      add('trade-target', 'green', 'TARGET HIT',
+        `Trade is up ${abs}% overall, at or past its ${fmt(target, 0)}% profit target. Consider closing all legs.`)
+    } else if (pnl > 0 && pct >= target * 0.75) {
+      add('trade-near-target', 'green', 'ON TRACK',
+        `Trade is up ${abs}% overall, close to its ${fmt(target, 0)}% target. Be ready to close all legs together.`)
+    } else if (pnl < 0 && pct <= GROUP_NEAR_STOP_PCT) {
+      add('trade-near-stop', 'yellow', 'WATCH',
+        `Trade is down ${abs}% overall, getting close to the ${Math.abs(GROUP_STOP_PCT)}% stop. Manage it as one position — adjust or close all legs, not a single leg.`)
+    }
+
+    if (!stopLine && pnl < 0 && minDte <= GROUP_EXPIRY_DTE) {
+      add('trade-expiry-loss', 'red', 'ACT NOW',
+        `Only ${dayWord} to the nearest expiry and the trade is down ${abs}% overall. There is little time to recover — close the whole trade rather than a single leg.`)
+    } else if (hasLegDte3 && pnl >= 0) {
+      add('trade-expiry-profit', 'yellow', 'WATCH',
+        `Only ${dayWord} to expiry and the trade is not losing overall. Consider closing all legs to lock in gains before time decay and overnight risk erode them.`)
+    }
+  }
+
+  return lines.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
 }
 
 // ── buildGroups — extracted so it can be called from both render and load ────
@@ -629,8 +741,12 @@ function buildGroups(data: PositionRisk[]): StrategyGroup[] {
 
   let ungroupedIdx = 0
   for (const pos of data) {
-    // Named strategy groups share a key; ungrouped positions each get their own row
-    const key = pos.strategy_key || `_ungrouped_${ungroupedIdx++}`
+    // strategy_key is the strategy TYPE ("iron_condor", "long_call"), shared by every
+    // trade of that type, so one trade's legs are identified by type + underlying +
+    // entry date. Ungrouped positions each get their own row.
+    const key = pos.strategy_key
+      ? `${pos.strategy_key}|${pos.symbol}|${pos.entered_at || ''}`
+      : `_ungrouped_${ungroupedIdx++}`
     if (!groupMap.has(key)) {
       groupMap.set(key, {
         key,
@@ -674,11 +790,11 @@ function buildGroups(data: PositionRisk[]): StrategyGroup[] {
       // Net losing — apply escalation bands
       if (groupPnlPct <= -100) {
         groupLevel = 'red'   // loss equals or exceeds total premium at risk
-      } else if (groupPnlPct <= -50) {
+      } else if (groupPnlPct <= GROUP_STOP_PCT) {
         groupLevel = 'red'   // group-level stop-loss threshold
       } else {
         const minDte = Math.min(...g.positions.map(p => p.dte))
-        if (minDte <= 7) {
+        if (minDte <= GROUP_EXPIRY_DTE) {
           groupLevel = 'red'   // imminent expiry with net losing group
         } else {
           // Net losing but no red trigger — always at least yellow (see design §8 clarification)
@@ -687,14 +803,19 @@ function buildGroups(data: PositionRisk[]): StrategyGroup[] {
       }
     }
 
-    return { ...g, worstLevel, combinedPnl, worstLegPnlPct, enteredAt, groupLevel, groupPnlPct }
+    const base = { ...g, worstLevel, combinedPnl, worstLegPnlPct, enteredAt, groupLevel, groupPnlPct }
+    // Exit-signal lines are derived once here; the badge level is the more severe of
+    // the group-level base and the worst line actually shown, so they cannot disagree.
+    const signalLines = buildSignalLines(base)
+    const displayLevel = worstOf(groupLevel, ...signalLines.map(l => l.level))
+    return { ...base, signalLines, displayLevel }
   })
 
-  // Sort: newest entered_at first (descending); tiebreak by groupLevel rank (red=0 sorts first)
+  // Sort: newest entered_at first (descending); tiebreak by displayLevel rank (red=0 sorts first)
   return groups.sort((a, b) => {
     if (b.enteredAt > a.enteredAt) return 1
     if (b.enteredAt < a.enteredAt) return -1
-    return riskRank[a.groupLevel] - riskRank[b.groupLevel]
+    return riskRank[a.displayLevel] - riskRank[b.displayLevel]
   })
 }
 
@@ -769,7 +890,7 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
   stockPrices: Record<string, number>
 }) {
   const nearestDte = Math.min(...group.positions.map(p => p.dte))
-  const borderColor = riskColor(group.groupLevel)
+  const borderColor = riskColor(group.displayLevel)
 
   const ticker = group.positions[0]?.symbol
   const spotPrice = ticker ? stockPrices[ticker] : undefined
@@ -837,14 +958,14 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
             fontSize: '10px',
             fontWeight: 700,
             color: borderColor,
-            background: riskBg(group.groupLevel),
+            background: riskBg(group.displayLevel),
             border: `1px solid ${borderColor}44`,
             padding: '1px 6px',
             borderRadius: '6px',
             whiteSpace: 'nowrap' as const,
             flexShrink: 0,
           }}>
-            {riskLabel(group.groupLevel)}
+            {riskLabel(group.displayLevel)}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
@@ -860,7 +981,7 @@ function RiskListRow({ group, isSelected, onClick, isLast, showDateChip, stockPr
             {group.combinedPnl >= 0 ? '+' : ''}${fmt(group.combinedPnl)}
           </span>
         </div>
-        <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.groupLevel} />
+        <MiniProgressBar worstLegPnlPct={group.groupPnlPct} level={group.displayLevel} />
         {showDateChip && group.enteredAt !== '' && (
           <div style={{
             marginTop: '5px',
@@ -965,14 +1086,14 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
         <span style={{
           fontSize: '10px',
           fontWeight: 700,
-          color: riskColor(group.groupLevel),
-          background: riskBg(group.groupLevel),
-          border: `1px solid ${riskColor(group.groupLevel)}44`,
+          color: riskColor(group.displayLevel),
+          background: riskBg(group.displayLevel),
+          border: `1px solid ${riskColor(group.displayLevel)}44`,
           padding: '2px 8px',
           borderRadius: '6px',
           textTransform: 'uppercase' as const,
         }}>
-          {riskLabel(group.groupLevel)}
+          {riskLabel(group.displayLevel)}
         </span>
         {/* P&L + entry date flow inline right after the risk badge, same row to keep the header compact */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const }}>
@@ -1000,39 +1121,8 @@ function RightPanelHeader({ group }: { group: StrategyGroup }) {
 
 // ── Exit signals ──────────────────────────────────────────────────────────────
 
-interface SignalLine { key: string; level: 'green' | 'yellow' | 'red'; text: string }
-
-const LEVEL_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2 }
-
-/**
- * The backend sends take-profit / stop-loss / time-decay / IV-shift messages per
- * position.  Time and IV messages are identical across the legs of one trade, so
- * they are shown once; profit/loss messages differ per leg, so on a multi-leg
- * trade each is prefixed with its leg.
- */
-function buildSignalLines(group: StrategyGroup): SignalLine[] {
-  const multiLeg = group.positions.length > 1
-  const seen = new Set<string>()
-  const lines: SignalLine[] = []
-  for (const pos of group.positions) {
-    for (const sig of pos.signals ?? []) {
-      const perLeg = sig.type === 'pnl' && multiLeg
-      const dedupeKey = perLeg
-        ? `${pos.strike}-${pos.option_type}-${sig.type}-${sig.msg}`
-        : `${sig.type}-${sig.msg}`
-      if (seen.has(dedupeKey)) continue
-      seen.add(dedupeKey)
-      const prefix = perLeg ? `$${fmt(pos.strike, 0)} ${pos.option_type.toUpperCase()}: ` : ''
-      lines.push({ key: dedupeKey, level: sig.level, text: prefix + sig.msg })
-    }
-  }
-  return lines.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
-}
-
-const SIGNAL_TAG: Record<string, string> = { red: 'ACT NOW', yellow: 'WATCH', green: 'ON TRACK' }
-
 function ExitSignals({ group }: { group: StrategyGroup }) {
-  const lines = buildSignalLines(group)
+  const lines = group.signalLines
   if (lines.length === 0) return null
   return (
     <div
@@ -1050,7 +1140,7 @@ function ExitSignals({ group }: { group: StrategyGroup }) {
               color: riskColor(l.level), background: riskBg(l.level),
               border: `1px solid ${riskColor(l.level)}44`, borderRadius: '6px', padding: '2px 6px',
             }}>
-              {SIGNAL_TAG[l.level]}
+              {l.tag}
             </span>
             <span style={{ fontSize: '12px', color: C.text, lineHeight: 1.5 }}>{l.text}</span>
           </li>
@@ -1143,7 +1233,7 @@ function SortBar({
 
 // ── Main RiskMonitor ──────────────────────────────────────────────────────────
 
-export default function RiskMonitor({ refreshSignal }: { refreshSignal?: number }) {
+function RiskMonitorContent({ refreshSignal }: { refreshSignal?: number }) {
   const { isMobile } = useWindowSize()
 
   const [data, setData] = useState<PositionRisk[]>([])
@@ -1406,7 +1496,7 @@ export default function RiskMonitor({ refreshSignal }: { refreshSignal?: number 
             { label: 'Positions', value: String(data.length), color: C.text, bg: C.surface2, border: C.border },
             { label: '🔴 High Risk', value: String(redCount), color: redCount > 0 ? C.red : C.muted, bg: redCount > 0 ? '#2d0a0a' : C.surface2, border: redCount > 0 ? C.red + '33' : C.border },
             { label: '🟡 Watch', value: String(yellowCount), color: yellowCount > 0 ? C.yellow : C.muted, bg: yellowCount > 0 ? '#2a2000' : C.surface2, border: yellowCount > 0 ? C.yellow + '33' : C.border },
-            { label: '🟢 In the money', value: String(greenCount), color: greenCount > 0 ? C.green : C.muted, bg: greenCount > 0 ? '#0a2d14' : C.surface2, border: greenCount > 0 ? C.green + '33' : C.border },
+            { label: '🟢 Healthy', value: String(greenCount), color: greenCount > 0 ? C.green : C.muted, bg: greenCount > 0 ? '#0a2d14' : C.surface2, border: greenCount > 0 ? C.green + '33' : C.border },
           ] as const).map(p => (
             <div key={p.label} style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: '6px', padding: '6px 12px', whiteSpace: 'nowrap' }}>
               <div style={{ fontSize: '9px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '3px' }}>{p.label}</div>
@@ -1468,4 +1558,39 @@ export default function RiskMonitor({ refreshSignal }: { refreshSignal?: number 
       )}
     </div>
   )
+}
+
+// ── Enterprise gate ───────────────────────────────────────────────────────────
+
+function RiskMonitorLocked({ onUpgradeClick }: { onUpgradeClick?: () => void }) {
+  return (
+    <div
+      data-testid="risk-monitor-locked"
+      style={{ marginTop: '16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}
+    >
+      <span aria-hidden style={{ fontSize: '20px' }}>🔒</span>
+      <div style={{ flex: 1, minWidth: '200px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Risk Monitor is available on the Enterprise plan</div>
+        <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>Time decay, P&amp;L thresholds, volatility shifts and exit signals for every open trade.</div>
+      </div>
+      <button
+        onClick={() => onUpgradeClick?.()}
+        style={{ background: C.accent, border: 'none', borderRadius: '8px', color: '#fff', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+      >
+        Upgrade
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Risk Monitor is Enterprise-only (also enforced server-side on GET /positions/risk).
+ * While entitlements are still loading (null) nothing is rendered and nothing is
+ * fetched, so an Enterprise user never sees a flash of the locked card.
+ */
+export default function RiskMonitor({ refreshSignal, onUpgradeClick }: { refreshSignal?: number; onUpgradeClick?: () => void }) {
+  const { entitlements } = useEntitlements()
+  if (!entitlements) return null
+  if (!entitlements.features?.risk_monitor) return <RiskMonitorLocked onUpgradeClick={onUpgradeClick} />
+  return <RiskMonitorContent refreshSignal={refreshSignal} />
 }

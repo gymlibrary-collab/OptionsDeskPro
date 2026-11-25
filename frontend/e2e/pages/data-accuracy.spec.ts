@@ -21,7 +21,7 @@ import {
   MOCK_AI_SETTINGS,
   MOCK_OPTIONS_CHAIN,
   MOCK_PNL_HISTORY,
-  MOCK_ENTITLEMENTS_PRO,
+  MOCK_ENTITLEMENTS_ENTERPRISE,
 } from '../mock-data'
 
 const API = '**/api/**'
@@ -197,7 +197,7 @@ async function setupBaseRoutes(page: import('@playwright/test').Page) {
   await page.route(`${API}ai/settings`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AI_SETTINGS) }))
   await page.route(`${API}auth/entitlements`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_PRO) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_ENTITLEMENTS_ENTERPRISE) }))
   await page.route(`${API}options/chain/**`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_OPTIONS_CHAIN) }))
   await page.route(`${API}auth/pnl-history`, (route) =>
