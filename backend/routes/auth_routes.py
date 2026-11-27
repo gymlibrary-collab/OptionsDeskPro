@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from services.auth_utils import (
     verify_token,
+    verify_token_bootstrap,
     get_user_id,
     get_user_email,
     get_admin_email,
@@ -670,7 +671,7 @@ async def email_login(request: Request, body: EmailLoginRequest):
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 @router.post("/auth/login")
-async def on_login(request: Request, payload: dict = Depends(verify_token)):
+async def on_login(request: Request, payload: dict = Depends(verify_token_bootstrap)):
     """
     Retained for backward compatibility. Accepts the verified token payload from
     verify_token (cookie or Bearer header), runs _sync_profile, and returns the
@@ -740,7 +741,7 @@ async def refresh_token(body: RefreshRequest):
 # ── Logout ───────────────────────────────────────────────────────────────────
 
 @router.post("/auth/logout")
-async def on_logout(request: Request, payload: dict = Depends(verify_token)):
+async def on_logout(request: Request, payload: dict = Depends(verify_token_bootstrap)):
     """
     Calls Supabase sign_out to invalidate the server-side session, logs the
     logout event, and clears both auth cookies on the response.

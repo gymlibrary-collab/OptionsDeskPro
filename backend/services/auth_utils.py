@@ -64,6 +64,43 @@ def _is_deactivated(user_id: str) -> bool:
         return False
 
 
+# ── Profile-exists TTL cache (60 s, positive results only) ──────────────────
+# A valid Supabase login is not enough to use the API: the person must also have
+# been let in by the sign-in flow, which is what creates the user_profiles row
+# (after the whitelist / invite-only / maintenance checks). Only "exists" is
+# cached, so a brand-new user is not locked out for a minute after signing in.
+_profile_exists_cache_ts: dict[str, float] = {}
+_PROFILE_EXISTS_TTL = 60.0  # seconds
+
+
+def _has_access_profile(user_id: str, email: str) -> bool:
+    """
+    True if the user may call the API: they have a user_profiles row, are the
+    admin, or are an active platform_staff member (staff sign in directly with
+    Supabase and may never have had a subscriber profile).
+    Fail-open on a database error, consistent with _is_deactivated: every
+    handler needs the same database, so this adds no availability risk.
+    """
+    now = time.time()
+    if (now - _profile_exists_cache_ts.get(user_id, -1e9)) < _PROFILE_EXISTS_TTL:
+        return True
+    if email and email.strip().lower() == ADMIN_EMAIL.lower():
+        return True
+    try:
+        from services.db import get_supabase
+        sb = get_supabase()
+        prof = sb.table("user_profiles").select("id").eq("id", user_id).maybe_single().execute()
+        found = bool(prof and prof.data)
+        if not found:
+            staff = sb.table("platform_staff").select("id").eq("id", user_id).maybe_single().execute()
+            found = bool(staff and staff.data)
+        if found:
+            _profile_exists_cache_ts[user_id] = now
+        return found
+    except Exception:
+        return True
+
+
 def invalidate_deactivation_cache(user_id: str) -> None:
     """Force a fresh lookup on the next request for this user_id.
     Call this after deactivating or reactivating an account."""
@@ -209,6 +246,19 @@ def _set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
 
 
 async def verify_token(request: Request) -> dict:
+    """Authenticate the caller and require that sign-in has set them up (see _authenticate)."""
+    return await _authenticate(request, require_profile=True)
+
+
+async def verify_token_bootstrap(request: Request) -> dict:
+    """
+    Authenticate the caller WITHOUT requiring a user_profiles row. Only for the
+    sign-in endpoints that create the profile (POST /auth/login) and for logout.
+    """
+    return await _authenticate(request, require_profile=False)
+
+
+async def _authenticate(request: Request, require_profile: bool) -> dict:
     """
     FastAPI dependency. Reads the sb_access_token cookie (with a backward-
     compatible Authorization: Bearer fallback), performs a transparent proactive
@@ -248,13 +298,19 @@ async def verify_token(request: Request) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+        logger.info("verify_token: token rejected: %s", type(e).__name__)
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     # 5. Deactivation check — run on a worker thread (may hit DB on cache miss).
     #    Uses a 60 s in-process cache to avoid a DB round-trip per call.
     #    Fail-open: _is_deactivated() returns False on DB error.
     if await asyncio.to_thread(_is_deactivated, user.id):
         raise HTTPException(status_code=403, detail="Account suspended")
+
+    # 6. Profile check — a Supabase account created directly (bypassing the
+    #    backend sign-in flow and its whitelist / invite-only gate) has no profile.
+    if require_profile and not await asyncio.to_thread(_has_access_profile, user.id, user.email or ""):
+        raise HTTPException(status_code=401, detail="Account not set up. Please sign in again.")
 
     return {
         "sub": user.id,
